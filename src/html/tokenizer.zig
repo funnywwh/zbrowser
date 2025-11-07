@@ -1,5 +1,5 @@
 const std = @import("std");
-const string = @import("../utils/string.zig");
+const string = @import("string");
 
 /// HTML Token类型
 pub const TokenType = enum {
@@ -17,6 +17,7 @@ pub const TokenType = enum {
 pub const Token = struct {
     token_type: TokenType,
     data: Data,
+    allocator: ?std.mem.Allocator = null, // 用于释放内存
 
     pub const Data = union(TokenType) {
         doctype: DoctypeData,
@@ -40,6 +41,50 @@ pub const Token = struct {
         system_id: ?[]const u8,
         force_quirks: bool,
     };
+
+    /// 释放token占用的内存
+    pub fn deinit(self: *Token) void {
+        if (self.allocator) |alloc| {
+            switch (self.token_type) {
+                .start_tag, .end_tag, .self_closing_tag => {
+                    const tag_data = switch (self.token_type) {
+                        .start_tag => &self.data.start_tag,
+                        .end_tag => &self.data.end_tag,
+                        .self_closing_tag => &self.data.self_closing_tag,
+                        else => unreachable,
+                    };
+                    alloc.free(tag_data.name);
+                    var it = tag_data.attributes.iterator();
+                    while (it.next()) |entry| {
+                        alloc.free(entry.key_ptr.*);
+                        alloc.free(entry.value_ptr.*);
+                    }
+                    tag_data.attributes.deinit();
+                },
+                .text, .comment, .cdata => {
+                    const text_data = switch (self.token_type) {
+                        .text => self.data.text,
+                        .comment => self.data.comment,
+                        .cdata => self.data.cdata,
+                        else => unreachable,
+                    };
+                    alloc.free(text_data);
+                },
+                .doctype => {
+                    if (self.data.doctype.name) |name| {
+                        alloc.free(name);
+                    }
+                    if (self.data.doctype.public_id) |id| {
+                        alloc.free(id);
+                    }
+                    if (self.data.doctype.system_id) |id| {
+                        alloc.free(id);
+                    }
+                },
+                .eof => {},
+            }
+        }
+    }
 };
 
 /// HTML词法分析器
@@ -64,6 +109,7 @@ pub const Tokenizer = struct {
             return Token{
                 .token_type = .eof,
                 .data = .{ .eof = {} },
+                .allocator = null,
             };
         }
 
@@ -74,6 +120,7 @@ pub const Tokenizer = struct {
             return Token{
                 .token_type = .eof,
                 .data = .{ .eof = {} },
+                .allocator = null,
             };
         }
 
@@ -182,16 +229,19 @@ pub const Tokenizer = struct {
             return Token{
                 .token_type = .end_tag,
                 .data = .{ .end_tag = tag_data },
+                .allocator = self.allocator,
             };
         } else if (is_self_closing) {
             return Token{
                 .token_type = .self_closing_tag,
                 .data = .{ .self_closing_tag = tag_data },
+                .allocator = self.allocator,
             };
         } else {
             return Token{
                 .token_type = .start_tag,
                 .data = .{ .start_tag = tag_data },
+                .allocator = self.allocator,
             };
         }
     }
@@ -251,6 +301,7 @@ pub const Tokenizer = struct {
         return Token{
             .token_type = .text,
             .data = .{ .text = text },
+            .allocator = self.allocator,
         };
     }
 
@@ -267,6 +318,7 @@ pub const Tokenizer = struct {
                     return Token{
                         .token_type = .comment,
                         .data = .{ .comment = comment },
+                        .allocator = self.allocator,
                     };
                 }
             }
@@ -288,6 +340,7 @@ pub const Tokenizer = struct {
                 return Token{
                     .token_type = .cdata,
                     .data = .{ .cdata = cdata },
+                    .allocator = self.allocator,
                 };
             }
             self.pos += 1;
@@ -336,6 +389,7 @@ pub const Tokenizer = struct {
                     .force_quirks = force_quirks,
                 },
             },
+            .allocator = self.allocator,
         };
     }
 };

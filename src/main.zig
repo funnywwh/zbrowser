@@ -1,6 +1,6 @@
 const std = @import("std");
-const html = @import("html/parser.zig");
-const dom = @import("html/dom.zig");
+const html = @import("html");
+const dom = @import("dom");
 const allocator_utils = @import("utils/allocator.zig");
 
 /// Headless浏览器主入口

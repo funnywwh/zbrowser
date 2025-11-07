@@ -1,6 +1,6 @@
 const std = @import("std");
-const html = @import("../../src/html/parser.zig");
-const dom = @import("../../src/html/dom.zig");
+const html = @import("html");
+const dom = @import("dom");
 
 test "parse simple HTML" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -9,16 +9,30 @@ test "parse simple HTML" {
 
     const html_content = "<html><body><p>Hello</p></body></html>";
     const doc = try dom.Document.init(allocator);
-    defer doc.deinit();
+    const doc_ptr = try allocator.create(dom.Document);
+    defer {
+        // 先手动释放所有节点（因为使用GPA而非Arena）
+        // 注意：必须使用doc_ptr，因为parser使用的是doc_ptr
+        freeAllNodes(allocator, &doc_ptr.node);
+        // 清空指针
+        doc_ptr.node.first_child = null;
+        doc_ptr.node.last_child = null;
+        // 释放doc_ptr
+        allocator.destroy(doc_ptr);
+    }
+    doc_ptr.* = doc;
 
-    var parser = html.Parser.init(html_content, doc, allocator);
+    var parser = html.Parser.init(html_content, doc_ptr, allocator);
     defer parser.deinit();
     try parser.parse();
 
-    const html_elem = doc.getDocumentElement();
+    // 注意：parser创建的节点已经被添加到doc_ptr的DOM树中
+    // 这些节点会在freeAllNodes中被释放
+
+    const html_elem = doc_ptr.getDocumentElement();
     try std.testing.expect(html_elem != null);
 
-    const body = doc.getBody();
+    const body = doc_ptr.getBody();
     try std.testing.expect(body != null);
 }
 
@@ -29,20 +43,36 @@ test "parse HTML with attributes" {
 
     const html_content = "<div class='container' id='main'></div>";
     const doc = try dom.Document.init(allocator);
-    defer doc.deinit();
+    const doc_ptr = try allocator.create(dom.Document);
+    defer {
+        // 先手动释放所有节点（因为使用GPA而非Arena）
+        // 注意：必须使用doc_ptr，因为parser使用的是doc_ptr
+        freeAllNodes(allocator, &doc_ptr.node);
+        // 清空指针
+        doc_ptr.node.first_child = null;
+        doc_ptr.node.last_child = null;
+        // 释放doc_ptr
+        allocator.destroy(doc_ptr);
+    }
+    doc_ptr.* = doc;
 
-    var parser = html.Parser.init(html_content, doc, allocator);
+    var parser = html.Parser.init(html_content, doc_ptr, allocator);
     defer parser.deinit();
     try parser.parse();
 
-    const body = doc.getBody();
+    // 注意：parser创建的节点已经被添加到doc_ptr的DOM树中
+    // 这些节点会在freeAllNodes中被释放
+
+    const body = doc_ptr.getBody();
     try std.testing.expect(body != null);
 
     if (body.?.first_child) |div| {
         if (div.asElement()) |elem| {
             try std.testing.expect(std.mem.eql(u8, elem.tag_name, "div"));
-            try std.testing.expect(elem.getAttribute("class").? != null);
-            try std.testing.expect(elem.getAttribute("id").? != null);
+            const class_attr = elem.getAttribute("class");
+            try std.testing.expect(class_attr != null);
+            const id_attr = elem.getAttribute("id");
+            try std.testing.expect(id_attr != null);
         }
     }
 }
@@ -54,13 +84,27 @@ test "parse HTML with text content" {
 
     const html_content = "<p>Hello, World!</p>";
     const doc = try dom.Document.init(allocator);
-    defer doc.deinit();
+    const doc_ptr = try allocator.create(dom.Document);
+    defer {
+        // 先手动释放所有节点（因为使用GPA而非Arena）
+        // 注意：必须使用doc_ptr，因为parser使用的是doc_ptr
+        freeAllNodes(allocator, &doc_ptr.node);
+        // 清空指针
+        doc_ptr.node.first_child = null;
+        doc_ptr.node.last_child = null;
+        // 释放doc_ptr
+        allocator.destroy(doc_ptr);
+    }
+    doc_ptr.* = doc;
 
-    var parser = html.Parser.init(html_content, doc, allocator);
+    var parser = html.Parser.init(html_content, doc_ptr, allocator);
     defer parser.deinit();
     try parser.parse();
 
-    const body = doc.getBody();
+    // 注意：parser创建的节点已经被添加到doc_ptr的DOM树中
+    // 这些节点会在freeAllNodes中被释放
+
+    const body = doc_ptr.getBody();
     try std.testing.expect(body != null);
 
     if (body.?.first_child) |p| {
@@ -78,13 +122,27 @@ test "parse HTML with comments" {
 
     const html_content = "<!-- This is a comment --><p>Text</p>";
     const doc = try dom.Document.init(allocator);
-    defer doc.deinit();
+    const doc_ptr = try allocator.create(dom.Document);
+    defer {
+        // 先手动释放所有节点（因为使用GPA而非Arena）
+        // 注意：必须使用doc_ptr，因为parser使用的是doc_ptr
+        freeAllNodes(allocator, &doc_ptr.node);
+        // 清空指针
+        doc_ptr.node.first_child = null;
+        doc_ptr.node.last_child = null;
+        // 释放doc_ptr
+        allocator.destroy(doc_ptr);
+    }
+    doc_ptr.* = doc;
 
-    var parser = html.Parser.init(html_content, doc, allocator);
+    var parser = html.Parser.init(html_content, doc_ptr, allocator);
     defer parser.deinit();
     try parser.parse();
 
-    const body = doc.getBody();
+    // 注意：parser创建的节点已经被添加到doc_ptr的DOM树中
+    // 这些节点会在freeAllNodes中被释放
+
+    const body = doc_ptr.getBody();
     try std.testing.expect(body != null);
 }
 
@@ -95,12 +153,422 @@ test "parse self-closing tags" {
 
     const html_content = "<br/><img src='test.jpg'/>";
     const doc = try dom.Document.init(allocator);
-    defer doc.deinit();
+    const doc_ptr = try allocator.create(dom.Document);
+    defer {
+        // 先手动释放所有节点（因为使用GPA而非Arena）
+        // 注意：必须使用doc_ptr，因为parser使用的是doc_ptr
+        freeAllNodes(allocator, &doc_ptr.node);
+        // 清空指针
+        doc_ptr.node.first_child = null;
+        doc_ptr.node.last_child = null;
+        // 释放doc_ptr
+        allocator.destroy(doc_ptr);
+    }
+    doc_ptr.* = doc;
 
-    var parser = html.Parser.init(html_content, doc, allocator);
+    var parser = html.Parser.init(html_content, doc_ptr, allocator);
     defer parser.deinit();
     try parser.parse();
 
-    const body = doc.getBody();
+    // 注意：parser创建的节点已经被添加到doc_ptr的DOM树中
+    // 这些节点会在freeAllNodes中被释放
+
+    const body = doc_ptr.getBody();
     try std.testing.expect(body != null);
+}
+
+test "parse complex HTML with multiple attributes" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const html_content =
+        \\<html lang="zh-CN">
+        \\<head>
+        \\  <meta charset="UTF-8">
+        \\  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        \\  <title>Complex HTML Test</title>
+        \\  <link rel="stylesheet" href="style.css" type="text/css">
+        \\</head>
+        \\<body class="main-body" id="page-body">
+        \\  <div class="container" id="main-container" data-role="container">
+        \\    <header class="site-header">
+        \\      <h1 class="title" id="main-title">Welcome</h1>
+        \\      <nav class="navigation" role="navigation">
+        \\        <ul class="nav-list">
+        \\          <li class="nav-item"><a href="/home" class="nav-link" target="_blank">Home</a></li>
+        \\          <li class="nav-item"><a href="/about" class="nav-link active">About</a></li>
+        \\          <li class="nav-item"><a href="/contact" class="nav-link">Contact</a></li>
+        \\        </ul>
+        \\      </nav>
+        \\    </header>
+        \\    <main class="content" id="main-content">
+        \\      <article class="article" data-id="123" data-author="John Doe">
+        \\        <h2 class="article-title">Article Title</h2>
+        \\        <p class="article-text">This is a paragraph with <strong class="bold-text">bold</strong> and <em class="italic-text">italic</em> text.</p>
+        \\        <img src="image.jpg" alt="Description" width="800" height="600" class="article-image">
+        \\        <div class="nested-div" style="color: red; font-size: 16px;">
+        \\          <span class="inline-span" title="Tooltip text">Nested content</span>
+        \\        </div>
+        \\      </article>
+        \\      <section class="sidebar" id="sidebar">
+        \\        <aside class="widget" data-widget-type="search">
+        \\          <form action="/search" method="GET" class="search-form">
+        \\            <input type="text" name="q" placeholder="Search..." class="search-input" required>
+        \\            <button type="submit" class="search-button" disabled>Search</button>
+        \\          </form>
+        \\        </aside>
+        \\      </section>
+        \\    </main>
+        \\    <footer class="site-footer" id="page-footer">
+        \\      <p class="copyright">&copy; 2024 Company Name</p>
+        \\    </footer>
+        \\  </div>
+        \\  <script src="app.js" type="text/javascript" defer></script>
+        \\</body>
+        \\</html>
+    ;
+
+    const doc = try dom.Document.init(allocator);
+    const doc_ptr = try allocator.create(dom.Document);
+    defer {
+        // 先手动释放所有节点（因为使用GPA而非Arena）
+        // 注意：必须使用doc_ptr，因为parser使用的是doc_ptr
+        freeAllNodes(allocator, &doc_ptr.node);
+        // 清空指针
+        doc_ptr.node.first_child = null;
+        doc_ptr.node.last_child = null;
+        // 释放doc_ptr
+        allocator.destroy(doc_ptr);
+    }
+    doc_ptr.* = doc;
+
+    var parser = html.Parser.init(html_content, doc_ptr, allocator);
+    defer parser.deinit();
+    try parser.parse();
+
+    // 注意：parser创建的节点已经被添加到doc_ptr的DOM树中
+    // 这些节点会在freeAllNodes中被释放
+
+    // 验证基本结构
+    const html_elem = doc_ptr.getDocumentElement();
+    try std.testing.expect(html_elem != null);
+    if (html_elem.?.asElement()) |elem| {
+        try std.testing.expect(std.mem.eql(u8, elem.tag_name, "html"));
+        const lang = elem.getAttribute("lang");
+        try std.testing.expect(lang != null);
+        try std.testing.expect(std.mem.eql(u8, lang.?, "zh-CN"));
+    }
+
+    // 验证head和meta标签
+    const head = doc_ptr.getHead();
+    try std.testing.expect(head != null);
+    if (head.?.first_child) |meta| {
+        if (meta.asElement()) |elem| {
+            if (std.mem.eql(u8, elem.tag_name, "meta")) {
+                const charset = elem.getAttribute("charset");
+                try std.testing.expect(charset != null);
+                try std.testing.expect(std.mem.eql(u8, charset.?, "UTF-8"));
+            }
+        }
+    }
+
+    // 验证body属性
+    const body = doc_ptr.getBody();
+    try std.testing.expect(body != null);
+    if (body.?.asElement()) |elem| {
+        try std.testing.expect(std.mem.eql(u8, elem.tag_name, "body"));
+        const class_attr = elem.getAttribute("class");
+        try std.testing.expect(class_attr != null);
+        try std.testing.expect(std.mem.eql(u8, class_attr.?, "main-body"));
+        const id_attr = elem.getAttribute("id");
+        try std.testing.expect(id_attr != null);
+        try std.testing.expect(std.mem.eql(u8, id_attr.?, "page-body"));
+    }
+
+    // 验证嵌套div和data属性
+    if (body.?.first_child) |div| {
+        if (div.asElement()) |elem| {
+            if (std.mem.eql(u8, elem.tag_name, "div")) {
+                const data_role = elem.getAttribute("data-role");
+                try std.testing.expect(data_role != null);
+                try std.testing.expect(std.mem.eql(u8, data_role.?, "container"));
+            }
+        }
+    }
+
+    // 验证链接属性
+    var current = body.?.first_child;
+    var found_link = false;
+    while (current) |node| {
+        if (node.node_type == .element) {
+            if (node.asElement()) |elem| {
+                if (std.mem.eql(u8, elem.tag_name, "a")) {
+                    const href = elem.getAttribute("href");
+                    const target = elem.getAttribute("target");
+                    if (href != null and std.mem.eql(u8, href.?, "/home")) {
+                        try std.testing.expect(target != null);
+                        try std.testing.expect(std.mem.eql(u8, target.?, "_blank"));
+                        found_link = true;
+                        break;
+                    }
+                }
+            }
+        }
+        // 递归查找
+        if (node.first_child) |child| {
+            current = child;
+            continue;
+        }
+        if (node.next_sibling) |sibling| {
+            current = sibling;
+            continue;
+        }
+        // 回溯
+        var parent = node.parent;
+        while (parent) |p| {
+            if (p.next_sibling) |sibling| {
+                current = sibling;
+                break;
+            }
+            parent = p.parent;
+        } else {
+            break;
+        }
+    }
+    try std.testing.expect(found_link);
+
+    // 验证图片属性
+    var img_found = false;
+    current = body.?.first_child;
+    while (current) |node| {
+        if (node.node_type == .element) {
+            if (node.asElement()) |elem| {
+                if (std.mem.eql(u8, elem.tag_name, "img")) {
+                    const src = elem.getAttribute("src");
+                    const alt = elem.getAttribute("alt");
+                    const width = elem.getAttribute("width");
+                    const height = elem.getAttribute("height");
+                    try std.testing.expect(src != null);
+                    try std.testing.expect(std.mem.eql(u8, src.?, "image.jpg"));
+                    try std.testing.expect(alt != null);
+                    try std.testing.expect(width != null);
+                    try std.testing.expect(std.mem.eql(u8, width.?, "800"));
+                    try std.testing.expect(height != null);
+                    try std.testing.expect(std.mem.eql(u8, height.?, "600"));
+                    img_found = true;
+                    break;
+                }
+            }
+        }
+        if (node.first_child) |child| {
+            current = child;
+            continue;
+        }
+        if (node.next_sibling) |sibling| {
+            current = sibling;
+            continue;
+        }
+        var parent = node.parent;
+        while (parent) |p| {
+            if (p.next_sibling) |sibling| {
+                current = sibling;
+                break;
+            }
+            parent = p.parent;
+        } else {
+            break;
+        }
+    }
+    try std.testing.expect(img_found);
+
+    // 验证表单输入属性
+    var input_found = false;
+    current = body.?.first_child;
+    while (current) |node| {
+        if (node.node_type == .element) {
+            if (node.asElement()) |elem| {
+                if (std.mem.eql(u8, elem.tag_name, "input")) {
+                    const input_type = elem.getAttribute("type");
+                    const name = elem.getAttribute("name");
+                    const placeholder = elem.getAttribute("placeholder");
+                    const required = elem.hasAttribute("required");
+                    try std.testing.expect(input_type != null);
+                    try std.testing.expect(std.mem.eql(u8, input_type.?, "text"));
+                    try std.testing.expect(name != null);
+                    try std.testing.expect(std.mem.eql(u8, name.?, "q"));
+                    try std.testing.expect(placeholder != null);
+                    try std.testing.expect(required);
+                    input_found = true;
+                    break;
+                }
+            }
+        }
+        if (node.first_child) |child| {
+            current = child;
+            continue;
+        }
+        if (node.next_sibling) |sibling| {
+            current = sibling;
+            continue;
+        }
+        var parent = node.parent;
+        while (parent) |p| {
+            if (p.next_sibling) |sibling| {
+                current = sibling;
+                break;
+            }
+            parent = p.parent;
+        } else {
+            break;
+        }
+    }
+    try std.testing.expect(input_found);
+}
+
+test "parse HTML with special attribute values" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const html_content =
+        \\<div class="container" id="test-id" data-value="123" data-json='{"key":"value"}' style="color: red; background: blue;">
+        \\  <input type="text" value="test value" placeholder="Enter text..." disabled readonly>
+        \\  <a href="https://example.com?q=test&page=1" target="_blank" rel="noopener noreferrer">Link</a>
+        \\  <img src="image.png" alt="Image &amp; Description" title="Tooltip &quot;text&quot;">
+        \\  <button type="submit" form="form1" formaction="/submit" formmethod="POST">Submit</button>
+        \\</div>
+    ;
+
+    const doc = try dom.Document.init(allocator);
+    const doc_ptr = try allocator.create(dom.Document);
+    defer {
+        // 先手动释放所有节点（因为使用GPA而非Arena）
+        // 注意：必须使用doc_ptr，因为parser使用的是doc_ptr
+        freeAllNodes(allocator, &doc_ptr.node);
+        // 清空指针
+        doc_ptr.node.first_child = null;
+        doc_ptr.node.last_child = null;
+        // 释放doc_ptr
+        allocator.destroy(doc_ptr);
+    }
+    doc_ptr.* = doc;
+
+    var parser = html.Parser.init(html_content, doc_ptr, allocator);
+    defer parser.deinit();
+    try parser.parse();
+
+    // 注意：parser创建的节点已经被添加到doc_ptr的DOM树中
+    // 这些节点会在freeAllNodes中被释放
+
+    const body = doc_ptr.getBody();
+    try std.testing.expect(body != null);
+
+    if (body.?.first_child) |div| {
+        if (div.asElement()) |elem| {
+            // 验证data-json属性（包含JSON）
+            const data_json = elem.getAttribute("data-json");
+            try std.testing.expect(data_json != null);
+            try std.testing.expect(std.mem.indexOf(u8, data_json.?, "key") != null);
+
+            // 验证style属性（包含分号和空格）
+            const style = elem.getAttribute("style");
+            try std.testing.expect(style != null);
+            try std.testing.expect(std.mem.indexOf(u8, style.?, "color: red") != null);
+        }
+
+        // 验证input的多个属性
+        if (div.first_child) |input| {
+            if (input.asElement()) |elem| {
+                if (std.mem.eql(u8, elem.tag_name, "input")) {
+                    const value = elem.getAttribute("value");
+                    try std.testing.expect(value != null);
+                    try std.testing.expect(std.mem.eql(u8, value.?, "test value"));
+                    try std.testing.expect(elem.hasAttribute("disabled"));
+                    try std.testing.expect(elem.hasAttribute("readonly"));
+                }
+            }
+        }
+
+        // 验证链接的复杂URL
+        var current = div.first_child;
+        while (current) |node| {
+            if (node.asElement()) |elem| {
+                if (std.mem.eql(u8, elem.tag_name, "a")) {
+                    const href = elem.getAttribute("href");
+                    try std.testing.expect(href != null);
+                    try std.testing.expect(std.mem.indexOf(u8, href.?, "example.com") != null);
+                    try std.testing.expect(std.mem.indexOf(u8, href.?, "q=test") != null);
+                    const rel = elem.getAttribute("rel");
+                    try std.testing.expect(rel != null);
+                    try std.testing.expect(std.mem.indexOf(u8, rel.?, "noopener") != null);
+                    break;
+                }
+            }
+            current = node.next_sibling;
+        }
+    }
+}
+
+// 辅助函数：释放所有节点（递归深度优先）
+fn freeAllNodes(allocator: std.mem.Allocator, node: *dom.Node) void {
+    // 先释放所有子节点
+    var current = node.first_child;
+    while (current) |child| {
+        // 保存下一个兄弟节点（在释放前保存，因为释放会修改指针）
+        const next = child.next_sibling;
+
+        // 递归释放子节点及其所有后代
+        freeAllNodes(allocator, child);
+
+        // 释放子节点本身
+        freeNode(allocator, child);
+
+        // 移动到下一个兄弟节点
+        current = next;
+    }
+
+    // 清空子节点指针
+    node.first_child = null;
+    node.last_child = null;
+}
+
+// 辅助函数：释放单个节点
+fn freeNode(allocator: std.mem.Allocator, node: *dom.Node) void {
+    switch (node.node_type) {
+        .element => {
+            if (node.asElement()) |elem| {
+                // 释放tag_name
+                allocator.free(elem.tag_name);
+
+                // 释放所有属性
+                var it = elem.attributes.iterator();
+                while (it.next()) |entry| {
+                    allocator.free(entry.key_ptr.*);
+                    allocator.free(entry.value_ptr.*);
+                }
+                elem.attributes.deinit();
+            }
+        },
+        .text => {
+            if (node.asText()) |text| {
+                allocator.free(text);
+            }
+        },
+        .comment => {
+            if (node.node_type == .comment) {
+                allocator.free(node.data.comment);
+            }
+        },
+        .document => {
+            // document节点不需要释放，它是值类型
+            return;
+        },
+        else => {},
+    }
+
+    // 释放节点本身（除了document节点）
+    if (node.node_type != .document) {
+        allocator.destroy(node);
+    }
 }

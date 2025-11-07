@@ -1,7 +1,7 @@
 const std = @import("std");
-const dom = @import("dom.zig");
-const tokenizer = @import("tokenizer.zig");
-const string = @import("../utils/string.zig");
+const dom = @import("dom");
+const tokenizer = @import("tokenizer");
+const string = @import("string");
 
 /// HTML5解析器
 pub const Parser = struct {
@@ -45,7 +45,7 @@ pub const Parser = struct {
             .tokenizer = tokenizer.Tokenizer.init(input, allocator),
             .document = document,
             .allocator = allocator,
-            .open_elements = std.ArrayList(*dom.Node){},
+            .open_elements = std.ArrayList(*dom.Node).init(allocator),
             .open_elements_allocator = allocator,
         };
     }
@@ -54,7 +54,8 @@ pub const Parser = struct {
     pub fn parse(self: *Self) !void {
         while (true) {
             const token_opt = try self.tokenizer.next();
-            const token = token_opt orelse break;
+            var token = token_opt orelse break;
+            defer token.deinit();
 
             if (token.token_type == .eof) {
                 break;
@@ -109,13 +110,13 @@ pub const Parser = struct {
                 if (std.mem.eql(u8, tok.data.start_tag.name, "html")) {
                     const html_node = try self.createElementNode(tok.data.start_tag);
                     try self.document.node.appendChild(html_node, self.allocator);
-                    try self.open_elements.append(self.open_elements_allocator, html_node);
+                    try self.open_elements.append(html_node);
                     self.insertion_mode = .before_head;
                 } else {
                     // 隐式创建html元素
                     const html_node = try self.createElement("html");
                     try self.document.node.appendChild(html_node, self.allocator);
-                    try self.open_elements.append(self.open_elements_allocator, html_node);
+                    try self.open_elements.append(html_node);
                     self.insertion_mode = .before_head;
                     try self.handleBeforeHead(tok);
                 }
@@ -124,7 +125,7 @@ pub const Parser = struct {
                 // 隐式创建html元素
                 const html_node = try self.createElement("html");
                 try self.document.node.appendChild(html_node, self.allocator);
-                try self.open_elements.append(self.open_elements_allocator, html_node);
+                try self.open_elements.append(html_node);
                 self.insertion_mode = .before_head;
                 try self.handleBeforeHead(tok);
             },
@@ -141,13 +142,13 @@ pub const Parser = struct {
                 if (std.mem.eql(u8, tok.data.start_tag.name, "head")) {
                     const head_node = try self.createElementNode(tok.data.start_tag);
                     try self.currentNode().appendChild(head_node, self.allocator);
-                    try self.open_elements.append(self.open_elements_allocator, head_node);
+                    try self.open_elements.append(head_node);
                     self.insertion_mode = .in_head;
                 } else {
                     // 隐式创建head元素
                     const head_node = try self.createElement("head");
                     try self.currentNode().appendChild(head_node, self.allocator);
-                    try self.open_elements.append(self.open_elements_allocator, head_node);
+                    try self.open_elements.append(head_node);
                     self.insertion_mode = .in_head;
                     try self.handleInHead(tok);
                 }
@@ -161,7 +162,7 @@ pub const Parser = struct {
                     // 隐式创建head元素
                     const head_node = try self.createElement("head");
                     try self.currentNode().appendChild(head_node, self.allocator);
-                    try self.open_elements.append(self.open_elements_allocator, head_node);
+                    try self.open_elements.append(head_node);
                     self.insertion_mode = .in_head;
                     try self.handleInHead(tok);
                 }
@@ -170,7 +171,7 @@ pub const Parser = struct {
                 // 隐式创建head元素
                 const head_node = try self.createElement("head");
                 try self.currentNode().appendChild(head_node, self.allocator);
-                try self.open_elements.append(self.open_elements_allocator, head_node);
+                try self.open_elements.append(head_node);
                 self.insertion_mode = .in_head;
                 try self.handleInHead(tok);
             },
@@ -199,7 +200,7 @@ pub const Parser = struct {
                         std.mem.eql(u8, tok.data.start_tag.name, "script") or
                         std.mem.eql(u8, tok.data.start_tag.name, "title"))
                     {
-                        try self.open_elements.append(self.open_elements_allocator, node);
+                        try self.open_elements.append(node);
                         self.insertion_mode = .text;
                     }
                 } else {
@@ -236,7 +237,7 @@ pub const Parser = struct {
                 if (std.mem.eql(u8, tok.data.start_tag.name, "body")) {
                     const body_node = try self.createElementNode(tok.data.start_tag);
                     try self.currentNode().appendChild(body_node, self.allocator);
-                    try self.open_elements.append(self.open_elements_allocator, body_node);
+                    try self.open_elements.append(body_node);
                     self.insertion_mode = .in_body;
                 } else if (std.mem.eql(u8, tok.data.start_tag.name, "html")) {
                     // 错误：嵌套html标签
@@ -244,7 +245,7 @@ pub const Parser = struct {
                     // 隐式创建body元素
                     const body_node = try self.createElement("body");
                     try self.currentNode().appendChild(body_node, self.allocator);
-                    try self.open_elements.append(self.open_elements_allocator, body_node);
+                    try self.open_elements.append(body_node);
                     self.insertion_mode = .in_body;
                     try self.handleInBody(tok);
                 }
@@ -257,7 +258,7 @@ pub const Parser = struct {
                     // 隐式创建body元素
                     const body_node = try self.createElement("body");
                     try self.currentNode().appendChild(body_node, self.allocator);
-                    try self.open_elements.append(self.open_elements_allocator, body_node);
+                    try self.open_elements.append(body_node);
                     self.insertion_mode = .in_body;
                     try self.handleInBody(tok);
                 }
@@ -266,7 +267,7 @@ pub const Parser = struct {
                 // 隐式创建body元素
                 const body_node = try self.createElement("body");
                 try self.currentNode().appendChild(body_node, self.allocator);
-                try self.open_elements.append(self.open_elements_allocator, body_node);
+                try self.open_elements.append(body_node);
                 self.insertion_mode = .in_body;
                 try self.handleInBody(tok);
             },
@@ -290,12 +291,12 @@ pub const Parser = struct {
                 if (std.mem.eql(u8, tag_name, "script")) {
                     const script_node = try self.createElementNode(tok.data.start_tag);
                     try self.currentNode().appendChild(script_node, self.allocator);
-                    try self.open_elements.append(self.open_elements_allocator, script_node);
+                    try self.open_elements.append(script_node);
                     self.insertion_mode = .text;
                 } else if (std.mem.eql(u8, tag_name, "style")) {
                     const style_node = try self.createElementNode(tok.data.start_tag);
                     try self.currentNode().appendChild(style_node, self.allocator);
-                    try self.open_elements.append(self.open_elements_allocator, style_node);
+                    try self.open_elements.append(style_node);
                     self.insertion_mode = .text;
                 } else if (isVoidElement(tag_name)) {
                     // 自闭合元素
@@ -304,7 +305,7 @@ pub const Parser = struct {
                 } else {
                     const node = try self.createElementNode(tok.data.start_tag);
                     try self.currentNode().appendChild(node, self.allocator);
-                    try self.open_elements.append(self.open_elements_allocator, node);
+                    try self.open_elements.append(node);
                 }
             },
             .end_tag => {
@@ -458,6 +459,6 @@ pub const Parser = struct {
     }
 
     pub fn deinit(self: *Self) void {
-        self.open_elements.deinit(self.open_elements_allocator);
+        self.open_elements.deinit();
     }
 };
