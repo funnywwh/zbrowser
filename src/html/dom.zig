@@ -205,6 +205,228 @@ pub const Document = struct {
         return html_elem.querySelector("body");
     }
 
+    /// 查找单个元素（通过标签名）
+    ///
+    /// 参数:
+    ///   - tag_name: 标签名
+    ///
+    /// 返回:
+    ///   - 找到的第一个元素或null
+    ///
+    /// 示例:
+    /// ```zig
+    /// const div = doc.querySelector("div");
+    /// ```
+    pub fn querySelector(self: *Document, tag_name: []const u8) ?*Node {
+        return self.node.querySelector(tag_name);
+    }
+
+    /// 查找所有匹配的元素（通过标签名）
+    ///
+    /// 参数:
+    ///   - tag_name: 标签名
+    ///   - allocator: 内存分配器
+    ///
+    /// 返回:
+    ///   - 匹配的元素数组
+    ///
+    /// 示例:
+    /// ```zig
+    /// const divs = try doc.querySelectorAll("div", allocator);
+    /// defer allocator.free(divs);
+    /// ```
+    pub fn querySelectorAll(self: *Document, tag_name: []const u8, allocator: std.mem.Allocator) ![]*Node {
+        var results = std.ArrayList(*Node).init(allocator);
+        errdefer results.deinit();
+
+        var current = self.node.first_child;
+        while (current) |node| {
+            if (node.node_type == .element) {
+                if (node.asElement()) |elem| {
+                    if (std.mem.eql(u8, elem.tag_name, tag_name)) {
+                        try results.append(node);
+                    }
+                }
+            }
+            // 递归查找子节点
+            if (node.first_child) |child| {
+                const child_results = try self._querySelectorAllFromNode(child, tag_name, allocator);
+                defer allocator.free(child_results);
+                try results.appendSlice(child_results);
+            }
+            current = node.next_sibling;
+        }
+
+        return try results.toOwnedSlice();
+    }
+
+    /// 通过ID查找元素
+    ///
+    /// 参数:
+    ///   - id: 元素ID
+    ///
+    /// 返回:
+    ///   - 找到的元素或null
+    ///
+    /// 示例:
+    /// ```zig
+    /// const elem = doc.getElementById("myId");
+    /// ```
+    pub fn getElementById(self: *Document, id: []const u8) ?*Node {
+        return self._findElementById(&self.node, id);
+    }
+
+    /// 通过标签名查找所有元素
+    ///
+    /// 参数:
+    ///   - tag_name: 标签名
+    ///   - allocator: 内存分配器
+    ///
+    /// 返回:
+    ///   - 匹配的元素数组
+    ///
+    /// 示例:
+    /// ```zig
+    /// const divs = try doc.getElementsByTagName("div", allocator);
+    /// defer allocator.free(divs);
+    /// ```
+    pub fn getElementsByTagName(self: *Document, tag_name: []const u8, allocator: std.mem.Allocator) ![]*Node {
+        return self.querySelectorAll(tag_name, allocator);
+    }
+
+    /// 通过类名查找所有元素
+    ///
+    /// 参数:
+    ///   - class_name: 类名
+    ///   - allocator: 内存分配器
+    ///
+    /// 返回:
+    ///   - 匹配的元素数组
+    ///
+    /// 示例:
+    /// ```zig
+    /// const items = try doc.getElementsByClassName("item", allocator);
+    /// defer allocator.free(items);
+    /// ```
+    pub fn getElementsByClassName(self: *Document, class_name: []const u8, allocator: std.mem.Allocator) ![]*Node {
+        var results = std.ArrayList(*Node).init(allocator);
+        errdefer results.deinit();
+
+        var current = self.node.first_child;
+        while (current) |node| {
+            if (node.node_type == .element) {
+                if (node.asElement()) |elem| {
+                    const classes = elem.getClasses(allocator) catch {
+                        current = node.next_sibling;
+                        continue;
+                    };
+                    defer allocator.free(classes);
+
+                    for (classes) |cls| {
+                        if (std.mem.eql(u8, cls, class_name)) {
+                            try results.append(node);
+                            break;
+                        }
+                    }
+                }
+            }
+            // 递归查找子节点
+            if (node.first_child) |child| {
+                const child_results = try self._getElementsByClassNameFromNode(child, class_name, allocator);
+                defer allocator.free(child_results);
+                try results.appendSlice(child_results);
+            }
+            current = node.next_sibling;
+        }
+
+        return try results.toOwnedSlice();
+    }
+
+    // 内部辅助方法：从指定节点开始递归查找
+    fn _querySelectorAllFromNode(self: *Document, node: *Node, tag_name: []const u8, allocator: std.mem.Allocator) ![]*Node {
+        var results = std.ArrayList(*Node).init(allocator);
+        errdefer results.deinit();
+
+        var current: ?*Node = node;
+        while (current) |n| {
+            if (n.node_type == .element) {
+                if (n.asElement()) |elem| {
+                    if (std.mem.eql(u8, elem.tag_name, tag_name)) {
+                        try results.append(n);
+                    }
+                }
+            }
+            // 递归查找子节点
+            if (n.first_child) |child| {
+                const child_results = try self._querySelectorAllFromNode(child, tag_name, allocator);
+                defer allocator.free(child_results);
+                try results.appendSlice(child_results);
+            }
+            current = n.next_sibling;
+        }
+
+        return try results.toOwnedSlice();
+    }
+
+    // 内部辅助方法：从指定节点开始递归查找类名
+    fn _getElementsByClassNameFromNode(self: *Document, node: *Node, class_name: []const u8, allocator: std.mem.Allocator) ![]*Node {
+        var results = std.ArrayList(*Node).init(allocator);
+        errdefer results.deinit();
+
+        var current: ?*Node = node;
+        while (current) |n| {
+            if (n.node_type == .element) {
+                if (n.asElement()) |elem| {
+                    const classes = elem.getClasses(allocator) catch {
+                        current = n.next_sibling;
+                        continue;
+                    };
+                    defer allocator.free(classes);
+
+                    for (classes) |cls| {
+                        if (std.mem.eql(u8, cls, class_name)) {
+                            try results.append(n);
+                            break;
+                        }
+                    }
+                }
+            }
+            // 递归查找子节点
+            if (n.first_child) |child| {
+                const child_results = try self._getElementsByClassNameFromNode(child, class_name, allocator);
+                defer allocator.free(child_results);
+                try results.appendSlice(child_results);
+            }
+            current = n.next_sibling;
+        }
+
+        return try results.toOwnedSlice();
+    }
+
+    // 内部辅助方法：通过ID递归查找元素
+    fn _findElementById(self: *Document, node: *Node, id: []const u8) ?*Node {
+        var current = node.first_child;
+        while (current) |n| {
+            if (n.node_type == .element) {
+                if (n.asElement()) |elem| {
+                    if (elem.getId()) |elem_id| {
+                        if (std.mem.eql(u8, elem_id, id)) {
+                            return n;
+                        }
+                    }
+                }
+            }
+            // 递归查找子节点
+            if (n.first_child) |found| {
+                if (self._findElementById(found, id)) |result| {
+                    return result;
+                }
+            }
+            current = n.next_sibling;
+        }
+        return null;
+    }
+
     pub fn deinit(self: *Document) void {
         // 递归释放所有节点
         self.freeNode(&self.node);

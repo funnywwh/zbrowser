@@ -55,13 +55,8 @@ zbrowser/
 │   ├── js/                  # JavaScript测试（待实现）
 │   └── integration/         # 集成测试（待实现）
 ├── build.zig                 # 构建配置
-├── docs/                     # 文档目录
-│   ├── README.md            # 项目说明（从根目录复制）
-│   ├── PLAN.md              # 开发计划
-│   ├── DESIGN.md            # 详细设计文档
-│   └── API.md               # API文档
-├── PLAN.md                   # 开发计划（已移至docs/）
-├── DESIGN.md                 # 详细设计文档（已移至docs/）
+├── PLAN.md                   # 开发计划
+├── DESIGN.md                 # 详细设计文档
 └── README.md                 # 本文件
 ```
 

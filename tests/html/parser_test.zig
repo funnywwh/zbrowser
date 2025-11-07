@@ -510,6 +510,208 @@ test "parse HTML with special attribute values" {
     }
 }
 
+test "parse HTML with JavaScript code" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const html_content =
+        \\<html>
+        \\<head>
+        \\  <title>JavaScript Test</title>
+        \\</head>
+        \\<body>
+        \\  <h1>Hello World</h1>
+        \\  <script type="text/javascript">
+        \\    function greet(name) {
+        \\      console.log("Hello, " + name + "!");
+        \\      return "Welcome " + name;
+        \\    }
+        \\    
+        \\    const message = greet("World");
+        \\    document.getElementById("output").innerHTML = message;
+        \\  </script>
+        \\  <div id="output"></div>
+        \\  <script>
+        \\    // Inline script without type
+        \\    let x = 10;
+        \\    let y = 20;
+        \\    let sum = x + y;
+        \\    console.log("Sum:", sum);
+        \\  </script>
+        \\  <script src="external.js" defer></script>
+        \\  <script type="module">
+        \\    import { utils } from './utils.js';
+        \\    export default function() {
+        \\      return utils.process();
+        \\    }
+        \\  </script>
+        \\</body>
+        \\</html>
+    ;
+
+    const doc = try dom.Document.init(allocator);
+    const doc_ptr = try allocator.create(dom.Document);
+    defer {
+        // 先手动释放所有节点（因为使用GPA而非Arena）
+        // 注意：必须使用doc_ptr，因为parser使用的是doc_ptr
+        freeAllNodes(allocator, &doc_ptr.node);
+        // 清空指针
+        doc_ptr.node.first_child = null;
+        doc_ptr.node.last_child = null;
+        // 释放doc_ptr
+        allocator.destroy(doc_ptr);
+    }
+    doc_ptr.* = doc;
+
+    var parser = html.Parser.init(html_content, doc_ptr, allocator);
+    defer parser.deinit();
+    try parser.parse();
+
+    // 注意：parser创建的节点已经被添加到doc_ptr的DOM树中
+    // 这些节点会在freeAllNodes中被释放
+
+    // 验证基本结构
+    const html_elem = doc_ptr.getDocumentElement();
+    try std.testing.expect(html_elem != null);
+
+    const head = doc_ptr.getHead();
+    try std.testing.expect(head != null);
+
+    const body = doc_ptr.getBody();
+    try std.testing.expect(body != null);
+
+    // 验证head中有title
+    if (head.?.first_child) |title| {
+        if (title.asElement()) |elem| {
+            if (std.mem.eql(u8, elem.tag_name, "title")) {
+                try std.testing.expect(title.first_child != null);
+                if (title.first_child) |text| {
+                    try std.testing.expect(std.mem.eql(u8, text.asText().?, "JavaScript Test"));
+                }
+            }
+        }
+    }
+
+    // 验证body中有h1
+    if (body.?.first_child) |h1| {
+        if (h1.asElement()) |elem| {
+            if (std.mem.eql(u8, elem.tag_name, "h1")) {
+                try std.testing.expect(h1.first_child != null);
+                if (h1.first_child) |text| {
+                    try std.testing.expect(std.mem.eql(u8, text.asText().?, "Hello World"));
+                }
+            }
+        }
+    }
+
+    // 验证script标签存在
+    var script_count: usize = 0;
+    var found_inline_script = false;
+    var found_external_script = false;
+    var found_module_script = false;
+    var found_text_javascript = false;
+    var found_script_without_type = false;
+
+    // 递归查找所有script标签的辅助函数
+    const findScripts = struct {
+        fn search(node_opt: ?*dom.Node, count: *usize, inline_found: *bool, external_found: *bool, module_found: *bool, text_js_found: *bool, no_type_found: *bool) void {
+            var current = node_opt;
+            while (current) |node| {
+                if (node.node_type == .element) {
+                    if (node.asElement()) |elem| {
+                        if (std.mem.eql(u8, elem.tag_name, "script")) {
+                            count.* += 1;
+
+                            // 检查type属性
+                            const script_type = elem.getAttribute("type");
+                            const src = elem.getAttribute("src");
+
+                            if (src != null) {
+                                // 外部脚本
+                                external_found.* = true;
+                            } else if (script_type != null and std.mem.eql(u8, script_type.?, "module")) {
+                                // ES6模块脚本
+                                module_found.* = true;
+                                // 验证模块代码内容
+                                if (node.first_child) |text_node| {
+                                    const code = text_node.asText().?;
+                                    _ = code; // 代码存在即可
+                                }
+                            } else if (script_type != null and std.mem.eql(u8, script_type.?, "text/javascript")) {
+                                // type="text/javascript"的脚本
+                                text_js_found.* = true;
+                                inline_found.* = true;
+                                // 验证JavaScript代码内容
+                                if (node.first_child) |text_node| {
+                                    const code = text_node.asText().?;
+                                    _ = code; // 代码存在即可
+                                }
+                            } else {
+                                // 没有type属性的script标签
+                                no_type_found.* = true;
+                                inline_found.* = true;
+                                // 验证JavaScript代码内容
+                                if (node.first_child) |text_node| {
+                                    const code = text_node.asText().?;
+                                    _ = code; // 代码存在即可
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 递归查找子节点
+                if (node.first_child) |child| {
+                    search(child, count, inline_found, external_found, module_found, text_js_found, no_type_found);
+                }
+
+                // 移动到下一个兄弟节点
+                current = node.next_sibling;
+            }
+        }
+    }.search;
+
+    findScripts(body.?.first_child, &script_count, &found_inline_script, &found_external_script, &found_module_script, &found_text_javascript, &found_script_without_type);
+
+    // 验证找到了所有script标签
+    try std.testing.expect(script_count >= 3);
+    try std.testing.expect(found_inline_script);
+    try std.testing.expect(found_external_script);
+    try std.testing.expect(found_module_script);
+
+    // 验证div元素存在
+    var found_div = false;
+    const findDiv = struct {
+        fn search(node_opt: ?*dom.Node, found: *bool) void {
+            var current = node_opt;
+            while (current) |node| {
+                if (node.node_type == .element) {
+                    if (node.asElement()) |elem| {
+                        if (std.mem.eql(u8, elem.tag_name, "div")) {
+                            const id = elem.getAttribute("id");
+                            if (id != null and std.mem.eql(u8, id.?, "output")) {
+                                found.* = true;
+                                return;
+                            }
+                        }
+                    }
+                }
+                // 递归查找子节点
+                if (node.first_child) |child| {
+                    search(child, found);
+                    if (found.*) return;
+                }
+                // 移动到下一个兄弟节点
+                current = node.next_sibling;
+            }
+        }
+    }.search;
+
+    findDiv(body.?.first_child, &found_div);
+    try std.testing.expect(found_div);
+}
+
 // 辅助函数：释放所有节点（递归深度优先）
 fn freeAllNodes(allocator: std.mem.Allocator, node: *dom.Node) void {
     // 先释放所有子节点
