@@ -163,6 +163,38 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    const css_parser_module_for_cascade = b.createModule(.{
+        .root_source_file = b.path("src/css/parser.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "tokenizer", .module = css_tokenizer_module },
+        },
+    });
+
+    const css_cascade_module = b.createModule(.{
+        .root_source_file = b.path("src/css/cascade.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "dom", .module = dom_module },
+            .{ .name = "parser", .module = css_parser_module_for_cascade },
+            .{ .name = "selector", .module = css_selector_module },
+        },
+    });
+
+    const css_cascade_test_module = b.createModule(.{
+        .root_source_file = b.path("tests/css/cascade_test.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "cascade", .module = css_cascade_module },
+            .{ .name = "dom", .module = dom_module },
+            .{ .name = "html", .module = html_module },
+            .{ .name = "css", .module = css_parser_module_for_cascade },
+        },
+    });
+
     const css_selector_test_module = b.createModule(.{
         .root_source_file = b.path("tests/css/selector_test.zig"),
         .target = target,
@@ -190,13 +222,19 @@ pub fn build(b: *std.Build) void {
         .root_module = css_selector_test_module,
     });
 
+    const css_cascade_tests = b.addTest(.{
+        .root_module = css_cascade_test_module,
+    });
+
     const run_unit_tests = b.addRunArtifact(unit_tests);
     const run_parser_tests = b.addRunArtifact(parser_tests);
     const run_css_parser_tests = b.addRunArtifact(css_parser_tests);
     const run_css_selector_tests = b.addRunArtifact(css_selector_tests);
+    const run_css_cascade_tests = b.addRunArtifact(css_cascade_tests);
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_unit_tests.step);
     test_step.dependOn(&run_parser_tests.step);
     test_step.dependOn(&run_css_parser_tests.step);
     test_step.dependOn(&run_css_selector_tests.step);
+    test_step.dependOn(&run_css_cascade_tests.step);
 }

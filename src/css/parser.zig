@@ -84,6 +84,7 @@ pub const Value = union(enum) {
         switch (self.*) {
             .keyword => |k| allocator.free(k),
             .string => |s| allocator.free(s),
+            .length => |len| len.deinit(allocator),
             else => {},
         }
     }
