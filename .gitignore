@@ -1,0 +1,19 @@
+# Zig构建产物
+zig-out/
+zig-cache/
+.zig-cache/
+
+# Zig编译器（太大，不提交到仓库）
+zig-x86_64-linux-0.15.2/
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
