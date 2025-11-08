@@ -24,6 +24,14 @@ ZBrowser是一个完全用Zig语言实现的headless浏览器渲染引擎，严�
 - ✅ 布局引擎主入口（构建布局树、执行布局）
 - ✅ 抽象渲染后端接口（RenderBackend VTable）
 - ✅ CPU渲染后端（软件光栅化、像素缓冲、基本图形绘制）
+  - ✅ 基础绘制操作（fillRect、strokeRect、fillText）
+  - ✅ 路径绘制（beginPath、moveTo、lineTo、arc、closePath、fill、stroke）
+  - ✅ 变换操作（save、restore、translate、scale、rotate）
+  - ✅ 状态管理（裁剪、全局透明度）
+- ✅ 渲染树到像素转换（Renderer模块）
+  - ✅ 布局树遍历和渲染
+  - ✅ 背景、边框、文本内容渲染
+  - ✅ 样式解析（颜色、字体、边框等CSS属性）
 - ✅ PNG编码器（完整实现）
   - ✅ PNG文件格式（签名、IHDR、IDAT、IEND chunks）
   - ✅ CRC32校验算法
@@ -37,7 +45,7 @@ ZBrowser是一个完全用Zig语言实现的headless浏览器渲染引擎，严�
 ### 计划中
 - 🔲 Flexbox布局完整实现（flex-grow/shrink/basis、对齐算法、换行）
 - 🔲 Grid布局完整实现（grid-template、grid-area、对齐等）
-- 🔲 渲染引擎完整实现（文本渲染、路径绘制、变换、裁剪）
+- 🔲 渲染引擎优化（完整扫描线填充、Bresenham算法、字体渲染）
 - 🔲 JavaScript引擎（解析、执行、DOM API）
 - 🔲 事件系统
 - 🔲 CSS动画支持
@@ -76,7 +84,8 @@ zbrowser/
 │   │   └── engine.zig      # 布局引擎主入口
 │   ├── render/               # 渲染引擎（进行中）
 │   │   ├── backend.zig      # 抽象渲染后端接口
-│   │   └── cpu_backend.zig  # CPU渲染后端
+│   │   ├── cpu_backend.zig  # CPU渲染后端
+│   │   └── renderer.zig     # 渲染树到像素转换
 │   ├── image/                # 图像处理
 │   │   ├── png.zig          # PNG编码器
 │   │   └── deflate.zig      # DEFLATE压缩算法
