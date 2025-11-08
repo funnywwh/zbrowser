@@ -124,12 +124,34 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    const css_selector_module_for_parser = b.createModule(.{
+        .root_source_file = b.path("src/css/selector.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "dom", .module = dom_module },
+            .{ .name = "string", .module = string_module },
+        },
+    });
+
     const css_module = b.createModule(.{
         .root_source_file = b.path("src/css/parser.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{
             .{ .name = "tokenizer", .module = css_tokenizer_module },
+            .{ .name = "selector", .module = css_selector_module_for_parser },
+        },
+    });
+
+    const css_lr_parser_module = b.createModule(.{
+        .root_source_file = b.path("src/css/lr_parser.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "tokenizer", .module = css_tokenizer_module },
+            .{ .name = "selector", .module = css_selector_module_for_parser },
+            .{ .name = "parser", .module = css_module },
         },
     });
 
@@ -150,16 +172,17 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .imports = &.{
             .{ .name = "css", .module = css_module },
+            .{ .name = "selector", .module = css_selector_module_for_parser },
         },
     });
 
-    const css_selector_module = b.createModule(.{
-        .root_source_file = b.path("src/css/selector.zig"),
+    const css_lr_parser_test_module = b.createModule(.{
+        .root_source_file = b.path("tests/css/lr_parser_test.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{
-            .{ .name = "dom", .module = dom_module },
-            .{ .name = "string", .module = string_module },
+            .{ .name = "lr_parser", .module = css_lr_parser_module },
+            .{ .name = "selector", .module = css_selector_module_for_parser },
         },
     });
 
@@ -169,6 +192,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .imports = &.{
             .{ .name = "tokenizer", .module = css_tokenizer_module },
+            .{ .name = "selector", .module = css_selector_module_for_parser },
         },
     });
 
@@ -179,7 +203,7 @@ pub fn build(b: *std.Build) void {
         .imports = &.{
             .{ .name = "dom", .module = dom_module },
             .{ .name = "parser", .module = css_parser_module_for_cascade },
-            .{ .name = "selector", .module = css_selector_module },
+            .{ .name = "selector", .module = css_selector_module_for_parser },
         },
     });
 
@@ -200,7 +224,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
         .imports = &.{
-            .{ .name = "selector", .module = css_selector_module },
+            .{ .name = "selector", .module = css_selector_module_for_parser },
             .{ .name = "dom", .module = dom_module },
             .{ .name = "html", .module = html_module },
         },
@@ -218,6 +242,10 @@ pub fn build(b: *std.Build) void {
         .root_module = css_parser_test_module,
     });
 
+    const css_lr_parser_tests = b.addTest(.{
+        .root_module = css_lr_parser_test_module,
+    });
+
     const css_selector_tests = b.addTest(.{
         .root_module = css_selector_test_module,
     });
@@ -229,12 +257,14 @@ pub fn build(b: *std.Build) void {
     const run_unit_tests = b.addRunArtifact(unit_tests);
     const run_parser_tests = b.addRunArtifact(parser_tests);
     const run_css_parser_tests = b.addRunArtifact(css_parser_tests);
+    const run_css_lr_parser_tests = b.addRunArtifact(css_lr_parser_tests);
     const run_css_selector_tests = b.addRunArtifact(css_selector_tests);
     const run_css_cascade_tests = b.addRunArtifact(css_cascade_tests);
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_unit_tests.step);
     test_step.dependOn(&run_parser_tests.step);
     test_step.dependOn(&run_css_parser_tests.step);
+    test_step.dependOn(&run_css_lr_parser_tests.step);
     test_step.dependOn(&run_css_selector_tests.step);
     test_step.dependOn(&run_css_cascade_tests.step);
 }

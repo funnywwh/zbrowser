@@ -77,6 +77,7 @@ test "compute style for element" {
     // 解析CSS
     const css_input = "div { color: red; font-size: 20px; }";
     var css_parser = css.Parser.init(css_input, allocator);
+    defer css_parser.deinit();
     var stylesheet = try css_parser.parse();
     defer stylesheet.deinit();
 
@@ -125,6 +126,7 @@ test "compute style with specificity" {
     // 解析CSS（两个规则，第二个specificity更高）
     const css_input = "div { color: blue; } .test { color: red; }";
     var css_parser = css.Parser.init(css_input, allocator);
+    defer css_parser.deinit();
     var stylesheet = try css_parser.parse();
     defer stylesheet.deinit();
 
@@ -168,6 +170,7 @@ test "compute style with defaults" {
     // 解析CSS（空样式表）
     const css_input = "";
     var css_parser = css.Parser.init(css_input, allocator);
+    defer css_parser.deinit();
     var stylesheet = try css_parser.parse();
     defer stylesheet.deinit();
 

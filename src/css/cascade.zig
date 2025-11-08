@@ -92,6 +92,7 @@ pub const ComputedStyle = struct {
 pub const Cascade = struct {
     allocator: std.mem.Allocator,
     matcher: selector.Matcher,
+    computing_parent: bool = false, // 标志：是否正在计算父节点样式（避免递归继承）
 
     const Self = @This();
 
@@ -104,7 +105,7 @@ pub const Cascade = struct {
     }
 
     /// 计算节点的样式
-    pub fn computeStyle(self: *Self, node: *dom.Node, stylesheets: []const parser.Stylesheet) !ComputedStyle {
+    pub fn computeStyle(self: *Self, node: *dom.Node, stylesheets: []const parser.Stylesheet) anyerror!ComputedStyle {
         var computed = ComputedStyle.init(self.allocator);
         errdefer computed.deinit();
 
@@ -112,20 +113,16 @@ pub const Cascade = struct {
         var matched_rules = std.ArrayList(MatchedRule).init(self.allocator);
         defer matched_rules.deinit();
 
+        var matcher = selector.Matcher.init(self.allocator);
+
         for (stylesheets) |*stylesheet| {
             for (stylesheet.rules.items) |*rule| {
                 // 检查规则的选择器是否匹配节点
-                for (rule.selectors.items) |selector_str| {
-                    // TODO: 这里需要将selector_str解析为Selector对象
-                    // 目前简化处理，只检查简单的标签名匹配
-                    if (self.matchesSimpleSelector(node, selector_str)) {
-                        // 计算specificity（简化：假设是类型选择器）
-                        const spec = selector.Specificity{
-                            .a = 0,
-                            .b = 0,
-                            .c = 0,
-                            .d = 1, // 类型选择器
-                        };
+                for (rule.selectors.items) |*sel| {
+                    // 使用完整的选择器匹配
+                    if (matcher.matches(node, sel)) {
+                        // 计算specificity
+                        const spec = selector.Matcher.calculateSpecificity(sel);
                         try matched_rules.append(MatchedRule{
                             .rule = rule,
                             .specificity = spec,
@@ -168,23 +165,16 @@ pub const Cascade = struct {
             }
         }
 
-        // 4. 应用继承的样式
-        try self.applyInheritance(node, &computed);
+        // 4. 应用继承的样式（需要stylesheets来递归计算父节点样式）
+        // 只有在不是计算父节点时才应用继承（避免递归）
+        if (!self.computing_parent) {
+            try self.applyInheritance(node, &computed, stylesheets);
+        }
 
         // 5. 应用默认值
         try self.applyDefaults(&computed);
 
         return computed;
-    }
-
-    /// 简化的选择器匹配（仅用于测试，实际应该使用完整的Selector解析）
-    fn matchesSimpleSelector(self: *Self, node: *dom.Node, selector_str: []const u8) bool {
-        _ = self;
-        if (node.node_type != .element) {
-            return false;
-        }
-        const elem = node.asElement() orelse return false;
-        return std.mem.eql(u8, elem.tag_name, selector_str);
     }
 
     /// 创建样式属性
@@ -214,6 +204,28 @@ pub const Cascade = struct {
         };
 
         return property;
+    }
+
+    /// 复制样式属性（用于继承）
+    fn copyProperty(self: *Self, name: []const u8, property: *StyleProperty) !*StyleProperty {
+        const name_dup = try self.allocator.dupe(u8, name);
+        errdefer self.allocator.free(name_dup);
+
+        // 复制值（需要深拷贝）
+        const value_copy = try self.copyValue(property.value);
+        errdefer value_copy.deinit(self.allocator);
+
+        const new_property = try self.allocator.create(StyleProperty);
+        new_property.* = .{
+            .name = name_dup,
+            .value = value_copy,
+            .important = property.important,
+            .specificity = property.specificity, // 继承的属性保持父节点的specificity
+            .origin = property.origin,
+            .allocator = self.allocator,
+        };
+
+        return new_property;
     }
 
     /// 复制CSS值
@@ -292,30 +304,48 @@ pub const Cascade = struct {
     }
 
     /// 应用继承的样式
-    fn applyInheritance(self: *Self, node: *dom.Node, computed: *ComputedStyle) !void {
-        _ = self;
-        _ = node;
-        _ = computed;
-        // 可继承的属性列表
-        // const inheritable = [_][]const u8{
-        //     "color",
-        //     "font-family",
-        //     "font-size",
-        //     "font-weight",
-        //     "line-height",
-        //     "text-align",
-        //     "visibility",
-        // };
+    fn applyInheritance(self: *Self, node: *dom.Node, computed: *ComputedStyle, stylesheets: []const parser.Stylesheet) !void {
+        // 可继承的属性列表（根据CSS规范）
+        const inheritable = [_][]const u8{
+            "color",
+            "font-family",
+            "font-size",
+            "font-weight",
+            "font-style",
+            "line-height",
+            "text-align",
+            "text-decoration",
+            "text-transform",
+            "letter-spacing",
+            "word-spacing",
+            "white-space",
+            "visibility",
+            "cursor",
+        };
 
         // 从父节点继承样式
-        // TODO: 递归获取父节点的计算样式
-        // 目前简化处理，只检查是否是元素节点
-        // if (node.parent) |parent| {
-        //     if (parent.node_type == .element) {
-        //         // 在实际实现中，这里应该获取父节点的ComputedStyle
-        //         // 并继承可继承的属性
-        //     }
-        // }
+        if (node.parent) |parent| {
+            // 只从元素节点继承（不包括文本节点、注释节点等）
+            if (parent.node_type == .element) {
+                // 递归计算父节点的样式（设置标志避免递归继承）
+                const old_computing = self.computing_parent;
+                self.computing_parent = true;
+                var parent_computed = try self.computeStyle(parent, stylesheets);
+                defer parent_computed.deinit();
+                self.computing_parent = old_computing;
+
+                // 对于每个可继承的属性，如果当前节点没有设置，则从父节点继承
+                for (inheritable) |prop_name| {
+                    if (!computed.properties.contains(prop_name)) {
+                        if (parent_computed.getProperty(prop_name)) |parent_prop| {
+                            // 复制父节点的属性值
+                            const inherited_prop = try self.copyProperty(prop_name, parent_prop);
+                            try computed.setProperty(prop_name, inherited_prop);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     /// 应用默认值

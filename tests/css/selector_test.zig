@@ -263,3 +263,295 @@ test "calculate specificity" {
 
     // 清理（sequence.deinit()会自动调用所有selector的deinit）
 }
+
+test "match first-child pseudo-class" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 创建DOM
+    const doc = try dom.Document.init(allocator);
+    const doc_ptr = try allocator.create(dom.Document);
+    defer {
+        freeAllNodes(allocator, &doc_ptr.node);
+        doc_ptr.node.first_child = null;
+        doc_ptr.node.last_child = null;
+        allocator.destroy(doc_ptr);
+    }
+    doc_ptr.* = doc;
+
+    // 解析HTML
+    const html_input = "<html><head></head><body><div>First</div><div>Second</div></body></html>";
+    var parser = html.Parser.init(html_input, doc_ptr, allocator);
+    defer parser.deinit();
+    try parser.parse();
+
+    const body = doc_ptr.getBody() orelse {
+        std.debug.panic("body not found", .{});
+    };
+    const first_div = body.querySelector("div") orelse {
+        std.debug.panic("div not found", .{});
+    };
+
+    // 创建:first-child伪类选择器
+    var pseudo_selector = selector.SimpleSelector{
+        .selector_type = .pseudo_class,
+        .value = try allocator.dupe(u8, "first-child"),
+        .allocator = allocator,
+    };
+    defer pseudo_selector.deinit();
+
+    // 匹配
+    var matcher = selector.Matcher.init(allocator);
+    std.debug.assert(matcher.matchesSimpleSelector(first_div, &pseudo_selector));
+}
+
+test "match last-child pseudo-class" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 创建DOM
+    const doc = try dom.Document.init(allocator);
+    const doc_ptr = try allocator.create(dom.Document);
+    defer {
+        freeAllNodes(allocator, &doc_ptr.node);
+        doc_ptr.node.first_child = null;
+        doc_ptr.node.last_child = null;
+        allocator.destroy(doc_ptr);
+    }
+    doc_ptr.* = doc;
+
+    // 解析HTML
+    const html_input = "<html><head></head><body><div>First</div><div>Second</div></body></html>";
+    var parser = html.Parser.init(html_input, doc_ptr, allocator);
+    defer parser.deinit();
+    try parser.parse();
+
+    const body = doc_ptr.getBody() orelse {
+        std.debug.panic("body not found", .{});
+    };
+    const first_div = body.querySelector("div") orelse {
+        std.debug.panic("div not found", .{});
+    };
+    // 获取第二个div
+    const second_div = first_div.next_sibling orelse {
+        std.debug.panic("second div not found", .{});
+    };
+
+    // 创建:last-child伪类选择器
+    var pseudo_selector = selector.SimpleSelector{
+        .selector_type = .pseudo_class,
+        .value = try allocator.dupe(u8, "last-child"),
+        .allocator = allocator,
+    };
+    defer pseudo_selector.deinit();
+
+    // 匹配
+    var matcher = selector.Matcher.init(allocator);
+    std.debug.assert(!matcher.matchesSimpleSelector(first_div, &pseudo_selector));
+    std.debug.assert(matcher.matchesSimpleSelector(second_div, &pseudo_selector));
+}
+
+test "match only-child pseudo-class" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 创建DOM
+    const doc = try dom.Document.init(allocator);
+    const doc_ptr = try allocator.create(dom.Document);
+    defer {
+        freeAllNodes(allocator, &doc_ptr.node);
+        doc_ptr.node.first_child = null;
+        doc_ptr.node.last_child = null;
+        allocator.destroy(doc_ptr);
+    }
+    doc_ptr.* = doc;
+
+    // 解析HTML（只有一个div）
+    const html_input = "<html><head></head><body><div>Only</div></body></html>";
+    var parser = html.Parser.init(html_input, doc_ptr, allocator);
+    defer parser.deinit();
+    try parser.parse();
+
+    const body = doc_ptr.getBody() orelse {
+        std.debug.panic("body not found", .{});
+    };
+    const div = body.querySelector("div") orelse {
+        std.debug.panic("div not found", .{});
+    };
+
+    // 创建:only-child伪类选择器
+    var pseudo_selector = selector.SimpleSelector{
+        .selector_type = .pseudo_class,
+        .value = try allocator.dupe(u8, "only-child"),
+        .allocator = allocator,
+    };
+    defer pseudo_selector.deinit();
+
+    // 匹配
+    var matcher = selector.Matcher.init(allocator);
+    std.debug.assert(matcher.matchesSimpleSelector(div, &pseudo_selector));
+}
+
+test "match empty pseudo-class" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 创建DOM
+    const doc = try dom.Document.init(allocator);
+    const doc_ptr = try allocator.create(dom.Document);
+    defer {
+        freeAllNodes(allocator, &doc_ptr.node);
+        doc_ptr.node.first_child = null;
+        doc_ptr.node.last_child = null;
+        allocator.destroy(doc_ptr);
+    }
+    doc_ptr.* = doc;
+
+    // 解析HTML（一个空div和一个有内容的div）
+    const html_input = "<html><head></head><body><div></div><div>Not empty</div></body></html>";
+    var parser = html.Parser.init(html_input, doc_ptr, allocator);
+    defer parser.deinit();
+    try parser.parse();
+
+    const body = doc_ptr.getBody() orelse {
+        std.debug.panic("body not found", .{});
+    };
+    const first_div = body.querySelector("div") orelse {
+        std.debug.panic("div not found", .{});
+    };
+    const second_div = first_div.next_sibling orelse {
+        std.debug.panic("second div not found", .{});
+    };
+
+    // 创建:empty伪类选择器
+    var pseudo_selector = selector.SimpleSelector{
+        .selector_type = .pseudo_class,
+        .value = try allocator.dupe(u8, "empty"),
+        .allocator = allocator,
+    };
+    defer pseudo_selector.deinit();
+
+    // 匹配
+    var matcher = selector.Matcher.init(allocator);
+    std.debug.assert(matcher.matchesSimpleSelector(first_div, &pseudo_selector));
+    std.debug.assert(!matcher.matchesSimpleSelector(second_div, &pseudo_selector));
+}
+
+test "match nth-child pseudo-class" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 创建DOM
+    const doc = try dom.Document.init(allocator);
+    const doc_ptr = try allocator.create(dom.Document);
+    defer {
+        freeAllNodes(allocator, &doc_ptr.node);
+        doc_ptr.node.first_child = null;
+        doc_ptr.node.last_child = null;
+        allocator.destroy(doc_ptr);
+    }
+    doc_ptr.* = doc;
+
+    // 解析HTML（三个div）
+    const html_input = "<html><head></head><body><div>First</div><div>Second</div><div>Third</div></body></html>";
+    var parser = html.Parser.init(html_input, doc_ptr, allocator);
+    defer parser.deinit();
+    try parser.parse();
+
+    const body = doc_ptr.getBody() orelse {
+        std.debug.panic("body not found", .{});
+    };
+    const first_div = body.querySelector("div") orelse {
+        std.debug.panic("div not found", .{});
+    };
+    const second_div = first_div.next_sibling orelse {
+        std.debug.panic("second div not found", .{});
+    };
+    const third_div = second_div.next_sibling orelse {
+        std.debug.panic("third div not found", .{});
+    };
+
+    // 创建:nth-child(2)伪类选择器
+    var pseudo_selector = selector.SimpleSelector{
+        .selector_type = .pseudo_class,
+        .value = try allocator.dupe(u8, "nth-child(2)"),
+        .allocator = allocator,
+    };
+    defer pseudo_selector.deinit();
+
+    // 匹配
+    var matcher = selector.Matcher.init(allocator);
+    std.debug.assert(!matcher.matchesSimpleSelector(first_div, &pseudo_selector));
+    std.debug.assert(matcher.matchesSimpleSelector(second_div, &pseudo_selector));
+    std.debug.assert(!matcher.matchesSimpleSelector(third_div, &pseudo_selector));
+}
+
+test "match nth-of-type pseudo-class" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 创建DOM
+    const doc = try dom.Document.init(allocator);
+    const doc_ptr = try allocator.create(dom.Document);
+    defer {
+        freeAllNodes(allocator, &doc_ptr.node);
+        doc_ptr.node.first_child = null;
+        doc_ptr.node.last_child = null;
+        allocator.destroy(doc_ptr);
+    }
+    doc_ptr.* = doc;
+
+    // 解析HTML（div、p、div、p）
+    const html_input = "<html><head></head><body><div>First div</div><p>First p</p><div>Second div</div><p>Second p</p></body></html>";
+    var parser = html.Parser.init(html_input, doc_ptr, allocator);
+    defer parser.deinit();
+    try parser.parse();
+
+    const body = doc_ptr.getBody() orelse {
+        std.debug.panic("body not found", .{});
+    };
+    const first_div = body.querySelector("div") orelse {
+        std.debug.panic("div not found", .{});
+    };
+    const first_p = body.querySelector("p") orelse {
+        std.debug.panic("p not found", .{});
+    };
+
+    // 创建:nth-of-type(2)伪类选择器（匹配第二个div）
+    var pseudo_selector = selector.SimpleSelector{
+        .selector_type = .pseudo_class,
+        .value = try allocator.dupe(u8, "nth-of-type(2)"),
+        .allocator = allocator,
+    };
+    defer pseudo_selector.deinit();
+
+    // 匹配
+    var matcher = selector.Matcher.init(allocator);
+    // first_div是第一个div，不匹配
+    std.debug.assert(!matcher.matchesSimpleSelector(first_div, &pseudo_selector));
+    // first_p是第一个p，不匹配
+    std.debug.assert(!matcher.matchesSimpleSelector(first_p, &pseudo_selector));
+
+    // 找到第二个div
+    var current = first_div.next_sibling;
+    var second_div: ?*dom.Node = null;
+    while (current) |node| {
+        if (node.node_type == .element) {
+            if (node.asElement()) |elem| {
+                if (std.mem.eql(u8, elem.tag_name, "div")) {
+                    second_div = node;
+                    break;
+                }
+            }
+        }
+        current = node.next_sibling;
+    }
+    std.debug.assert(second_div != null);
+    std.debug.assert(matcher.matchesSimpleSelector(second_div.?, &pseudo_selector));
+}

@@ -95,19 +95,18 @@ pub const Tokenizer = struct {
             };
         }
 
-        // 跳过空白字符
-        while (self.pos < self.input.len and string.isWhitespace(self.input[self.pos])) {
-            self.pos += 1;
-        }
+        const ch = self.input[self.pos];
 
-        if (self.pos >= self.input.len) {
+        // 处理空白字符
+        if (string.isWhitespace(ch)) {
+            while (self.pos < self.input.len and string.isWhitespace(self.input[self.pos])) {
+                self.pos += 1;
+            }
             return Token{
-                .token_type = .eof,
-                .data = .{ .eof = {} },
+                .token_type = .whitespace,
+                .data = .{ .whitespace = {} },
             };
         }
-
-        const ch = self.input[self.pos];
 
         // 处理注释
         if (ch == '/' and self.pos + 1 < self.input.len and self.input[self.pos + 1] == '*') {

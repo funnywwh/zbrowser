@@ -165,10 +165,16 @@ pub const ElementData = struct {
         return classes.toOwnedSlice();
     }
 
-    pub fn deinit(self: *ElementData, _: std.mem.Allocator) void {
-        // 注意：如果使用Arena分配器，不需要单独释放属性
-        // Arena会在销毁时一次性释放所有内存
-        // 这里只清理HashMap结构本身
+    pub fn deinit(self: *ElementData, allocator: std.mem.Allocator) void {
+        // 释放 tag_name（如果使用 GPA）
+        allocator.free(self.tag_name);
+        // 释放 attributes 中的键和值
+        var it = self.attributes.iterator();
+        while (it.next()) |entry| {
+            allocator.free(entry.key_ptr.*);
+            allocator.free(entry.value_ptr.*);
+        }
+        // 清理HashMap结构本身
         self.attributes.deinit();
     }
 };
@@ -447,13 +453,19 @@ pub const Document = struct {
             .element => {
                 if (node.asElement()) |elem| {
                     elem.deinit(self.allocator);
-                    // 如果不是Arena分配器，需要释放tag_name和attributes
-                    // 这里假设使用Arena，所以只清理HashMap结构
                 }
             },
-            .text, .comment => {
+            .text => {
                 // 如果是GPA分配器，需要释放文本内容
-                // 但为了兼容Arena，这里不释放，由调用者决定
+                if (node.asText()) |text| {
+                    self.allocator.free(text);
+                }
+            },
+            .comment => {
+                // 如果是GPA分配器，需要释放注释内容
+                if (node.node_type == .comment) {
+                    self.allocator.free(node.data.comment);
+                }
             },
             else => {},
         }

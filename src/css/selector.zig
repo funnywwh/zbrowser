@@ -104,6 +104,163 @@ pub const Matcher = struct {
         return .{ .allocator = allocator };
     }
 
+    /// 匹配伪类
+    fn matchesPseudoClass(self: *Self, node: *dom.Node, pseudo_name: []const u8) bool {
+        if (std.mem.eql(u8, pseudo_name, "first-child")) {
+            return self.isFirstChild(node);
+        }
+        if (std.mem.eql(u8, pseudo_name, "last-child")) {
+            return self.isLastChild(node);
+        }
+        if (std.mem.startsWith(u8, pseudo_name, "nth-child(")) {
+            return self.matchesNthChild(node, pseudo_name);
+        }
+        if (std.mem.startsWith(u8, pseudo_name, "nth-of-type(")) {
+            return self.matchesNthOfType(node, pseudo_name);
+        }
+        if (std.mem.eql(u8, pseudo_name, "only-child")) {
+            return self.isOnlyChild(node);
+        }
+        if (std.mem.eql(u8, pseudo_name, "empty")) {
+            return self.isEmpty(node);
+        }
+
+        // 其他伪类（如:hover, :focus）在headless浏览器中不适用
+        // self已通过调用其他方法使用，不需要显式丢弃
+        return false;
+    }
+
+    /// 检查节点是否是第一个子元素
+    fn isFirstChild(self: *Self, node: *dom.Node) bool {
+        _ = self; // 保留self以保持API一致性
+        if (node.parent) |parent| {
+            // 只计算元素节点，跳过文本节点和注释节点
+            var current = parent.first_child;
+            while (current) |child| {
+                if (child.node_type == .element) {
+                    return child == node;
+                }
+                current = child.next_sibling;
+            }
+        }
+        return false;
+    }
+
+    /// 检查节点是否是最后一个子元素
+    fn isLastChild(self: *Self, node: *dom.Node) bool {
+        _ = self; // 保留self以保持API一致性
+        if (node.parent) |parent| {
+            // 只计算元素节点，跳过文本节点和注释节点
+            var current = parent.last_child;
+            while (current) |child| {
+                if (child.node_type == .element) {
+                    return child == node;
+                }
+                current = child.prev_sibling;
+            }
+        }
+        return false;
+    }
+
+    /// 检查节点是否是唯一子元素
+    fn isOnlyChild(self: *Self, node: *dom.Node) bool {
+        _ = self; // 保留self以保持API一致性
+        if (node.parent) |parent| {
+            var count: usize = 0;
+            var current = parent.first_child;
+            while (current) |child| {
+                if (child.node_type == .element) {
+                    count += 1;
+                    if (count > 1) return false;
+                }
+                current = child.next_sibling;
+            }
+            return count == 1 and node == parent.first_child;
+        }
+        return false;
+    }
+
+    /// 检查节点是否为空（没有子元素）
+    fn isEmpty(self: *Self, node: *dom.Node) bool {
+        _ = self; // 保留self以保持API一致性
+        if (node.node_type != .element) return false;
+        return node.first_child == null;
+    }
+
+    /// 匹配:nth-child()伪类
+    fn matchesNthChild(self: *Self, node: *dom.Node, pseudo_name: []const u8) bool {
+        _ = self; // 保留self以保持API一致性
+        // 解析 :nth-child(an+b) 或 :nth-child(n) 格式
+        // 简化实现：只支持数字，如 :nth-child(2)
+        if (node.parent) |parent| {
+            const start = "nth-child(".len;
+            const end = pseudo_name.len - 1; // 去掉右括号
+            if (end <= start) return false;
+
+            const expr = pseudo_name[start..end];
+
+            // 尝试解析为数字
+            if (std.fmt.parseInt(usize, expr, 10)) |n| {
+                // 计算当前节点在父节点中的位置（只计算元素节点）
+                var count: usize = 0;
+                var current = parent.first_child;
+                while (current) |child| {
+                    if (child.node_type == .element) {
+                        count += 1;
+                        if (child == node) {
+                            return count == n;
+                        }
+                    }
+                    current = child.next_sibling;
+                }
+            } else |_| {
+                // 不支持复杂的表达式（如 2n+1），返回false
+                return false;
+            }
+        }
+        return false;
+    }
+
+    /// 匹配:nth-of-type()伪类
+    fn matchesNthOfType(self: *Self, node: *dom.Node, pseudo_name: []const u8) bool {
+        _ = self; // 保留self以保持API一致性
+        if (node.node_type != .element) return false;
+        const elem = node.asElement() orelse return false;
+        const tag_name = elem.tag_name;
+
+        if (node.parent) |parent| {
+            const start = "nth-of-type(".len;
+            const end = pseudo_name.len - 1; // 去掉右括号
+            if (end <= start) return false;
+
+            const expr = pseudo_name[start..end];
+
+            // 尝试解析为数字
+            if (std.fmt.parseInt(usize, expr, 10)) |n| {
+                // 计算当前节点在同类型元素中的位置
+                var count: usize = 0;
+                var current = parent.first_child;
+                while (current) |child| {
+                    if (child.node_type == .element) {
+                        if (child.asElement()) |child_elem| {
+                            if (std.mem.eql(u8, child_elem.tag_name, tag_name)) {
+                                count += 1;
+                                if (child == node) {
+                                    return count == n;
+                                }
+                            }
+                        }
+                    }
+                    current = child.next_sibling;
+                }
+            } else |_| {
+                // 不支持复杂的表达式，返回false
+                return false;
+            }
+        }
+        return false;
+    }
+
     /// 匹配简单选择器
     pub fn matchesSimpleSelector(self: *Self, node: *dom.Node, selector: *const SimpleSelector) bool {
         if (node.node_type != .element) {
@@ -178,8 +335,17 @@ pub const Matcher = struct {
                 }
                 return false;
             },
-            .pseudo_class, .pseudo_element => {
-                // TODO: 实现伪类和伪元素匹配
+            .pseudo_class => {
+                return self.matchesPseudoClass(node, selector.value);
+            },
+            .pseudo_element => {
+                // 伪元素（::before, ::after等）在headless浏览器中主要用于样式计算
+                // 实际渲染时才会生成伪元素节点
+                // 这里先返回false，后续可以在渲染阶段处理
+                // 验证参数有效性（避免linter警告）
+                if (node.node_type != .element or selector.value.len == 0) {
+                    return false;
+                }
                 return false;
             },
         }
