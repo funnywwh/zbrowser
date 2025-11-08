@@ -363,12 +363,31 @@ pub const DeflateCompressor = struct {
             distance_code = 29;
             extra_bits = 8;
             extra_value = @as(u32, @intCast((distance - 513) % 256));
-        } else {
-            // 更大的距离：继续使用码29，但需要更多额外位
-            // TODO: 实现完整的距离编码表（最大距离32768）
+        } else if (distance <= 2048) {
+            // 距离1025-2048: 码29
             distance_code = 29;
-            extra_bits = 13; // 最大距离32768需要13位
-            extra_value = @as(u32, @intCast((distance - 1) % 8192));
+            extra_bits = 9;
+            extra_value = @as(u32, @intCast((distance - 1025) % 512));
+        } else if (distance <= 4096) {
+            // 距离2049-4096: 码29
+            distance_code = 29;
+            extra_bits = 10;
+            extra_value = @as(u32, @intCast((distance - 2049) % 1024));
+        } else if (distance <= 8192) {
+            // 距离4097-8192: 码29
+            distance_code = 29;
+            extra_bits = 11;
+            extra_value = @as(u32, @intCast((distance - 4097) % 2048));
+        } else if (distance <= 16384) {
+            // 距离8193-16384: 码29
+            distance_code = 29;
+            extra_bits = 12;
+            extra_value = @as(u32, @intCast((distance - 8193) % 4096));
+        } else {
+            // 距离16385-32768: 码29
+            distance_code = 29;
+            extra_bits = 13;
+            extra_value = @as(u32, @intCast((distance - 16385) % 8192));
         }
 
         // 编码距离码（5位编码）
