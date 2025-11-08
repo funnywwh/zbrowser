@@ -40,29 +40,8 @@ pub fn build(b: *std.Build) void {
         },
     });
 
-    const exe = b.addExecutable(.{
-        .name = "zbrowser",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("src/main.zig"),
-            .target = target,
-            .optimize = optimize,
-            .imports = &.{
-                .{ .name = "html", .module = html_module_exe },
-                .{ .name = "dom", .module = dom_module_exe },
-            },
-        }),
-    });
-
-    b.installArtifact(exe);
-
-    const run_cmd = b.addRunArtifact(exe);
-    run_cmd.step.dependOn(b.getInstallStep());
-    if (b.args) |args| {
-        run_cmd.addArgs(args);
-    }
-
-    const run_step = b.step("run", "Run the app");
-    run_step.dependOn(&run_cmd.step);
+    // 注意：exe模块定义需要放在所有依赖模块定义之后
+    // 暂时注释掉，稍后重新定义
 
     // 创建工具模块
     const string_module = b.createModule(.{
@@ -72,14 +51,15 @@ pub fn build(b: *std.Build) void {
     });
 
     // 创建依赖模块
-    const dom_module = b.createModule(.{
-        .root_source_file = b.path("src/html/dom.zig"),
-        .target = target,
-        .optimize = optimize,
-        .imports = &.{
-            .{ .name = "string", .module = string_module },
-        },
-    });
+    // 注意：dom_module已由dom_module_exe替代，这里不再定义
+    // const dom_module = b.createModule(.{
+    //     .root_source_file = b.path("src/html/dom.zig"),
+    //     .target = target,
+    //     .optimize = optimize,
+    //     .imports = &.{
+    //         .{ .name = "string", .module = string_module },
+    //     },
+    // });
 
     const tokenizer_module = b.createModule(.{
         .root_source_file = b.path("src/html/tokenizer.zig"),
@@ -96,7 +76,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
         .imports = &.{
-            .{ .name = "dom", .module = dom_module },
+            .{ .name = "dom", .module = dom_module_exe },
             .{ .name = "tokenizer", .module = tokenizer_module },
             .{ .name = "string", .module = string_module },
         },
@@ -111,7 +91,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
         .imports = &.{
-            .{ .name = "string", .module = string_module },
+            .{ .name = "string", .module = string_module_exe },
         },
     });
 
@@ -120,8 +100,8 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
         .imports = &.{
-            .{ .name = "dom", .module = dom_module },
-            .{ .name = "string", .module = string_module },
+            .{ .name = "dom", .module = dom_module_exe },
+            .{ .name = "string", .module = string_module_exe },
         },
     });
 
@@ -144,7 +124,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
         .imports = &.{
-            .{ .name = "dom", .module = dom_module },
+            .{ .name = "dom", .module = dom_module_exe },
             .{ .name = "parser", .module = css_parser_module_for_cascade },
             .{ .name = "selector", .module = css_selector_module_for_parser },
         },
@@ -156,7 +136,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
         .imports = &.{
-            .{ .name = "dom", .module = dom_module },
+            .{ .name = "dom", .module = dom_module_exe },
         },
     });
 
@@ -246,7 +226,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
         .imports = &.{
-            .{ .name = "dom", .module = dom_module },
+            .{ .name = "dom", .module = dom_module_exe },
             .{ .name = "box", .module = layout_box_module },
             .{ .name = "block", .module = layout_block_module },
             .{ .name = "inline", .module = layout_inline_module },
@@ -280,7 +260,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .imports = &.{
             .{ .name = "box", .module = layout_box_module },
-            .{ .name = "dom", .module = dom_module },
+            .{ .name = "dom", .module = dom_module_exe },
             .{ .name = "cascade", .module = css_cascade_module },
             .{ .name = "parser", .module = css_parser_module },
             .{ .name = "backend", .module = render_backend_module },
@@ -304,6 +284,41 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    // 定义exe模块（在所有依赖模块定义之后）
+    const exe = b.addExecutable(.{
+        .name = "zbrowser",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/main.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "html", .module = html_module_exe },
+                .{ .name = "dom", .module = dom_module_exe },
+                .{ .name = "parser", .module = css_parser_module },
+                .{ .name = "engine", .module = layout_engine_module },
+                .{ .name = "box", .module = layout_box_module },
+                .{ .name = "cpu_backend", .module = render_cpu_backend_module },
+                .{ .name = "renderer", .module = render_renderer_module },
+                .{ .name = "png", .module = image_png_module },
+                // 添加其他依赖模块
+                .{ .name = "cascade", .module = css_cascade_module },
+                .{ .name = "backend", .module = render_backend_module },
+                .{ .name = "style_utils", .module = layout_style_utils_module },
+            },
+        }),
+    });
+
+    b.installArtifact(exe);
+
+    const run_cmd = b.addRunArtifact(exe);
+    run_cmd.step.dependOn(b.getInstallStep());
+    if (b.args) |args| {
+        run_cmd.addArgs(args);
+    }
+
+    const run_step = b.step("run", "Run the app");
+    run_step.dependOn(&run_cmd.step);
+
     // 创建根测试模块（统一入口）
     // test.zig 作为根测试文件，统一导入所有子测试模块
     // 所有测试都通过 test.zig 运行，不需要单独的测试配置
@@ -314,7 +329,7 @@ pub fn build(b: *std.Build) void {
         .imports = &.{
             // HTML模块
             .{ .name = "html", .module = html_module },
-            .{ .name = "dom", .module = dom_module },
+            .{ .name = "dom", .module = dom_module_exe },
             .{ .name = "tokenizer", .module = tokenizer_module }, // HTML tokenizer
             // CSS模块
             .{ .name = "css", .module = css_parser_module },
