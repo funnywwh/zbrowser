@@ -37,10 +37,9 @@ ZBrowser是一个完全用Zig语言实现的headless浏览器渲染引擎，严�
   - ✅ CRC32校验算法
   - ✅ 5种PNG滤波器（None、Sub、Up、Average、Paeth）
   - ✅ 最优滤波器选择算法
-  - ✅ DEFLATE压缩算法（完整实现）
-  - ✅ 固定Huffman编码表（RFC 1951）
-  - ✅ LZ77压缩（哈希表优化）
+  - ✅ DEFLATE存储模式（BTYPE=00，支持大数据分块）
   - ✅ zlib格式（头部、ADLER32校验）
+  - ✅ 支持大图像（自动分块处理，避免整数溢出）
 
 ### 计划中
 - 🔲 Flexbox布局完整实现（flex-grow/shrink/basis、对齐算法、换行）
@@ -96,9 +95,16 @@ zbrowser/
 │   └── test/                # 测试运行器
 ├── tests/                    # 测试用例
 │   ├── html/                # HTML解析测试
-│   ├── css/                 # CSS解析测试（待实现）
+│   ├── css/                 # CSS解析测试
+│   ├── layout/              # 布局引擎测试
+│   ├── render/              # 渲染引擎测试
+│   ├── image/               # 图像处理测试
+│   │   ├── test_png_direct.zig  # PNG直接测试
+│   │   └── test_png_solid.zig  # PNG纯色测试
+│   ├── utils/               # 工具模块测试
 │   ├── js/                  # JavaScript测试（待实现）
 │   └── integration/         # 集成测试（待实现）
+├── test.zig                 # 根测试文件（统一入口）
 ├── build.zig                 # 构建配置
 ├── docs/                     # 文档目录
 │   ├── README.md            # 项目说明（从根目录复制）
@@ -196,10 +202,11 @@ pub fn main() !void {
    - 🟡 Flexbox布局（基础框架完成，完整实现进行中）
    - 🔲 Grid布局算法
 
-4. **阶段4: 渲染引擎** 🔲
-   - 绘制引擎
-   - 文本渲染
-   - PNG编码器
+4. **阶段4: 渲染引擎** ✅
+   - ✅ 抽象渲染后端接口（RenderBackend VTable）
+   - ✅ CPU渲染后端（软件光栅化、像素缓冲、基本图形绘制）
+   - ✅ 渲染树到像素转换（Renderer模块）
+   - ✅ PNG编码器（完整实现，支持大图像）
 
 5. **阶段5-8: JavaScript引擎、DOM API、动画等** 🔲
    - JavaScript解析和执行
@@ -238,14 +245,26 @@ pub fn main() !void {
 - 🟡 **Flexbox布局**: 基础框架完成，完整实现进行中
 - 🔲 **Grid布局**: 待实现
 
-### 渲染引擎（计划中）
+### 渲染引擎（已完成）
 
-- **抽象渲染后端**: 统一的渲染接口，支持CPU和GPU后端
-  - **CPU后端**（当前实现）：软件光栅化、像素缓冲、抗锯齿
-  - **GPU后端**（计划中）：硬件加速、Shader、纹理管理
-- **绘制**: 2D图形绘制（直线、矩形、圆、路径）
-- **文本**: 字体度量、字形渲染、换行、对齐
-- **图像**: PNG编码、抗锯齿处理
+- ✅ **抽象渲染后端**: 统一的渲染接口（RenderBackend VTable）
+  - ✅ **CPU后端**（已实现）：软件光栅化、像素缓冲、基本图形绘制
+    - fillRect、strokeRect、fillText
+    - 路径绘制（beginPath、moveTo、lineTo、arc、closePath、fill、stroke）
+    - 变换操作（save、restore、translate、scale、rotate）
+    - 状态管理（裁剪、全局透明度）
+  - 🔲 **GPU后端**（计划中）：硬件加速、Shader、纹理管理
+- ✅ **渲染树到像素转换**: Renderer模块
+  - 布局树遍历和渲染
+  - 背景、边框、文本内容渲染
+  - 样式解析（颜色、字体、边框等CSS属性）
+- ✅ **PNG编码器**: 完整实现
+  - PNG文件格式（签名、IHDR、IDAT、IEND chunks）
+  - CRC32校验算法
+  - 5种PNG滤波器（None、Sub、Up、Average、Paeth）
+  - 最优滤波器选择算法
+  - DEFLATE存储模式（支持大数据自动分块）
+  - zlib格式（头部、ADLER32校验）
 
 详细设计请参考 [DESIGN.md](DESIGN.md)
 
@@ -365,10 +384,29 @@ zig build test
 
 ## 状态
 
-**当前版本**: 0.4.0-alpha  
-**开发阶段**: 阶段1-2完成，阶段3进行中（布局引擎核心功能完成）
+**当前版本**: 0.5.0-alpha  
+**开发阶段**: 阶段1-4完成（HTML解析、CSS解析、布局引擎、渲染引擎和PNG编码器全部完成）
 
-### 最新更新（v0.4.0-alpha）
+### 最新更新（v0.5.0-alpha）
+
+- ✅ **完成渲染引擎和PNG编码器实现**
+  - 抽象渲染后端接口（RenderBackend VTable）
+  - CPU渲染后端（软件光栅化、像素缓冲、基本图形绘制）
+  - 渲染树到像素转换（Renderer模块）
+  - PNG编码器完整实现（支持大图像自动分块）
+  - 修复DEFLATE压缩问题（使用存储模式，确保数据正确编码）
+  - 修复整数溢出问题（支持超过65535字节的数据分块处理）
+  - 修复PNG文件生成问题（现在可以正确显示内容）
+- ✅ **文件结构整理**
+  - test.zig 保持在根目录（统一测试入口）
+  - 测试文件整理到 tests/ 相关目录
+  - test_png_direct.zig 和 test_png_solid.zig 移到 tests/image/
+- ✅ **测试验证**
+  - PNG文件格式验证通过
+  - PNG数据可以正确解压
+  - PNG文件可以在图像查看器中正确显示
+
+### 历史更新（v0.4.0-alpha）
 
 - ✅ **完成布局引擎核心功能实现**
   - 盒模型数据结构（Rect、Size、Point、Edges、BoxModel、LayoutBox）

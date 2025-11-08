@@ -357,37 +357,37 @@ pub const DeflateCompressor = struct {
             // 距离257-512: 码28
             distance_code = 28;
             extra_bits = 7;
-            extra_value = @as(u32, @intCast((distance - 257) % 128));
+            extra_value = @as(u32, @intCast(distance - 257));
         } else if (distance <= 1024) {
             // 距离513-1024: 码29
             distance_code = 29;
             extra_bits = 8;
-            extra_value = @as(u32, @intCast((distance - 513) % 256));
+            extra_value = @as(u32, @intCast(distance - 513));
         } else if (distance <= 2048) {
             // 距离1025-2048: 码29
             distance_code = 29;
             extra_bits = 9;
-            extra_value = @as(u32, @intCast((distance - 1025) % 512));
+            extra_value = @as(u32, @intCast(distance - 1025));
         } else if (distance <= 4096) {
             // 距离2049-4096: 码29
             distance_code = 29;
             extra_bits = 10;
-            extra_value = @as(u32, @intCast((distance - 2049) % 1024));
+            extra_value = @as(u32, @intCast(distance - 2049));
         } else if (distance <= 8192) {
             // 距离4097-8192: 码29
             distance_code = 29;
             extra_bits = 11;
-            extra_value = @as(u32, @intCast((distance - 4097) % 2048));
+            extra_value = @as(u32, @intCast(distance - 4097));
         } else if (distance <= 16384) {
             // 距离8193-16384: 码29
             distance_code = 29;
             extra_bits = 12;
-            extra_value = @as(u32, @intCast((distance - 8193) % 4096));
+            extra_value = @as(u32, @intCast(distance - 8193));
         } else {
             // 距离16385-32768: 码29
             distance_code = 29;
             extra_bits = 13;
-            extra_value = @as(u32, @intCast((distance - 16385) % 8192));
+            extra_value = @as(u32, @intCast(distance - 16385));
         }
 
         // 编码距离码（5位编码）

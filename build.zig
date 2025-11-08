@@ -285,6 +285,13 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    // 创建allocator模块（用于main可执行文件）
+    const allocator_module_for_exe = b.createModule(.{
+        .root_source_file = b.path("src/utils/allocator.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
     // 定义exe模块（在所有依赖模块定义之后）
     const exe = b.addExecutable(.{
         .name = "zbrowser",
@@ -295,6 +302,7 @@ pub fn build(b: *std.Build) void {
             .imports = &.{
                 .{ .name = "html", .module = html_module_exe },
                 .{ .name = "dom", .module = dom_module_exe },
+                .{ .name = "allocator", .module = allocator_module_for_exe },
                 .{ .name = "parser", .module = css_parser_module },
                 .{ .name = "engine", .module = layout_engine_module },
                 .{ .name = "box", .module = layout_box_module },
@@ -319,6 +327,23 @@ pub fn build(b: *std.Build) void {
 
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
+
+    // 添加PNG直接测试程序
+    const png_test_exe = b.addExecutable(.{
+        .name = "test_png_direct",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tests/image/test_png_direct.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "png", .module = image_png_module },
+            },
+        }),
+    });
+    b.installArtifact(png_test_exe);
+    const run_png_test = b.addRunArtifact(png_test_exe);
+    const png_test_step = b.step("test-png", "Test PNG encoder directly");
+    png_test_step.dependOn(&run_png_test.step);
 
     // 创建根测试模块（统一入口）
     // test.zig 作为根测试文件，统一导入所有子测试模块

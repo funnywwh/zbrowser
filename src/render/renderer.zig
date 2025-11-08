@@ -136,9 +136,22 @@ pub const Renderer = struct {
 
             std.debug.print("[Renderer] renderContent: text_node found, content=\"{s}\", len={d}\n", .{ text_content, text_content.len });
 
-            // 如果文本内容为空或只有空白字符，不渲染
+            // 如果文本内容为空，不渲染
             if (text_content.len == 0) {
                 std.debug.print("[Renderer] renderContent: text is empty, skipping\n", .{});
+                return;
+            }
+            
+            // 检查是否只包含空白字符
+            var is_whitespace_only = true;
+            for (text_content) |c| {
+                if (c != ' ' and c != '\n' and c != '\r' and c != '\t') {
+                    is_whitespace_only = false;
+                    break;
+                }
+            }
+            if (is_whitespace_only) {
+                std.debug.print("[Renderer] renderContent: text contains only whitespace, skipping\n", .{});
                 return;
             }
 
@@ -151,9 +164,10 @@ pub const Renderer = struct {
             if (text_color) |color| {
                 // 绘制文本（简化：使用fillText）
                 // y坐标需要调整：rect.y是内容区域的顶部，我们需要在内容区域内绘制文本
-                // 文本基线应该在内容区域的顶部 + 字体大小
+                // fillTextInternal期望y是基线位置，但会将其转换为文本顶部
+                // 所以这里传入rect.y + font.size作为基线位置
                 const text_y = rect.y + font.size;
-                std.debug.print("[Renderer] renderContent: calling fillText at ({d:.1}, {d:.1})\n", .{ rect.x, text_y });
+                std.debug.print("[Renderer] renderContent: calling fillText at ({d:.1}, {d:.1}), text=\"{s}\", rect=({d:.1}, {d:.1}, {d:.1}x{d:.1})\n", .{ rect.x, text_y, text_content, rect.x, rect.y, rect.width, rect.height });
                 self.render_backend.fillText(text_content, rect.x, text_y, font, color);
             } else {
                 std.debug.print("[Renderer] renderContent: no text color, skipping\n", .{});

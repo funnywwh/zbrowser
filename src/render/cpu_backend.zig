@@ -361,8 +361,9 @@ pub const CpuRenderBackend = struct {
         const text_height = font.size;
 
         // 计算文本位置（y是基线位置，需要调整）
-        // 简化：假设基线在文本底部
-        const text_y = y - text_height;
+        // 简化：假设基线在文本底部，所以文本顶部 = 基线 - 文本高度
+        // 但为了确保文本可见，如果y < text_height，将文本放在y位置
+        const text_y = if (y >= text_height) y - text_height else y;
 
         // 如果文本完全在边界外，不绘制
         if (x + text_width < 0 or x >= @as(f32, @floatFromInt(self.width)) or

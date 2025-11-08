@@ -288,39 +288,91 @@ pub const PngEncoder = struct {
         return crc ^ 0xFFFFFFFF;
     }
 
-    /// DEFLATE压缩
-    /// 使用DEFLATE压缩算法（zlib格式）
+    /// DEFLATE压缩（使用存储模式，不压缩）
+    /// 使用DEFLATE存储模式（BTYPE=00），不压缩数据
     /// 参考：RFC 1950 (zlib), RFC 1951 (DEFLATE)
     ///
     /// PNG使用zlib格式的DEFLATE压缩，包含：
     /// 1. zlib头部（2字节）
-    /// 2. DEFLATE压缩数据
+    /// 2. DEFLATE存储块（BTYPE=00，不压缩）
     /// 3. ADLER32校验（4字节）
+    ///
+    /// 注意：DEFLATE存储模式的LEN字段是16位（最大65535），如果数据长度超过65535字节，
+    /// 需要将数据分成多个块，每个块最多65535字节。
     pub fn deflateCompress(self: PngEncoder, data: []const u8) ![]u8 {
-        // 使用DEFLATE压缩器压缩数据
-        var compressor = deflate.DeflateCompressor.init(self.allocator);
-        const deflate_data = try compressor.compress(data);
-        defer self.allocator.free(deflate_data);
-
         // zlib头部：CMF (1字节) + FLG (1字节)
         // CMF: 0x78 = deflate方法，32K窗口
-        // FLG: 0x9C = FCHECK + FDICT + FLEVEL
-        const zlib_header = [_]u8{ 0x78, 0x9C };
+        // FLG: 0x01 = FCHECK（不压缩模式）
+        const zlib_header = [_]u8{ 0x78, 0x01 };
+
+        // DEFLATE存储块格式（BTYPE=00）：
+        // - BFINAL(1) + BTYPE(2) = 3位，值=0（BTYPE=00，存储模式）
+        // - 对齐到字节边界（填充0）
+        // - LEN (16位，小端) = 数据长度（最大65535）
+        // - NLEN (16位，小端) = ~LEN（LEN的按位取反）
+        // - 数据本身
+
+        const MAX_BLOCK_SIZE: usize = 65535; // u16的最大值
+
+        // 计算需要的块数
+        const num_blocks = if (data.len == 0) 1 else (data.len + MAX_BLOCK_SIZE - 1) / MAX_BLOCK_SIZE;
+
+        // 计算总大小：zlib头部 + 所有块 + ADLER32
+        const block_header_bytes: usize = 1; // 对齐到字节
+        const len_nlen_bytes: usize = 4; // LEN(2) + NLEN(2)
+        const block_overhead = block_header_bytes + len_nlen_bytes; // 每个块的开销
+
+        // 使用安全的加法计算总大小，避免溢出
+        // 总大小 = 数据长度 + 块数 * 块开销
+        const blocks_overhead = std.math.mul(usize, num_blocks, block_overhead) catch return error.Overflow;
+        const total_deflate_size = std.math.add(usize, data.len, blocks_overhead) catch return error.Overflow;
 
         // 计算ADLER32校验（基于原始数据）
         const adler32 = self.calculateAdler32(data);
 
-        // 构建结果：zlib头部 + DEFLATE压缩数据 + ADLER32
-        const result_len = zlib_header.len + deflate_data.len + 4;
+        // 构建结果：zlib头部 + DEFLATE存储块 + ADLER32
+        const result_len = zlib_header.len + total_deflate_size + 4;
         const result = try self.allocator.alloc(u8, result_len);
         errdefer self.allocator.free(result);
 
         var offset: usize = 0;
+
+        // 写入zlib头部
         @memcpy(result[offset..][0..zlib_header.len], &zlib_header);
         offset += zlib_header.len;
 
-        @memcpy(result[offset..][0..deflate_data.len], deflate_data);
-        offset += deflate_data.len;
+        // 写入多个DEFLATE存储块
+        var data_offset: usize = 0;
+        var block_idx: usize = 0;
+        while (block_idx < num_blocks) : (block_idx += 1) {
+            const is_final = (block_idx == num_blocks - 1);
+            const block_size = @min(data.len - data_offset, MAX_BLOCK_SIZE);
+
+            // 写入DEFLATE块头：BFINAL, BTYPE=00（存储模式）
+            // 位0: BFINAL（1=最后一个块，0=还有更多块）
+            // 位1-2: BTYPE=00（存储模式）
+            result[offset] = if (is_final) 0x01 else 0x00; // BFINAL + BTYPE=00
+            offset += 1;
+
+            // 写入LEN（16位，小端）：块数据长度
+            const len = @as(u16, @intCast(block_size));
+            result[offset] = @as(u8, @truncate(len));
+            result[offset + 1] = @as(u8, @truncate(len >> 8));
+            offset += 2;
+
+            // 写入NLEN（16位，小端）：~LEN（LEN的按位取反）
+            const nlen = ~len;
+            result[offset] = @as(u8, @truncate(nlen));
+            result[offset + 1] = @as(u8, @truncate(nlen >> 8));
+            offset += 2;
+
+            // 写入块数据
+            if (block_size > 0) {
+                @memcpy(result[offset..][0..block_size], data[data_offset..][0..block_size]);
+                offset += block_size;
+                data_offset += block_size;
+            }
+        }
 
         // 写入ADLER32（big-endian）
         result[offset] = @as(u8, @truncate(adler32 >> 24));
