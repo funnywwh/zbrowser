@@ -17,12 +17,35 @@ const Transform = struct {
     angle: f32 = 0, // 旋转角度（弧度）
 
     /// 应用变换到点
+    /// 使用2D变换矩阵：先缩放，再旋转，最后平移
+    /// 变换矩阵：[sx*cos(angle)  -sy*sin(angle)  tx]
+    ///          [sx*sin(angle)   sy*cos(angle)   ty]
+    ///          [0               0               1]
     fn apply(self: Transform, x: f32, y: f32) struct { x: f32, y: f32 } {
-        // 简化实现：只应用平移和缩放
-        // TODO: 完整实现需要支持旋转
+        // 如果角度为0，可以优化（只应用缩放和平移）
+        if (self.angle == 0.0) {
+            return .{
+                .x = x * self.sx + self.tx,
+                .y = y * self.sy + self.ty,
+            };
+        }
+
+        // 应用完整的变换矩阵（缩放 + 旋转 + 平移）
+        const cos_a = @cos(self.angle);
+        const sin_a = @sin(self.angle);
+
+        // 先应用缩放
+        const scaled_x = x * self.sx;
+        const scaled_y = y * self.sy;
+
+        // 然后应用旋转
+        const rotated_x = scaled_x * cos_a - scaled_y * sin_a;
+        const rotated_y = scaled_x * sin_a + scaled_y * cos_a;
+
+        // 最后应用平移
         return .{
-            .x = x * self.sx + self.tx,
-            .y = y * self.sy + self.ty,
+            .x = rotated_x + self.tx,
+            .y = rotated_y + self.ty,
         };
     }
 };
@@ -525,8 +548,7 @@ pub const CpuRenderBackend = struct {
 
     fn rotateImpl(self_ptr: *backend.RenderBackend, angle: f32) void {
         const self = fromRenderBackend(self_ptr);
-        // TODO: 简化实现 - 当前只记录角度，不实际应用旋转
-        // 完整实现需要：更新变换矩阵以支持旋转
+        // 累积旋转角度（支持多次旋转）
         self.current_state.transform.angle += angle;
     }
 
