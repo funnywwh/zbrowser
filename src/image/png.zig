@@ -27,7 +27,6 @@ pub const PngEncoder = struct {
     /// 6. 实现DEFLATE压缩算法
     /// 参考：PNG规范（RFC 2083）
     pub fn encode(self: PngEncoder, pixels: []const u8, width: u32, height: u32) ![]u8 {
-        _ = self;
         _ = pixels;
         _ = width;
         _ = height;

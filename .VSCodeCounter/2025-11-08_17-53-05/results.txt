@@ -1,0 +1,106 @@
+Date : 2025-11-08 17:53:05
+Directory : /home/winger/zigwk/zbrowser
+Total : 61 files,  12989 codes, 3337 comments, 2739 blanks, all 19065 lines
+
+Languages
++--------------+------------+------------+------------+------------+------------+
+| language     | files      | code       | comment    | blank      | total      |
++--------------+------------+------------+------------+------------+------------+
+| Zig          |         50 |      9,662 |      1,698 |      1,945 |     13,305 |
+| Markdown     |         10 |      3,308 |      1,635 |        793 |      5,736 |
+| Shell Script |          1 |         19 |          4 |          1 |         24 |
++--------------+------------+------------+------------+------------+------------+
+
+Directories
++---------------------------------------------------------------+------------+------------+------------+------------+------------+
+| path                                                          | files      | code       | comment    | blank      | total      |
++---------------------------------------------------------------+------------+------------+------------+------------+------------+
+| .                                                             |         61 |     12,989 |      3,337 |      2,739 |     19,065 |
+| . (Files)                                                     |          6 |      1,225 |        721 |        245 |      2,191 |
+| docs                                                          |          5 |      2,226 |        797 |        538 |      3,561 |
+| src                                                           |         25 |      3,864 |        848 |        647 |      5,359 |
+| src (Files)                                                   |          1 |         64 |          6 |         14 |         84 |
+| src/css                                                       |          4 |      1,158 |        155 |        154 |      1,467 |
+| src/html                                                      |          3 |      1,066 |        168 |        133 |      1,367 |
+| src/image                                                     |          1 |         14 |         21 |          5 |         40 |
+| src/layout                                                    |         10 |        902 |        371 |        189 |      1,462 |
+| src/render                                                    |          2 |        416 |         92 |         93 |        601 |
+| src/test                                                      |          1 |        141 |         12 |         31 |        184 |
+| src/utils                                                     |          3 |        103 |         23 |         28 |        154 |
+| tests                                                         |         25 |      5,674 |        971 |      1,309 |      7,954 |
+| tests (Files)                                                 |          3 |        306 |        182 |         76 |        564 |
+| tests/css                                                     |          4 |      1,054 |         82 |        209 |      1,345 |
+| tests/html                                                    |          3 |      2,236 |        258 |        417 |      2,911 |
+| tests/image                                                   |          1 |          7 |          2 |          2 |         11 |
+| tests/layout                                                  |          9 |      1,650 |        407 |        491 |      2,548 |
+| tests/render                                                  |          2 |        182 |         27 |         53 |        262 |
+| tests/utils                                                   |          3 |        239 |         13 |         61 |        313 |
++---------------------------------------------------------------+------------+------------+------------+------------+------------+
+
+Files
++---------------------------------------------------------------+--------------+------------+------------+------------+------------+
+| filename                                                      | language     | code       | comment    | blank      | total      |
++---------------------------------------------------------------+--------------+------------+------------+------------+------------+
+| /home/winger/zigwk/zbrowser/DESIGN.md                         | Markdown     |        235 |        671 |         44 |        950 |
+| /home/winger/zigwk/zbrowser/PLAN.md                           | Markdown     |        290 |          0 |         59 |        349 |
+| /home/winger/zigwk/zbrowser/README.md                         | Markdown     |        340 |          0 |         89 |        429 |
+| /home/winger/zigwk/zbrowser/build.zig                         | Zig          |        283 |         25 |         37 |        345 |
+| /home/winger/zigwk/zbrowser/docs/API.md                       | Markdown     |        592 |          0 |        153 |        745 |
+| /home/winger/zigwk/zbrowser/docs/DESIGN.md                    | Markdown     |        255 |        797 |         44 |      1,096 |
+| /home/winger/zigwk/zbrowser/docs/LAYOUT_DESIGN.md             | Markdown     |        877 |          0 |        205 |      1,082 |
+| /home/winger/zigwk/zbrowser/docs/PLAN.md                      | Markdown     |        280 |          0 |         59 |        339 |
+| /home/winger/zigwk/zbrowser/docs/README.md                    | Markdown     |        222 |          0 |         77 |        299 |
+| /home/winger/zigwk/zbrowser/env.sh                            | Shell Script |         19 |          4 |          1 |         24 |
+| /home/winger/zigwk/zbrowser/src/css/cascade.zig               | Zig          |        111 |         19 |         20 |        150 |
+| /home/winger/zigwk/zbrowser/src/css/parser.zig                | Zig          |        450 |         81 |         54 |        585 |
+| /home/winger/zigwk/zbrowser/src/css/selector.zig              | Zig          |        191 |         17 |         20 |        228 |
+| /home/winger/zigwk/zbrowser/src/css/tokenizer.zig             | Zig          |        406 |         38 |         60 |        504 |
+| /home/winger/zigwk/zbrowser/src/html/dom.zig                  | Zig          |        326 |        108 |         54 |        488 |
+| /home/winger/zigwk/zbrowser/src/html/parser.zig               | Zig          |        423 |         34 |         29 |        486 |
+| /home/winger/zigwk/zbrowser/src/html/tokenizer.zig            | Zig          |        317 |         26 |         50 |        393 |
+| /home/winger/zigwk/zbrowser/src/image/png.zig                 | Zig          |         14 |         21 |          5 |         40 |
+| /home/winger/zigwk/zbrowser/src/layout/block.zig              | Zig          |         28 |         18 |         10 |         56 |
+| /home/winger/zigwk/zbrowser/src/layout/box.zig                | Zig          |        161 |         49 |         36 |        246 |
+| /home/winger/zigwk/zbrowser/src/layout/context.zig            | Zig          |         66 |         24 |         18 |        108 |
+| /home/winger/zigwk/zbrowser/src/layout/engine.zig             | Zig          |         82 |         23 |         12 |        117 |
+| /home/winger/zigwk/zbrowser/src/layout/flexbox.zig            | Zig          |         54 |         34 |         15 |        103 |
+| /home/winger/zigwk/zbrowser/src/layout/float.zig              | Zig          |         59 |         57 |         20 |        136 |
+| /home/winger/zigwk/zbrowser/src/layout/grid.zig               | Zig          |        140 |         35 |         22 |        197 |
+| /home/winger/zigwk/zbrowser/src/layout/inline.zig             | Zig          |         72 |         31 |         18 |        121 |
+| /home/winger/zigwk/zbrowser/src/layout/position.zig           | Zig          |         61 |         63 |         11 |        135 |
+| /home/winger/zigwk/zbrowser/src/layout/style_utils.zig        | Zig          |        179 |         37 |         27 |        243 |
+| /home/winger/zigwk/zbrowser/src/main.zig                      | Zig          |         64 |          6 |         14 |         84 |
+| /home/winger/zigwk/zbrowser/src/render/backend.zig            | Zig          |        145 |         38 |         41 |        224 |
+| /home/winger/zigwk/zbrowser/src/render/cpu_backend.zig        | Zig          |        271 |         54 |         52 |        377 |
+| /home/winger/zigwk/zbrowser/src/test/runner.zig               | Zig          |        141 |         12 |         31 |        184 |
+| /home/winger/zigwk/zbrowser/src/utils/allocator.zig           | Zig          |         22 |          3 |          6 |         31 |
+| /home/winger/zigwk/zbrowser/src/utils/math.zig                | Zig          |         21 |          7 |          7 |         35 |
+| /home/winger/zigwk/zbrowser/src/utils/string.zig              | Zig          |         60 |         13 |         15 |         88 |
+| /home/winger/zigwk/zbrowser/test.zig                          | Zig          |         58 |         21 |         15 |         94 |
+| /home/winger/zigwk/zbrowser/tests/MISSING_TESTS.md            | Markdown     |        115 |        167 |         23 |        305 |
+| /home/winger/zigwk/zbrowser/tests/README.md                   | Markdown     |        102 |          0 |         40 |        142 |
+| /home/winger/zigwk/zbrowser/tests/css/cascade_test.zig        | Zig          |        149 |         18 |         24 |        191 |
+| /home/winger/zigwk/zbrowser/tests/css/parser_test.zig         | Zig          |        199 |          7 |         36 |        242 |
+| /home/winger/zigwk/zbrowser/tests/css/selector_test.zig       | Zig          |        430 |         55 |         73 |        558 |
+| /home/winger/zigwk/zbrowser/tests/css/tokenizer_test.zig      | Zig          |        276 |          2 |         76 |        354 |
+| /home/winger/zigwk/zbrowser/tests/html/dom_test.zig           | Zig          |        783 |         80 |        163 |      1,026 |
+| /home/winger/zigwk/zbrowser/tests/html/parser_test.zig        | Zig          |      1,020 |        140 |        151 |      1,311 |
+| /home/winger/zigwk/zbrowser/tests/html/tokenizer_test.zig     | Zig          |        433 |         38 |        103 |        574 |
+| /home/winger/zigwk/zbrowser/tests/image/png_test.zig          | Zig          |          7 |          2 |          2 |         11 |
+| /home/winger/zigwk/zbrowser/tests/layout/block_test.zig       | Zig          |        157 |         47 |         56 |        260 |
+| /home/winger/zigwk/zbrowser/tests/layout/box_test.zig         | Zig          |        184 |         22 |         30 |        236 |
+| /home/winger/zigwk/zbrowser/tests/layout/context_test.zig     | Zig          |        215 |         50 |         67 |        332 |
+| /home/winger/zigwk/zbrowser/tests/layout/engine_test.zig      | Zig          |        200 |         96 |         74 |        370 |
+| /home/winger/zigwk/zbrowser/tests/layout/flexbox_test.zig     | Zig          |        234 |         44 |         67 |        345 |
+| /home/winger/zigwk/zbrowser/tests/layout/float_test.zig       | Zig          |        192 |         40 |         60 |        292 |
+| /home/winger/zigwk/zbrowser/tests/layout/grid_test.zig        | Zig          |        141 |         26 |         42 |        209 |
+| /home/winger/zigwk/zbrowser/tests/layout/inline_test.zig      | Zig          |        187 |         50 |         54 |        291 |
+| /home/winger/zigwk/zbrowser/tests/layout/position_test.zig    | Zig          |        140 |         32 |         41 |        213 |
+| /home/winger/zigwk/zbrowser/tests/render/backend_test.zig     | Zig          |          7 |          4 |          3 |         14 |
+| /home/winger/zigwk/zbrowser/tests/render/cpu_backend_test.zig | Zig          |        175 |         23 |         50 |        248 |
+| /home/winger/zigwk/zbrowser/tests/test_helpers.zig            | Zig          |         89 |         15 |         13 |        117 |
+| /home/winger/zigwk/zbrowser/tests/utils/allocator_test.zig    | Zig          |         62 |         13 |         24 |         99 |
+| /home/winger/zigwk/zbrowser/tests/utils/math_test.zig         | Zig          |         54 |          0 |         10 |         64 |
+| /home/winger/zigwk/zbrowser/tests/utils/string_test.zig       | Zig          |        123 |          0 |         27 |        150 |
+| Total                                                         |              |     12,989 |      3,337 |      2,739 |     19,065 |
++---------------------------------------------------------------+--------------+------------+------------+------------+------------+
