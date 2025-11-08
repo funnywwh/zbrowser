@@ -1,4 +1,5 @@
 const std = @import("std");
+const deflate = @import("deflate");
 
 /// PNG编码器
 /// 将RGBA像素数据编码为PNG格式
@@ -273,30 +274,29 @@ pub const PngEncoder = struct {
     }
 
     /// DEFLATE压缩
-    /// TODO: 简化实现 - 当前返回未压缩的数据（加上zlib头部和ADLER32校验）
-    /// 完整实现需要使用DEFLATE压缩算法（zlib格式）
+    /// 使用DEFLATE压缩算法（zlib格式）
     /// 参考：RFC 1950 (zlib), RFC 1951 (DEFLATE)
     ///
     /// PNG使用zlib格式的DEFLATE压缩，包含：
     /// 1. zlib头部（2字节）
     /// 2. DEFLATE压缩数据
     /// 3. ADLER32校验（4字节）
-    ///
-    /// 当前实现只添加zlib头部和ADLER32，数据未压缩
     pub fn deflateCompress(self: PngEncoder, data: []const u8) ![]u8 {
-        // TODO: 实现完整的DEFLATE压缩算法
-        // 当前实现：添加zlib头部和ADLER32校验，但数据未压缩
+        // 使用DEFLATE压缩器压缩数据
+        var compressor = deflate.DeflateCompressor.init(self.allocator);
+        const deflate_data = try compressor.compress(data);
+        defer self.allocator.free(deflate_data);
 
         // zlib头部：CMF (1字节) + FLG (1字节)
         // CMF: 0x78 = deflate方法，32K窗口
         // FLG: 0x9C = FCHECK + FDICT + FLEVEL
         const zlib_header = [_]u8{ 0x78, 0x9C };
 
-        // 计算ADLER32校验
+        // 计算ADLER32校验（基于原始数据）
         const adler32 = self.calculateAdler32(data);
 
-        // 构建结果：zlib头部 + 原始数据 + ADLER32
-        const result_len = zlib_header.len + data.len + 4;
+        // 构建结果：zlib头部 + DEFLATE压缩数据 + ADLER32
+        const result_len = zlib_header.len + deflate_data.len + 4;
         const result = try self.allocator.alloc(u8, result_len);
         errdefer self.allocator.free(result);
 
@@ -304,8 +304,8 @@ pub const PngEncoder = struct {
         @memcpy(result[offset..][0..zlib_header.len], &zlib_header);
         offset += zlib_header.len;
 
-        @memcpy(result[offset..][0..data.len], data);
-        offset += data.len;
+        @memcpy(result[offset..][0..deflate_data.len], deflate_data);
+        offset += deflate_data.len;
 
         // 写入ADLER32（big-endian）
         result[offset] = @as(u8, @truncate(adler32 >> 24));

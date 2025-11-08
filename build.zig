@@ -275,10 +275,19 @@ pub fn build(b: *std.Build) void {
     });
 
     // Image模块
+    const image_deflate_module = b.createModule(.{
+        .root_source_file = b.path("src/image/deflate.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
     const image_png_module = b.createModule(.{
         .root_source_file = b.path("src/image/png.zig"),
         .target = target,
         .optimize = optimize,
+        .imports = &.{
+            .{ .name = "deflate", .module = image_deflate_module },
+        },
     });
 
     // 创建根测试模块（统一入口）
