@@ -146,7 +146,7 @@ pub fn main() !void {
         \\body {
         \\  font-family: Arial, sans-serif;
         \\  margin: 20px;
-        \\  background-color: #ffffff;
+        \\  background-color: #f5f5f5;
         \\}
         \\h1 {
         \\  color: #333333;

@@ -359,9 +359,19 @@ pub const CpuRenderBackend = struct {
             return;
         }
 
-        // 绘制文本占位符矩形
-        const text_rect = backend.Rect.init(x, text_y, text_width, text_height);
-        fillRectInternal(self, text_rect, color);
+        // 确保文本矩形在画布范围内
+        const clamped_x = @max(0.0, x);
+        const clamped_y = @max(0.0, text_y);
+        const max_x = @as(f32, @floatFromInt(self.width));
+        const max_y = @as(f32, @floatFromInt(self.height));
+        const clamped_width = @min(text_width, max_x - clamped_x);
+        const clamped_height = @min(text_height, max_y - clamped_y);
+
+        if (clamped_width > 0 and clamped_height > 0) {
+            // 绘制文本占位符矩形
+            const text_rect = backend.Rect.init(clamped_x, clamped_y, clamped_width, clamped_height);
+            fillRectInternal(self, text_rect, color);
+        }
     }
 
     fn drawImageImpl(self_ptr: *backend.RenderBackend, image: *backend.Image, src_rect: backend.Rect, dst_rect: backend.Rect) void {

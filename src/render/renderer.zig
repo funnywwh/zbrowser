@@ -113,13 +113,21 @@ pub const Renderer = struct {
             // 从Node.data中获取文本内容
             const text_content = layout_box.node.data.text;
 
+            // 如果文本内容为空或只有空白字符，不渲染
+            if (text_content.len == 0) {
+                return;
+            }
+
             // 获取文本颜色和字体
             const text_color = self.getTextColor(computed_style);
             const font = self.getFont(computed_style);
 
             if (text_color) |color| {
                 // 绘制文本（简化：使用fillText）
-                self.render_backend.fillText(text_content, rect.x, rect.y + font.size, font, color);
+                // y坐标需要调整：rect.y是内容区域的顶部，我们需要在内容区域内绘制文本
+                // 文本基线应该在内容区域的顶部 + 字体大小
+                const text_y = rect.y + font.size;
+                self.render_backend.fillText(text_content, rect.x, text_y, font, color);
             }
         }
     }
