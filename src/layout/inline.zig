@@ -20,11 +20,11 @@ fn createLineBox(ifc: *context.InlineFormattingContext, y: f32, allocator: std.m
             .width = 0,
             .height = 0,
         },
-        .inline_boxes = std.ArrayList(*box.LayoutBox).init(allocator),
+        .inline_boxes = std.ArrayList(*box.LayoutBox){},
         .baseline = 0,
         .line_height = 0,
     };
-    try ifc.line_boxes.append(line_box);
+    try ifc.line_boxes.append(allocator, line_box);
 
     // 返回最后添加的行框的指针
     return &ifc.line_boxes.items[ifc.line_boxes.items.len - 1];
@@ -89,7 +89,7 @@ pub fn layoutInline(layout_box: *box.LayoutBox, containing_block: box.Size) !*co
         // 添加到当前行
         child.box_model.content.x = layout_box.box_model.content.x + layout_box.box_model.padding.left + line_width;
         child.box_model.content.y = layout_box.box_model.content.y + current_line.rect.y;
-        try current_line.inline_boxes.append(child);
+        try current_line.inline_boxes.append(layout_box.allocator, child);
 
         line_width += child_width;
         line_height = @max(line_height, child_height);

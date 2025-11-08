@@ -59,11 +59,11 @@ pub const Rule = struct {
         for (self.selectors.items) |*sel| {
             sel.deinit();
         }
-        self.selectors.deinit();
+        self.selectors.deinit(self.allocator);
         for (self.declarations.items) |*decl| {
             decl.deinit();
         }
-        self.declarations.deinit();
+        self.declarations.deinit(self.allocator);
     }
 };
 
@@ -76,7 +76,7 @@ pub const Stylesheet = struct {
         for (self.rules.items) |*rule| {
             rule.deinit();
         }
-        self.rules.deinit();
+        self.rules.deinit(self.allocator);
     }
 };
 
@@ -105,7 +105,7 @@ pub const Parser = struct {
     /// 解析样式表
     pub fn parse(self: *Self) !Stylesheet {
         var stylesheet = Stylesheet{
-            .rules = std.ArrayList(Rule).init(self.allocator),
+            .rules = std.ArrayList(Rule){},
             .allocator = self.allocator,
         };
         errdefer stylesheet.deinit();
@@ -122,7 +122,7 @@ pub const Parser = struct {
                     // 尝试解析规则
                     const rule_result = self.parseRule();
                     if (rule_result) |rule| {
-                        try stylesheet.rules.append(rule);
+                        try stylesheet.rules.append(self.allocator, rule);
                     } else |_| {
                         // 解析错误，跳过当前token继续
                         // tokenizer保证总是会推进pos或返回EOF，所以这里直接advance即可
@@ -138,23 +138,23 @@ pub const Parser = struct {
     /// 解析规则: selector_list '{' declaration_list '}'
     fn parseRule(self: *Self) !Rule {
         // 解析选择器列表
-        var selectors = std.ArrayList(selector.Selector).init(self.allocator);
+        var selectors = std.ArrayList(selector.Selector){};
         errdefer {
             for (selectors.items) |*sel| {
                 sel.deinit();
             }
-            selectors.deinit();
+            selectors.deinit(self.allocator);
         }
 
         var sel = try self.parseSelector();
-        try selectors.append(sel);
+        try selectors.append(self.allocator, sel);
 
         // 解析逗号分隔的选择器
         while (self.current_token) |token| {
             if (token.token_type == .delim and token.data.delim == ',') {
                 try self.advance();
                 sel = try self.parseSelector();
-                try selectors.append(sel);
+                try selectors.append(self.allocator, sel);
             } else {
                 break;
             }
@@ -164,12 +164,12 @@ pub const Parser = struct {
         try self.expectDelim('{');
 
         // 解析声明列表
-        var declarations = std.ArrayList(Declaration).init(self.allocator);
+        var declarations = std.ArrayList(Declaration){};
         errdefer {
             for (declarations.items) |*decl| {
                 decl.deinit();
             }
-            declarations.deinit();
+            declarations.deinit(self.allocator);
         }
 
         while (self.current_token) |token| {
@@ -190,7 +190,7 @@ pub const Parser = struct {
 
             // 解析声明
             if (self.parseDeclaration()) |decl| {
-                try declarations.append(decl);
+                try declarations.append(self.allocator, decl);
             } else |_| {
                 // 解析错误，跳过到下一个分号或右大括号
                 while (self.current_token) |t| {
@@ -218,7 +218,7 @@ pub const Parser = struct {
         errdefer sel.deinit();
 
         const first_sequence = try self.parseSelectorSequence();
-        try sel.sequences.append(first_sequence);
+        try sel.sequences.append(self.allocator, first_sequence);
 
         // 解析组合器和后续序列
         // 注意：对于后代选择器（空白分隔），应该添加到同一个序列中
@@ -240,10 +240,10 @@ pub const Parser = struct {
                 const next_sequence = try self.parseSelectorSequence();
                 // 先 append，再获取前一个序列的引用（避免引用失效）
                 const prev_idx = sel.sequences.items.len;
-                try sel.sequences.append(next_sequence);
+                try sel.sequences.append(self.allocator, next_sequence);
                 // 将组合器添加到前一个序列
                 var prev_sequence = &sel.sequences.items[prev_idx - 1];
-                try prev_sequence.combinators.append(combinator);
+                try prev_sequence.combinators.append(self.allocator, combinator);
             } else {
                 // 没有显式组合器，检查是否是后代选择器（空白分隔）
                 // 后代选择器：添加到当前序列
@@ -252,16 +252,16 @@ pub const Parser = struct {
                     const sequence_idx = sel.sequences.items.len - 1;
                     var sequence = &sel.sequences.items[sequence_idx];
                     // 添加后代组合器到当前序列（在选择器之间）
-                    try sequence.combinators.append(.descendant);
+                    try sequence.combinators.append(self.allocator, .descendant);
                     // 解析下一个选择器序列，但将其选择器添加到当前序列
                     var next_sequence = try self.parseSelectorSequence();
                     // 将下一个序列的选择器添加到当前序列
                     for (next_sequence.selectors.items) |simple_sel| {
-                        try sequence.selectors.append(simple_sel);
+                        try sequence.selectors.append(self.allocator, simple_sel);
                     }
                     // 清理下一个序列（选择器已移动，但需要清理空的ArrayList）
-                    next_sequence.selectors.deinit();
-                    next_sequence.combinators.deinit();
+                    next_sequence.selectors.deinit(self.allocator);
+                    next_sequence.combinators.deinit(self.allocator);
                 } else {
                     // 不是选择器，退出
                     break;
@@ -293,7 +293,7 @@ pub const Parser = struct {
         // 解析一个或多个简单选择器
         // 至少需要一个简单选择器
         if (self.parseSimpleSelector()) |simple_sel| {
-            try sequence.selectors.append(simple_sel);
+            try sequence.selectors.append(self.allocator, simple_sel);
         } else |_| {
             return error.InvalidSelector;
         }
@@ -326,7 +326,7 @@ pub const Parser = struct {
 
             // 尝试解析更多简单选择器（同一序列中的，如 .container 或 #id）
             if (self.parseSimpleSelector()) |simple_sel| {
-                try sequence.selectors.append(simple_sel);
+                try sequence.selectors.append(self.allocator, simple_sel);
             } else |_| {
                 // 无法解析，停止
                 break;

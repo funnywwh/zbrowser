@@ -1,0 +1,80 @@
+const std = @import("std");
+const dom = @import("dom");
+const box = @import("box");
+const block = @import("block");
+const inline_layout = @import("inline");
+const cascade = @import("cascade");
+const css_parser = @import("parser");
+
+/// 布局引擎
+/// 负责从DOM树构建布局树，并执行布局计算
+pub const LayoutEngine = struct {
+    allocator: std.mem.Allocator,
+
+    /// 初始化布局引擎
+    pub fn init(allocator: std.mem.Allocator) LayoutEngine {
+        return .{ .allocator = allocator };
+    }
+
+    /// 构建布局树（从DOM树构建）
+    /// TODO: 简化实现 - 当前不处理样式表，只构建基本的布局树结构
+    /// 完整实现需要：
+    /// 1. 处理样式表，计算每个元素的display、position、float等属性
+    /// 2. 根据display类型设置LayoutBox的display属性
+    /// 3. 计算盒模型（padding、border、margin）
+    pub fn buildLayoutTree(self: *LayoutEngine, node: *dom.Node, stylesheets: []const css_parser.Stylesheet) !*box.LayoutBox {
+        // TODO: 暂时不使用样式表的内容，后续实现样式计算
+        // 但stylesheets参数需要在递归调用中传递
+
+        // 创建布局框
+        const layout_box = try self.allocator.create(box.LayoutBox);
+        errdefer self.allocator.destroy(layout_box);
+        layout_box.* = box.LayoutBox.init(node, self.allocator);
+
+        // TODO: 从样式表获取display、position、float等属性
+        // 暂时使用默认值（block、static、none）
+
+        // 递归构建子节点
+        var child = node.first_child;
+        while (child) |c| {
+            const child_layout_box = try self.buildLayoutTree(c, stylesheets);
+            child_layout_box.parent = layout_box;
+            try layout_box.children.append(layout_box.allocator, child_layout_box);
+            child = c.next_sibling;
+        }
+
+        return layout_box;
+    }
+
+    /// 执行布局计算
+    /// 根据布局树的display类型，选择合适的布局算法
+    pub fn layout(self: *LayoutEngine, layout_tree: *box.LayoutBox, viewport: box.Size) !void {
+        // 根据display类型选择布局算法
+        switch (layout_tree.display) {
+            .block => {
+                try block.layoutBlock(layout_tree, viewport);
+            },
+            .inline_element => {
+                _ = try inline_layout.layoutInline(layout_tree, viewport);
+                // 注意：layoutInline返回IFC指针，但这里暂时不处理
+            },
+            else => {
+                // 默认使用block布局
+                try block.layoutBlock(layout_tree, viewport);
+            },
+        }
+
+        // 标记为已布局
+        layout_tree.is_layouted = true;
+
+        // 递归布局子节点
+        for (layout_tree.children.items) |child| {
+            // 子节点的containing_block是父节点的内容区域
+            const containing_block = box.Size{
+                .width = layout_tree.box_model.content.width,
+                .height = layout_tree.box_model.content.height,
+            };
+            try self.layout(child, containing_block);
+        }
+    }
+};

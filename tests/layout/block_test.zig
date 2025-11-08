@@ -71,10 +71,10 @@ test "layoutBlock basic - single child" {
     var child_box = box.LayoutBox.init(child_node, allocator);
     child_box.box_model.content.width = 100;
     child_box.box_model.content.height = 50;
-    defer child_box.deinit();
+    // 注意：不要在这里defer child_box.deinit()，因为parent_box.deinit()会清理children列表
 
     // 添加子节点
-    try parent_box.children.append(&child_box);
+    try parent_box.children.append(allocator, &child_box);
     child_box.parent = &parent_box;
 
     // 执行块级布局
@@ -118,22 +118,22 @@ test "layoutBlock multiple children" {
     var child1_box = box.LayoutBox.init(child1_node, allocator);
     child1_box.box_model.content.width = 100;
     child1_box.box_model.content.height = 50;
-    defer child1_box.deinit();
+    // 注意：不要在这里defer child_box.deinit()，因为parent_box.deinit()会清理children列表
 
     var child2_box = box.LayoutBox.init(child2_node, allocator);
     child2_box.box_model.content.width = 100;
     child2_box.box_model.content.height = 60;
-    defer child2_box.deinit();
+    // 注意：不要在这里defer child_box.deinit()，因为parent_box.deinit()会清理children列表
 
     var child3_box = box.LayoutBox.init(child3_node, allocator);
     child3_box.box_model.content.width = 100;
     child3_box.box_model.content.height = 40;
-    defer child3_box.deinit();
+    // 注意：不要在这里defer child_box.deinit()，因为parent_box.deinit()会清理children列表
 
     // 添加子节点
-    try parent_box.children.append(&child1_box);
-    try parent_box.children.append(&child2_box);
-    try parent_box.children.append(&child3_box);
+    try parent_box.children.append(allocator, &child1_box);
+    try parent_box.children.append(allocator, &child2_box);
+    try parent_box.children.append(allocator, &child3_box);
     child1_box.parent = &parent_box;
     child2_box.parent = &parent_box;
     child3_box.parent = &parent_box;
@@ -175,10 +175,10 @@ test "layoutBlock with margin" {
     child_box.box_model.content.height = 50;
     child_box.box_model.margin.top = 10;
     child_box.box_model.margin.bottom = 20;
-    defer child_box.deinit();
+    // 注意：不要在这里defer child_box.deinit()，因为parent_box.deinit()会清理children列表
 
     // 添加子节点
-    try parent_box.children.append(&child_box);
+    try parent_box.children.append(allocator, &child_box);
     child_box.parent = &parent_box;
 
     // 执行块级布局
@@ -240,10 +240,10 @@ test "layoutBlock with padding" {
     var child_box = box.LayoutBox.init(child_node, allocator);
     child_box.box_model.content.width = 100;
     child_box.box_model.content.height = 50;
-    defer child_box.deinit();
+    // 注意：不要在这里defer child_box.deinit()，因为parent_box.deinit()会清理children列表
 
     // 添加子节点
-    try parent_box.children.append(&child_box);
+    try parent_box.children.append(allocator, &child_box);
     child_box.parent = &parent_box;
 
     // 执行块级布局

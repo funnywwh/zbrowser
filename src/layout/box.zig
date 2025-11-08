@@ -173,7 +173,10 @@ pub const LayoutBox = struct {
             .display = .block,
             .position = .static,
             .float = .none,
-            .children = std.ArrayList(*LayoutBox).init(allocator),
+            .children = std.ArrayList(*LayoutBox){
+                .items = &[_]*LayoutBox{},
+                .capacity = 0,
+            },
             .parent = null,
             .formatting_context = null,
             .is_layouted = false,
@@ -193,11 +196,22 @@ pub const LayoutBox = struct {
 
         // 递归清理子节点（子节点也需要被destroy，但这里只清理它们的资源）
         // 注意：子节点的内存释放应该由创建者负责
-        // 先清理所有子节点
-        for (self.children.items) |child| {
-            child.deinit();
+        // 在Zig 0.15.2中，ArrayList的items默认是&[_]T{}，可以安全访问
+        // 但是，如果children从未被使用（capacity为0），items.ptr可能无效
+        // 所以需要先检查items.len，只有在items.len > 0时才访问items
+        // 注意：即使capacity为0，items.len也应该可以安全访问（因为items默认是&[_]T{}）
+        // 但是，如果self.children本身无效，访问items.len也会导致段错误
+        // 解决方案：使用items.len来检查，因为即使capacity为0，items.len也应该可以安全访问
+        if (self.children.items.len > 0) {
+            // 先清理所有子节点
+            const children_slice = self.children.items;
+            for (children_slice) |child| {
+                child.deinit();
+            }
         }
-        // 然后清理ArrayList本身
-        self.children.deinit();
+        // 然后清理ArrayList本身（只有在capacity > 0时才需要）
+        if (self.children.capacity > 0) {
+            self.children.deinit(self.allocator);
+        }
     }
 };

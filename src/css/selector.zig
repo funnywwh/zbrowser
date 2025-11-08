@@ -48,8 +48,8 @@ pub const SelectorSequence = struct {
 
     pub fn init(allocator: std.mem.Allocator) SelectorSequence {
         return .{
-            .selectors = std.ArrayList(SimpleSelector).init(allocator),
-            .combinators = std.ArrayList(Combinator).init(allocator),
+            .selectors = std.ArrayList(SimpleSelector){},
+            .combinators = std.ArrayList(Combinator){},
             .allocator = allocator,
         };
     }
@@ -58,8 +58,8 @@ pub const SelectorSequence = struct {
         for (self.selectors.items) |*selector| {
             selector.deinit();
         }
-        self.selectors.deinit();
-        self.combinators.deinit();
+        self.selectors.deinit(self.allocator);
+        self.combinators.deinit(self.allocator);
     }
 };
 
@@ -70,7 +70,7 @@ pub const Selector = struct {
 
     pub fn init(allocator: std.mem.Allocator) Selector {
         return .{
-            .sequences = std.ArrayList(SelectorSequence).init(allocator),
+            .sequences = std.ArrayList(SelectorSequence){},
             .allocator = allocator,
         };
     }
@@ -79,7 +79,7 @@ pub const Selector = struct {
         for (self.sequences.items) |*sequence| {
             sequence.deinit();
         }
-        self.sequences.deinit();
+        self.sequences.deinit(self.allocator);
     }
 };
 

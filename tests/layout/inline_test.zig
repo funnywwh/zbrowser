@@ -30,10 +30,10 @@ test "layoutInline basic - single inline element" {
     child_box.display = .inline_element;
     child_box.box_model.content.width = 100;
     child_box.box_model.content.height = 20;
-    defer child_box.deinit();
+    // 注意：不要在这里defer child_box.deinit()，因为parent_box.deinit()会清理children列表
 
     // 添加子节点
-    try parent_box.children.append(&child_box);
+    try parent_box.children.append(allocator, &child_box);
     child_box.parent = &parent_box;
 
     // 执行行内布局
@@ -76,17 +76,17 @@ test "layoutInline multiple inline elements - single line" {
     child1_box.display = .inline_element;
     child1_box.box_model.content.width = 100;
     child1_box.box_model.content.height = 20;
-    defer child1_box.deinit();
+    // 注意：不要在这里defer child_box.deinit()，因为parent_box.deinit()会清理children列表
 
     var child2_box = box.LayoutBox.init(child2_node, allocator);
     child2_box.display = .inline_element;
     child2_box.box_model.content.width = 150;
     child2_box.box_model.content.height = 20;
-    defer child2_box.deinit();
+    // 注意：不要在这里defer child_box.deinit()，因为parent_box.deinit()会清理children列表
 
     // 添加子节点
-    try parent_box.children.append(&child1_box);
-    try parent_box.children.append(&child2_box);
+    try parent_box.children.append(allocator, &child1_box);
+    try parent_box.children.append(allocator, &child2_box);
     child1_box.parent = &parent_box;
     child2_box.parent = &parent_box;
 
@@ -132,24 +132,24 @@ test "layoutInline multiple inline elements - line wrap" {
     child1_box.display = .inline_element;
     child1_box.box_model.content.width = 300;
     child1_box.box_model.content.height = 20;
-    defer child1_box.deinit();
+    // 注意：不要在这里defer child_box.deinit()，因为parent_box.deinit()会清理children列表
 
     var child2_box = box.LayoutBox.init(child2_node, allocator);
     child2_box.display = .inline_element;
     child2_box.box_model.content.width = 300;
     child2_box.box_model.content.height = 20;
-    defer child2_box.deinit();
+    // 注意：不要在这里defer child_box.deinit()，因为parent_box.deinit()会清理children列表
 
     var child3_box = box.LayoutBox.init(child3_node, allocator);
     child3_box.display = .inline_element;
     child3_box.box_model.content.width = 300;
     child3_box.box_model.content.height = 20;
-    defer child3_box.deinit();
+    // 注意：不要在这里defer child_box.deinit()，因为parent_box.deinit()会清理children列表
 
     // 添加子节点
-    try parent_box.children.append(&child1_box);
-    try parent_box.children.append(&child2_box);
-    try parent_box.children.append(&child3_box);
+    try parent_box.children.append(allocator, &child1_box);
+    try parent_box.children.append(allocator, &child2_box);
+    try parent_box.children.append(allocator, &child3_box);
     child1_box.parent = &parent_box;
     child2_box.parent = &parent_box;
     child3_box.parent = &parent_box;
@@ -197,17 +197,17 @@ test "layoutInline with different line heights" {
     child1_box.display = .inline_element;
     child1_box.box_model.content.width = 100;
     child1_box.box_model.content.height = 30;
-    defer child1_box.deinit();
+    // 注意：不要在这里defer child_box.deinit()，因为parent_box.deinit()会清理children列表
 
     var child2_box = box.LayoutBox.init(child2_node, allocator);
     child2_box.display = .inline_element;
     child2_box.box_model.content.width = 100;
     child2_box.box_model.content.height = 20;
-    defer child2_box.deinit();
+    // 注意：不要在这里defer child_box.deinit()，因为parent_box.deinit()会清理children列表
 
     // 添加子节点
-    try parent_box.children.append(&child1_box);
-    try parent_box.children.append(&child2_box);
+    try parent_box.children.append(allocator, &child1_box);
+    try parent_box.children.append(allocator, &child2_box);
     child1_box.parent = &parent_box;
     child2_box.parent = &parent_box;
 
@@ -271,10 +271,10 @@ test "layoutInline creates IFC" {
     child_box.display = .inline_element;
     child_box.box_model.content.width = 100;
     child_box.box_model.content.height = 20;
-    defer child_box.deinit();
+    // 注意：不要在这里defer child_box.deinit()，因为parent_box.deinit()会清理children列表
 
     // 添加子节点
-    try parent_box.children.append(&child_box);
+    try parent_box.children.append(allocator, &child_box);
     child_box.parent = &parent_box;
 
     // 执行行内布局

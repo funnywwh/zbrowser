@@ -235,21 +235,21 @@ test "calculate specificity" {
     defer sequence.deinit();
 
     // 添加ID选择器
-    try sequence.selectors.append(selector.SimpleSelector{
+    try sequence.selectors.append(allocator, selector.SimpleSelector{
         .selector_type = .id,
         .value = try allocator.dupe(u8, "myId"),
         .allocator = allocator,
     });
 
     // 添加类选择器
-    try sequence.selectors.append(selector.SimpleSelector{
+    try sequence.selectors.append(allocator, selector.SimpleSelector{
         .selector_type = .class,
         .value = try allocator.dupe(u8, "container"),
         .allocator = allocator,
     });
 
     // 添加类型选择器
-    try sequence.selectors.append(selector.SimpleSelector{
+    try sequence.selectors.append(allocator, selector.SimpleSelector{
         .selector_type = .type,
         .value = try allocator.dupe(u8, "div"),
         .allocator = allocator,

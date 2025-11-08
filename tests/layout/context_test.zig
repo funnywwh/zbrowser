@@ -90,7 +90,7 @@ test "BlockFormattingContext add float" {
     defer bfc.deinit();
 
     // 添加浮动元素
-    try bfc.floats.append(&float_box);
+    try bfc.floats.append(allocator, &float_box);
 
     // 检查
     try testing.expectEqual(@as(usize, 1), bfc.floats.items.len);
@@ -122,7 +122,7 @@ test "BlockFormattingContext add clear element" {
     defer bfc.deinit();
 
     // 添加清除浮动元素
-    try bfc.clear_elements.append(&clear_box);
+    try bfc.clear_elements.append(allocator, &clear_box);
 
     // 检查
     try testing.expectEqual(@as(usize, 1), bfc.clear_elements.items.len);
@@ -170,16 +170,16 @@ test "InlineFormattingContext add line box" {
     defer ifc.deinit();
 
     // 创建行框
-    const line_box = context.LineBox{
+    var line_box = context.LineBox{
         .rect = box.Rect{ .x = 0, .y = 0, .width = 100, .height = 20 },
-        .inline_boxes = std.ArrayList(*box.LayoutBox).init(allocator),
+        .inline_boxes = std.ArrayList(*box.LayoutBox){},
         .baseline = 15,
         .line_height = 20,
     };
-    defer line_box.inline_boxes.deinit();
+    defer line_box.inline_boxes.deinit(allocator);
 
     // 添加行框
-    try ifc.line_boxes.append(line_box);
+    try ifc.line_boxes.append(allocator, line_box);
 
     // 检查
     try testing.expectEqual(@as(usize, 1), ifc.line_boxes.items.len);
@@ -199,11 +199,11 @@ test "LineBox basic operations" {
     // 创建行框
     var line_box = context.LineBox{
         .rect = box.Rect{ .x = 10, .y = 20, .width = 200, .height = 30 },
-        .inline_boxes = std.ArrayList(*box.LayoutBox).init(allocator),
+        .inline_boxes = std.ArrayList(*box.LayoutBox){},
         .baseline = 25,
         .line_height = 30,
     };
-    defer line_box.inline_boxes.deinit();
+    defer line_box.inline_boxes.deinit(allocator);
 
     // 检查初始值
     try testing.expectEqual(@as(f32, 10), line_box.rect.x);
@@ -231,14 +231,14 @@ test "LineBox add inline box" {
     // 创建行框
     var line_box = context.LineBox{
         .rect = box.Rect{ .x = 0, .y = 0, .width = 100, .height = 20 },
-        .inline_boxes = std.ArrayList(*box.LayoutBox).init(allocator),
+        .inline_boxes = std.ArrayList(*box.LayoutBox){},
         .baseline = 15,
         .line_height = 20,
     };
-    defer line_box.inline_boxes.deinit();
+    defer line_box.inline_boxes.deinit(allocator);
 
     // 添加行内元素
-    try line_box.inline_boxes.append(&inline_box);
+    try line_box.inline_boxes.append(allocator, &inline_box);
 
     // 检查
     try testing.expectEqual(@as(usize, 1), line_box.inline_boxes.items.len);
@@ -277,8 +277,8 @@ test "BlockFormattingContext multiple floats" {
     defer bfc.deinit();
 
     // 添加多个浮动元素
-    try bfc.floats.append(&float1_box);
-    try bfc.floats.append(&float2_box);
+    try bfc.floats.append(allocator, &float1_box);
+    try bfc.floats.append(allocator, &float2_box);
 
     // 检查
     try testing.expectEqual(@as(usize, 2), bfc.floats.items.len);
@@ -304,25 +304,25 @@ test "InlineFormattingContext multiple line boxes" {
     defer ifc.deinit();
 
     // 创建多个行框
-    const line_box1 = context.LineBox{
+    var line_box1 = context.LineBox{
         .rect = box.Rect{ .x = 0, .y = 0, .width = 100, .height = 20 },
-        .inline_boxes = std.ArrayList(*box.LayoutBox).init(allocator),
+        .inline_boxes = std.ArrayList(*box.LayoutBox){},
         .baseline = 15,
         .line_height = 20,
     };
-    defer line_box1.inline_boxes.deinit();
+    defer line_box1.inline_boxes.deinit(allocator);
 
-    const line_box2 = context.LineBox{
+    var line_box2 = context.LineBox{
         .rect = box.Rect{ .x = 0, .y = 20, .width = 100, .height = 20 },
-        .inline_boxes = std.ArrayList(*box.LayoutBox).init(allocator),
+        .inline_boxes = std.ArrayList(*box.LayoutBox){},
         .baseline = 35,
         .line_height = 20,
     };
-    defer line_box2.inline_boxes.deinit();
+    defer line_box2.inline_boxes.deinit(allocator);
 
     // 添加行框
-    try ifc.line_boxes.append(line_box1);
-    try ifc.line_boxes.append(line_box2);
+    try ifc.line_boxes.append(allocator, line_box1);
+    try ifc.line_boxes.append(allocator, line_box2);
 
     // 检查
     try testing.expectEqual(@as(usize, 2), ifc.line_boxes.items.len);

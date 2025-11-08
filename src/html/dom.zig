@@ -104,13 +104,13 @@ pub const Node = struct {
 
     /// 获取所有子元素
     pub fn getChildren(self: *Node, allocator: std.mem.Allocator) ![]*Node {
-        var children = std.ArrayList(*Node).init(allocator);
+        var children = std.ArrayList(*Node){};
         var current = self.first_child;
         while (current) |node| {
-            try children.append(node);
+            try children.append(allocator, node);
             current = node.next_sibling;
         }
-        return children.toOwnedSlice();
+        return try children.toOwnedSlice(allocator);
     }
 };
 
@@ -162,17 +162,17 @@ pub const ElementData = struct {
     /// 获取class属性
     pub fn getClasses(self: *const ElementData, allocator: std.mem.Allocator) ![]const []const u8 {
         const class_attr = self.getAttribute("class") orelse return &[_][]const u8{};
-        var classes = std.ArrayList([]const u8).init(allocator);
+        var classes = std.ArrayList([]const u8){};
 
         var iter = std.mem.splitScalar(u8, class_attr, ' ');
         while (iter.next()) |class_name| {
             const trimmed = string.trim(class_name);
             if (trimmed.len > 0) {
-                try classes.append(trimmed);
+                try classes.append(allocator, trimmed);
             }
         }
 
-        return classes.toOwnedSlice();
+        return try classes.toOwnedSlice(allocator);
     }
 
     pub fn deinit(self: *ElementData, allocator: std.mem.Allocator) void {
@@ -252,15 +252,15 @@ pub const Document = struct {
     /// defer allocator.free(divs);
     /// ```
     pub fn querySelectorAll(self: *Document, tag_name: []const u8, allocator: std.mem.Allocator) ![]*Node {
-        var results = std.ArrayList(*Node).init(allocator);
-        errdefer results.deinit();
+        var results = std.ArrayList(*Node){};
+        errdefer results.deinit(allocator);
 
         var current = self.node.first_child;
         while (current) |node| {
             if (node.node_type == .element) {
                 if (node.asElement()) |elem| {
                     if (std.mem.eql(u8, elem.tag_name, tag_name)) {
-                        try results.append(node);
+                        try results.append(allocator, node);
                     }
                 }
             }
@@ -268,12 +268,12 @@ pub const Document = struct {
             if (node.first_child) |child| {
                 const child_results = try self._querySelectorAllFromNode(child, tag_name, allocator);
                 defer allocator.free(child_results);
-                try results.appendSlice(child_results);
+                try results.appendSlice(allocator, child_results);
             }
             current = node.next_sibling;
         }
 
-        return try results.toOwnedSlice();
+        return try results.toOwnedSlice(allocator);
     }
 
     /// 通过ID查找元素
@@ -325,8 +325,8 @@ pub const Document = struct {
     /// defer allocator.free(items);
     /// ```
     pub fn getElementsByClassName(self: *Document, class_name: []const u8, allocator: std.mem.Allocator) ![]*Node {
-        var results = std.ArrayList(*Node).init(allocator);
-        errdefer results.deinit();
+        var results = std.ArrayList(*Node){};
+        errdefer results.deinit(allocator);
 
         var current = self.node.first_child;
         while (current) |node| {
@@ -340,7 +340,7 @@ pub const Document = struct {
 
                     for (classes) |cls| {
                         if (std.mem.eql(u8, cls, class_name)) {
-                            try results.append(node);
+                            try results.append(allocator, node);
                             break;
                         }
                     }
@@ -350,25 +350,25 @@ pub const Document = struct {
             if (node.first_child) |child| {
                 const child_results = try self._getElementsByClassNameFromNode(child, class_name, allocator);
                 defer allocator.free(child_results);
-                try results.appendSlice(child_results);
+                try results.appendSlice(allocator, child_results);
             }
             current = node.next_sibling;
         }
 
-        return try results.toOwnedSlice();
+        return try results.toOwnedSlice(allocator);
     }
 
     // 内部辅助方法：从指定节点开始递归查找
     fn _querySelectorAllFromNode(self: *Document, node: *Node, tag_name: []const u8, allocator: std.mem.Allocator) ![]*Node {
-        var results = std.ArrayList(*Node).init(allocator);
-        errdefer results.deinit();
+        var results = std.ArrayList(*Node){};
+        errdefer results.deinit(allocator);
 
         var current: ?*Node = node;
         while (current) |n| {
             if (n.node_type == .element) {
                 if (n.asElement()) |elem| {
                     if (std.mem.eql(u8, elem.tag_name, tag_name)) {
-                        try results.append(n);
+                        try results.append(allocator, n);
                     }
                 }
             }
@@ -376,18 +376,18 @@ pub const Document = struct {
             if (n.first_child) |child| {
                 const child_results = try self._querySelectorAllFromNode(child, tag_name, allocator);
                 defer allocator.free(child_results);
-                try results.appendSlice(child_results);
+                try results.appendSlice(allocator, child_results);
             }
             current = n.next_sibling;
         }
 
-        return try results.toOwnedSlice();
+        return try results.toOwnedSlice(allocator);
     }
 
     // 内部辅助方法：从指定节点开始递归查找类名
     fn _getElementsByClassNameFromNode(self: *Document, node: *Node, class_name: []const u8, allocator: std.mem.Allocator) ![]*Node {
-        var results = std.ArrayList(*Node).init(allocator);
-        errdefer results.deinit();
+        var results = std.ArrayList(*Node){};
+        errdefer results.deinit(allocator);
 
         var current: ?*Node = node;
         while (current) |n| {
@@ -401,7 +401,7 @@ pub const Document = struct {
 
                     for (classes) |cls| {
                         if (std.mem.eql(u8, cls, class_name)) {
-                            try results.append(n);
+                            try results.append(allocator, n);
                             break;
                         }
                     }
@@ -411,12 +411,12 @@ pub const Document = struct {
             if (n.first_child) |child| {
                 const child_results = try self._getElementsByClassNameFromNode(child, class_name, allocator);
                 defer allocator.free(child_results);
-                try results.appendSlice(child_results);
+                try results.appendSlice(allocator, child_results);
             }
             current = n.next_sibling;
         }
 
-        return try results.toOwnedSlice();
+        return try results.toOwnedSlice(allocator);
     }
 
     // 内部辅助方法：通过ID递归查找元素

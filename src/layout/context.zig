@@ -39,15 +39,15 @@ pub const BlockFormattingContext = struct {
                 .container = container,
                 .allocator = allocator,
             },
-            .floats = std.ArrayList(*box.LayoutBox).init(allocator),
-            .clear_elements = std.ArrayList(*box.LayoutBox).init(allocator),
+            .floats = std.ArrayList(*box.LayoutBox){},
+            .clear_elements = std.ArrayList(*box.LayoutBox){},
         };
     }
 
     /// 清理BFC
     pub fn deinit(self: *BlockFormattingContext) void {
-        self.floats.deinit();
-        self.clear_elements.deinit();
+        self.floats.deinit(self.base.allocator);
+        self.clear_elements.deinit(self.base.allocator);
     }
 };
 
@@ -66,7 +66,7 @@ pub const InlineFormattingContext = struct {
                 .container = container,
                 .allocator = allocator,
             },
-            .line_boxes = std.ArrayList(LineBox).init(allocator),
+            .line_boxes = std.ArrayList(LineBox){},
         };
     }
 
@@ -74,9 +74,9 @@ pub const InlineFormattingContext = struct {
     pub fn deinit(self: *InlineFormattingContext) void {
         // 清理所有行框中的inline_boxes
         for (self.line_boxes.items) |*line_box| {
-            line_box.inline_boxes.deinit();
+            line_box.inline_boxes.deinit(self.base.allocator);
         }
-        self.line_boxes.deinit();
+        self.line_boxes.deinit(self.base.allocator);
     }
 };
 

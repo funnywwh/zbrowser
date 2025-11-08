@@ -197,8 +197,8 @@ test "LayoutBox with children" {
     // 注意：子节点会被父节点deinit时清理，所以不需要单独deinit
 
     // 添加子布局框
-    try parent_box.children.append(child1_box);
-    try parent_box.children.append(child2_box);
+    try parent_box.children.append(allocator, child1_box);
+    try parent_box.children.append(allocator, child2_box);
     child1_box.parent = parent_box;
     child2_box.parent = parent_box;
 
