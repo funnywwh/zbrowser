@@ -10,7 +10,7 @@ const box = @import("box");
 /// - layout_box: Flex容器布局框
 /// - containing_block: 包含块尺寸
 ///
-/// TODO: 简化实现 - 当前只实现了基本的row方向、不换行的Flexbox布局
+/// TODO: 简化实现 - 当前实现了基本的row和column方向布局，不换行
 /// 完整实现需要：
 /// 1. 从样式表中获取Flexbox属性（flex-direction, flex-wrap, justify-content, align-items, align-content）
 /// 2. 实现flex items的基础尺寸计算
@@ -19,7 +19,6 @@ const box = @import("box");
 /// 5. 实现交叉轴尺寸计算
 /// 6. 实现对齐算法（justify-content, align-items, align-content）
 /// 7. 处理flex-direction的反向（row-reverse, column-reverse）
-/// 8. 支持column方向布局
 /// 参考：CSS Flexible Box Layout Module Level 1
 pub fn layoutFlexbox(layout_box: *box.LayoutBox, containing_block: box.Size) void {
     _ = containing_block;
@@ -56,9 +55,20 @@ pub fn layoutFlexbox(layout_box: *box.LayoutBox, containing_block: box.Size) voi
             child.is_layouted = true;
         }
     } else {
-        // TODO: 实现column方向布局
-        // 简化实现：标记所有子元素为已布局
+        // column方向，垂直排列items
+        var y_offset: f32 = 0;
+        const container_x = layout_box.box_model.content.x;
+        const container_y = layout_box.box_model.content.y;
+
         for (layout_box.children.items) |child| {
+            // 设置子元素位置（相对于容器）
+            child.box_model.content.x = container_x;
+            child.box_model.content.y = container_y + y_offset;
+
+            // 更新y偏移量（累加子元素高度）
+            y_offset += child.box_model.content.height;
+
+            // 标记子元素为已布局
             child.is_layouted = true;
         }
     }
