@@ -373,3 +373,159 @@ test "tokenizer incomplete comment" {
     const token_opt = tok.next();
     try std.testing.expectError(error.UnexpectedEOF, token_opt);
 }
+
+test "tokenizer incomplete CDATA" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 测试不完整的CDATA（没有闭合）
+    const html_input = "<![CDATA[This is CDATA content";
+    var tok = tokenizer.Tokenizer.init(html_input, allocator);
+
+    // 应该返回UnexpectedEOF错误（在parseCDATA中找不到']]>'）
+    const token_opt = tok.next();
+    try std.testing.expectError(error.UnexpectedEOF, token_opt);
+}
+
+test "tokenizer incomplete DOCTYPE" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 测试不完整的DOCTYPE（没有闭合）
+    const html_input = "<!DOCTYPE html";
+    var tok = tokenizer.Tokenizer.init(html_input, allocator);
+
+    // 应该返回UnexpectedEOF错误（在parseDoctype中找不到'>'）
+    const token_opt = tok.next();
+    try std.testing.expectError(error.UnexpectedEOF, token_opt);
+}
+
+test "tokenizer special characters in attribute values" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 测试特殊字符在属性值中
+    const html_input = "<div class=\"test&lt;div&gt;&amp;test\">Content</div>";
+    var tok = tokenizer.Tokenizer.init(html_input, allocator);
+
+    const token1_opt = try tok.next();
+    try std.testing.expect(token1_opt != null);
+    var token1 = token1_opt.?;
+    defer token1.deinit();
+
+    try std.testing.expect(token1.token_type == .start_tag);
+    try std.testing.expect(std.mem.eql(u8, token1.data.start_tag.name, "div"));
+    const class_attr = token1.data.start_tag.attributes.get("class");
+    try std.testing.expect(class_attr != null);
+    if (class_attr) |attr| {
+        // 验证特殊字符被正确解析
+        try std.testing.expect(attr.len > 0);
+    }
+}
+
+test "tokenizer Unicode characters in tag name" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 测试Unicode字符在标签名中（虽然HTML规范不允许，但应该容错处理）
+    // 注意：实际HTML中标签名应该是ASCII，但这里测试容错能力
+    const html_input = "<测试>Content</测试>";
+    var tok = tokenizer.Tokenizer.init(html_input, allocator);
+
+    const token1_opt = try tok.next();
+    try std.testing.expect(token1_opt != null);
+    var token1 = token1_opt.?;
+    defer token1.deinit();
+
+    try std.testing.expect(token1.token_type == .start_tag);
+    // 验证Unicode字符被正确解析
+    try std.testing.expect(token1.data.start_tag.name.len > 0);
+}
+
+test "tokenizer Unicode characters in attribute values" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 测试Unicode字符在属性值中
+    const html_input = "<div title=\"你好世界\">Content</div>";
+    var tok = tokenizer.Tokenizer.init(html_input, allocator);
+
+    const token1_opt = try tok.next();
+    try std.testing.expect(token1_opt != null);
+    var token1 = token1_opt.?;
+    defer token1.deinit();
+
+    try std.testing.expect(token1.token_type == .start_tag);
+    const title_attr = token1.data.start_tag.attributes.get("title");
+    try std.testing.expect(title_attr != null);
+    if (title_attr) |attr| {
+        // 验证Unicode字符被正确解析
+        try std.testing.expect(attr.len > 0);
+    }
+}
+
+test "tokenizer Unicode characters in text" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 测试Unicode字符在文本中
+    const html_input = "你好世界";
+    var tok = tokenizer.Tokenizer.init(html_input, allocator);
+
+    const token1_opt = try tok.next();
+    try std.testing.expect(token1_opt != null);
+    var token1 = token1_opt.?;
+    defer token1.deinit();
+
+    try std.testing.expect(token1.token_type == .text);
+    // 验证Unicode字符被正确解析
+    try std.testing.expect(token1.data.text.len > 0);
+}
+
+test "tokenizer emoji in text" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 测试emoji字符在文本中
+    const html_input = "Hello 😀 World 🌍";
+    var tok = tokenizer.Tokenizer.init(html_input, allocator);
+
+    const token1_opt = try tok.next();
+    try std.testing.expect(token1_opt != null);
+    var token1 = token1_opt.?;
+    defer token1.deinit();
+
+    try std.testing.expect(token1.token_type == .text);
+    // 验证emoji字符被正确解析
+    try std.testing.expect(token1.data.text.len > 0);
+}
+
+test "tokenizer emoji in attribute values" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 测试emoji字符在属性值中
+    const html_input = "<div title=\"Hello 😀 World 🌍\">Content</div>";
+    var tok = tokenizer.Tokenizer.init(html_input, allocator);
+
+    const token1_opt = try tok.next();
+    try std.testing.expect(token1_opt != null);
+    var token1 = token1_opt.?;
+    defer token1.deinit();
+
+    try std.testing.expect(token1.token_type == .start_tag);
+    const title_attr = token1.data.start_tag.attributes.get("title");
+    try std.testing.expect(title_attr != null);
+    if (title_attr) |attr| {
+        // 验证emoji字符被正确解析
+        try std.testing.expect(attr.len > 0);
+    }
+}

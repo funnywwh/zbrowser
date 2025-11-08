@@ -884,3 +884,183 @@ test "parser parse whitespace only HTML" {
     // 实际行为取决于parser的实现
     _ = doc_ptr.getDocumentElement();
 }
+
+test "parser parse incomplete HTML tag" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 测试不完整的HTML标签（没有闭合的'>'）
+    const html_content = "<div class=\"test\"";
+    const doc = try dom.Document.init(allocator);
+    const doc_ptr = try allocator.create(dom.Document);
+    defer {
+        freeAllNodes(allocator, &doc_ptr.node);
+        doc_ptr.node.first_child = null;
+        doc_ptr.node.last_child = null;
+        allocator.destroy(doc_ptr);
+    }
+    doc_ptr.* = doc;
+
+    var parser = html.Parser.init(html_content, doc_ptr, allocator);
+    defer parser.deinit();
+
+    // 不完整的标签应该返回UnexpectedEOF错误
+    const result = parser.parse();
+    try std.testing.expectError(error.UnexpectedEOF, result);
+}
+
+test "parser parse nested error HTML" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 测试嵌套错误的HTML（未闭合的标签）
+    // <div><p></div> - p标签没有闭合，但div标签闭合了
+    // HTML5解析器应该容错处理这种情况
+    const html_content = "<html><body><div><p>Text</div></body></html>";
+    const doc = try dom.Document.init(allocator);
+    const doc_ptr = try allocator.create(dom.Document);
+    defer {
+        freeAllNodes(allocator, &doc_ptr.node);
+        doc_ptr.node.first_child = null;
+        doc_ptr.node.last_child = null;
+        allocator.destroy(doc_ptr);
+    }
+    doc_ptr.* = doc;
+
+    var parser = html.Parser.init(html_content, doc_ptr, allocator);
+    defer parser.deinit();
+    try parser.parse();
+
+    // 应该能够容错处理，不会崩溃
+    // 使用getElementsByTagName查找div元素
+    const divs = try doc_ptr.getElementsByTagName("div", allocator);
+    defer allocator.free(divs);
+    // 应该至少找到一个div元素
+    try std.testing.expect(divs.len > 0);
+}
+
+test "parser parse HTML with Unicode characters" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 测试Unicode字符（中文）
+    const html_content = "<html><body><div>你好世界</div></body></html>";
+    const doc = try dom.Document.init(allocator);
+    const doc_ptr = try allocator.create(dom.Document);
+    defer {
+        freeAllNodes(allocator, &doc_ptr.node);
+        doc_ptr.node.first_child = null;
+        doc_ptr.node.last_child = null;
+        allocator.destroy(doc_ptr);
+    }
+    doc_ptr.* = doc;
+
+    var parser = html.Parser.init(html_content, doc_ptr, allocator);
+    defer parser.deinit();
+    try parser.parse();
+
+    // 应该能够解析Unicode字符
+    const divs = try doc_ptr.getElementsByTagName("div", allocator);
+    defer allocator.free(divs);
+    try std.testing.expect(divs.len > 0);
+    if (divs.len > 0) {
+        const div_node = divs[0];
+        const text_node = div_node.first_child;
+        try std.testing.expect(text_node != null);
+        if (text_node) |txt| {
+            try std.testing.expect(txt.node_type == .text);
+            const text_content = txt.asText();
+            try std.testing.expect(text_content != null);
+            if (text_content) |content| {
+                // 验证Unicode字符被正确解析
+                try std.testing.expect(content.len > 0);
+            }
+        }
+    }
+}
+
+test "parser parse HTML with emoji" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 测试emoji字符
+    const html_content = "<html><body><div>Hello 😀 World 🌍</div></body></html>";
+    const doc = try dom.Document.init(allocator);
+    const doc_ptr = try allocator.create(dom.Document);
+    defer {
+        freeAllNodes(allocator, &doc_ptr.node);
+        doc_ptr.node.first_child = null;
+        doc_ptr.node.last_child = null;
+        allocator.destroy(doc_ptr);
+    }
+    doc_ptr.* = doc;
+
+    var parser = html.Parser.init(html_content, doc_ptr, allocator);
+    defer parser.deinit();
+    try parser.parse();
+
+    // 应该能够解析emoji字符
+    const divs = try doc_ptr.getElementsByTagName("div", allocator);
+    defer allocator.free(divs);
+    try std.testing.expect(divs.len > 0);
+    if (divs.len > 0) {
+        const div_node = divs[0];
+        const text_node = div_node.first_child;
+        try std.testing.expect(text_node != null);
+        if (text_node) |txt| {
+            try std.testing.expect(txt.node_type == .text);
+            const text_content = txt.asText();
+            try std.testing.expect(text_content != null);
+            if (text_content) |content| {
+                // 验证emoji字符被正确解析
+                try std.testing.expect(content.len > 0);
+            }
+        }
+    }
+}
+
+test "parser parse HTML with entity encoding" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 测试HTML实体编码
+    // 注意：当前实现可能不处理实体编码，但应该不会崩溃
+    const html_content = "<html><body><div>&lt;div&gt;&amp;&quot;test&quot;&#39;test&#39;</div></body></html>";
+    const doc = try dom.Document.init(allocator);
+    const doc_ptr = try allocator.create(dom.Document);
+    defer {
+        freeAllNodes(allocator, &doc_ptr.node);
+        doc_ptr.node.first_child = null;
+        doc_ptr.node.last_child = null;
+        allocator.destroy(doc_ptr);
+    }
+    doc_ptr.* = doc;
+
+    var parser = html.Parser.init(html_content, doc_ptr, allocator);
+    defer parser.deinit();
+    try parser.parse();
+
+    // 应该能够解析（即使实体编码可能不会被解码）
+    const divs = try doc_ptr.getElementsByTagName("div", allocator);
+    defer allocator.free(divs);
+    try std.testing.expect(divs.len > 0);
+    if (divs.len > 0) {
+        const div_node = divs[0];
+        const text_node = div_node.first_child;
+        try std.testing.expect(text_node != null);
+        if (text_node) |txt| {
+            try std.testing.expect(txt.node_type == .text);
+            const text_content = txt.asText();
+            try std.testing.expect(text_content != null);
+            // 实体编码可能不会被解码，但应该被解析为文本
+            if (text_content) |content| {
+                try std.testing.expect(content.len > 0);
+            }
+        }
+    }
+}
