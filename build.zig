@@ -258,6 +258,13 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    // Render模块
+    const render_backend_module = b.createModule(.{
+        .root_source_file = b.path("src/render/backend.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
     // 创建根测试模块（统一入口）
     // test.zig 作为根测试文件，统一导入所有子测试模块
     // 所有测试都通过 test.zig 运行，不需要单独的测试配置
@@ -299,6 +306,8 @@ pub fn build(b: *std.Build) void {
             .{ .name = "grid", .module = layout_grid_module },
             .{ .name = "style_utils", .module = layout_style_utils_module },
             .{ .name = "engine", .module = layout_engine_module },
+            // Render模块
+            .{ .name = "backend", .module = render_backend_module },
         },
     });
 

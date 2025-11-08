@@ -37,6 +37,9 @@ const layout_flexbox_test = @import("tests/layout/flexbox_test.zig");
 const layout_grid_test = @import("tests/layout/grid_test.zig");
 const layout_engine_test = @import("tests/layout/engine_test.zig");
 
+// Render模块测试
+const render_backend_test = @import("tests/render/backend_test.zig");
+
 /// 测试统计信息
 pub const TestStats = struct {
     total: usize = 0,
@@ -76,8 +79,9 @@ test "all test modules imported" {
     _ = layout_position_test;
     _ = layout_float_test;
     _ = layout_flexbox_test;
-    _ = layout_grid_test;
-    _ = layout_engine_test;
+        _ = layout_grid_test;
+        _ = layout_engine_test;
+        _ = render_backend_test;
 
     std.debug.print("All test modules successfully imported via root test file\n", .{});
 }
