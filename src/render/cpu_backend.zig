@@ -7,6 +7,33 @@ const Point = struct {
     y: f32,
 };
 
+/// 变换矩阵（2D）
+/// 简化实现：只支持平移、旋转、缩放
+const Transform = struct {
+    tx: f32 = 0, // 平移X
+    ty: f32 = 0, // 平移Y
+    sx: f32 = 1, // 缩放X
+    sy: f32 = 1, // 缩放Y
+    angle: f32 = 0, // 旋转角度（弧度）
+
+    /// 应用变换到点
+    fn apply(self: Transform, x: f32, y: f32) struct { x: f32, y: f32 } {
+        // 简化实现：只应用平移和缩放
+        // TODO: 完整实现需要支持旋转
+        return .{
+            .x = x * self.sx + self.tx,
+            .y = y * self.sy + self.ty,
+        };
+    }
+};
+
+/// 渲染状态
+const RenderState = struct {
+    transform: Transform,
+    clip_rect: ?backend.Rect = null,
+    global_alpha: f32 = 1.0,
+};
+
 /// CPU渲染后端（软件光栅化）
 /// 使用CPU进行软件光栅化，将绘制命令转换为像素数据
 pub const CpuRenderBackend = struct {
@@ -18,6 +45,12 @@ pub const CpuRenderBackend = struct {
 
     /// 当前路径（用于路径绘制）
     current_path: std.ArrayList(Point),
+
+    /// 当前渲染状态
+    current_state: RenderState,
+
+    /// 状态栈（用于save/restore）
+    state_stack: std.ArrayList(RenderState),
 
     /// 从RenderBackend获取CpuRenderBackend
     fn fromRenderBackend(self_ptr: *backend.RenderBackend) *CpuRenderBackend {
@@ -54,6 +87,8 @@ pub const CpuRenderBackend = struct {
             .pixels = pixels,
             .allocator = allocator,
             .current_path = std.ArrayList(Point){},
+            .current_state = RenderState{ .transform = Transform{} },
+            .state_stack = std.ArrayList(RenderState){},
         };
 
         return self;
@@ -62,6 +97,7 @@ pub const CpuRenderBackend = struct {
     /// 清理CPU渲染后端
     pub fn deinit(self: *CpuRenderBackend) void {
         self.current_path.deinit(self.allocator);
+        self.state_stack.deinit(self.allocator);
         self.allocator.free(self.pixels);
         self.allocator.destroy(self);
     }
@@ -91,11 +127,34 @@ pub const CpuRenderBackend = struct {
 
     /// 内部填充矩形实现
     fn fillRectInternal(self: *CpuRenderBackend, rect: backend.Rect, color: backend.Color) void {
+        // 应用变换
+        const transformed = self.current_state.transform.apply(rect.x, rect.y);
+        const transformed_width = rect.width * self.current_state.transform.sx;
+        const transformed_height = rect.height * self.current_state.transform.sy;
+
+        // 应用裁剪
+        var draw_rect = backend.Rect.init(transformed.x, transformed.y, transformed_width, transformed_height);
+        if (self.current_state.clip_rect) |clip| {
+            // 计算裁剪后的矩形
+            const clip_x = @max(draw_rect.x, clip.x);
+            const clip_y = @max(draw_rect.y, clip.y);
+            const clip_w = @min(draw_rect.x + draw_rect.width, clip.x + clip.width) - clip_x;
+            const clip_h = @min(draw_rect.y + draw_rect.height, clip.y + clip.height) - clip_y;
+            if (clip_w <= 0 or clip_h <= 0) {
+                return; // 完全在裁剪区域外
+            }
+            draw_rect = backend.Rect.init(clip_x, clip_y, clip_w, clip_h);
+        }
+
+        // 应用全局透明度
+        const alpha = @as(f32, @floatFromInt(color.a)) * self.current_state.global_alpha;
+        const final_alpha = @as(u8, @intFromFloat(alpha));
+
         // 计算实际绘制区域（裁剪到画布边界）
-        const start_x = @max(0, @as(i32, @intFromFloat(rect.x)));
-        const start_y = @max(0, @as(i32, @intFromFloat(rect.y)));
-        const end_x = @min(@as(i32, @intCast(self.width)), @as(i32, @intFromFloat(rect.x + rect.width)));
-        const end_y = @min(@as(i32, @intCast(self.height)), @as(i32, @intFromFloat(rect.y + rect.height)));
+        const start_x = @max(0, @as(i32, @intFromFloat(draw_rect.x)));
+        const start_y = @max(0, @as(i32, @intFromFloat(draw_rect.y)));
+        const end_x = @min(@as(i32, @intCast(self.width)), @as(i32, @intFromFloat(draw_rect.x + draw_rect.width)));
+        const end_y = @min(@as(i32, @intCast(self.height)), @as(i32, @intFromFloat(draw_rect.y + draw_rect.height)));
 
         // 如果矩形完全在边界外，不绘制
         if (start_x >= end_x or start_y >= end_y) {
@@ -108,10 +167,24 @@ pub const CpuRenderBackend = struct {
             var x = start_x;
             while (x < end_x) : (x += 1) {
                 const index = (@as(usize, @intCast(y)) * self.width + @as(usize, @intCast(x))) * 4;
-                self.pixels[index] = color.r;
-                self.pixels[index + 1] = color.g;
-                self.pixels[index + 2] = color.b;
-                self.pixels[index + 3] = color.a;
+                // 简化混合：如果透明度小于255，进行alpha混合
+                if (final_alpha < 255) {
+                    const src_alpha = @as(f32, @floatFromInt(final_alpha)) / 255.0;
+                    const dst_alpha = @as(f32, @floatFromInt(self.pixels[index + 3])) / 255.0;
+                    const combined_alpha = src_alpha + dst_alpha * (1 - src_alpha);
+                    if (combined_alpha > 0) {
+                        const inv_alpha = 1.0 / combined_alpha;
+                        self.pixels[index] = @as(u8, @intFromFloat((@as(f32, @floatFromInt(color.r)) * src_alpha + @as(f32, @floatFromInt(self.pixels[index])) * dst_alpha * (1 - src_alpha)) * inv_alpha));
+                        self.pixels[index + 1] = @as(u8, @intFromFloat((@as(f32, @floatFromInt(color.g)) * src_alpha + @as(f32, @floatFromInt(self.pixels[index + 1])) * dst_alpha * (1 - src_alpha)) * inv_alpha));
+                        self.pixels[index + 2] = @as(u8, @intFromFloat((@as(f32, @floatFromInt(color.b)) * src_alpha + @as(f32, @floatFromInt(self.pixels[index + 2])) * dst_alpha * (1 - src_alpha)) * inv_alpha));
+                        self.pixels[index + 3] = @as(u8, @intFromFloat(combined_alpha * 255));
+                    }
+                } else {
+                    self.pixels[index] = color.r;
+                    self.pixels[index + 1] = color.g;
+                    self.pixels[index + 2] = color.b;
+                    self.pixels[index + 3] = final_alpha;
+                }
             }
         }
     }
@@ -385,45 +458,66 @@ pub const CpuRenderBackend = struct {
     }
 
     fn saveImpl(self_ptr: *backend.RenderBackend) void {
-        _ = self_ptr;
-        // TODO: 实现save
+        const self = fromRenderBackend(self_ptr);
+        self.state_stack.append(self.allocator, self.current_state) catch {};
     }
 
     fn restoreImpl(self_ptr: *backend.RenderBackend) void {
-        _ = self_ptr;
-        // TODO: 实现restore
+        const self = fromRenderBackend(self_ptr);
+        if (self.state_stack.items.len > 0) {
+            const state = self.state_stack.pop();
+            if (state) |s| {
+                self.current_state = s;
+            }
+        }
     }
 
     fn translateImpl(self_ptr: *backend.RenderBackend, x: f32, y: f32) void {
-        _ = self_ptr;
-        _ = x;
-        _ = y;
-        // TODO: 实现translate
+        const self = fromRenderBackend(self_ptr);
+        self.current_state.transform.tx += x;
+        self.current_state.transform.ty += y;
     }
 
     fn rotateImpl(self_ptr: *backend.RenderBackend, angle: f32) void {
-        _ = self_ptr;
-        _ = angle;
-        // TODO: 实现rotate
+        const self = fromRenderBackend(self_ptr);
+        // TODO: 简化实现 - 当前只记录角度，不实际应用旋转
+        // 完整实现需要：更新变换矩阵以支持旋转
+        self.current_state.transform.angle += angle;
     }
 
     fn scaleImpl(self_ptr: *backend.RenderBackend, x: f32, y: f32) void {
-        _ = self_ptr;
-        _ = x;
-        _ = y;
-        // TODO: 实现scale
+        const self = fromRenderBackend(self_ptr);
+        self.current_state.transform.sx *= x;
+        self.current_state.transform.sy *= y;
     }
 
     fn clipImpl(self_ptr: *backend.RenderBackend, rect: backend.Rect) void {
-        _ = self_ptr;
-        _ = rect;
-        // TODO: 实现clip
+        const self = fromRenderBackend(self_ptr);
+        // 应用当前变换到裁剪矩形
+        const transformed = self.current_state.transform.apply(rect.x, rect.y);
+        const transformed_width = rect.width * self.current_state.transform.sx;
+        const transformed_height = rect.height * self.current_state.transform.sy;
+        const transformed_rect = backend.Rect.init(transformed.x, transformed.y, transformed_width, transformed_height);
+
+        // 如果已有裁剪区域，取交集
+        if (self.current_state.clip_rect) |existing_clip| {
+            const clip_x = @max(transformed_rect.x, existing_clip.x);
+            const clip_y = @max(transformed_rect.y, existing_clip.y);
+            const clip_w = @min(transformed_rect.x + transformed_rect.width, existing_clip.x + existing_clip.width) - clip_x;
+            const clip_h = @min(transformed_rect.y + transformed_rect.height, existing_clip.y + existing_clip.height) - clip_y;
+            if (clip_w > 0 and clip_h > 0) {
+                self.current_state.clip_rect = backend.Rect.init(clip_x, clip_y, clip_w, clip_h);
+            } else {
+                self.current_state.clip_rect = null; // 裁剪区域为空
+            }
+        } else {
+            self.current_state.clip_rect = transformed_rect;
+        }
     }
 
     fn setGlobalAlphaImpl(self_ptr: *backend.RenderBackend, alpha: f32) void {
-        _ = self_ptr;
-        _ = alpha;
-        // TODO: 实现setGlobalAlpha
+        const self = fromRenderBackend(self_ptr);
+        self.current_state.global_alpha = @max(0.0, @min(1.0, alpha));
     }
 
     fn getPixelsImpl(self_ptr: *backend.RenderBackend, allocator: std.mem.Allocator) std.mem.Allocator.Error![]u8 {
