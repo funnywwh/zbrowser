@@ -229,8 +229,6 @@ pub const CpuRenderBackend = struct {
     /// 3. 文本换行和对齐
     /// 4. 抗锯齿处理
     fn fillTextInternal(self: *CpuRenderBackend, text: []const u8, x: f32, y: f32, font: backend.Font, color: backend.Color) void {
-        _ = font; // TODO: 使用字体信息
-
         // 如果文本为空，不绘制
         if (text.len == 0) {
             return;
@@ -238,6 +236,7 @@ pub const CpuRenderBackend = struct {
 
         // 简化实现：使用矩形占位符表示文本
         // 估算文本宽度（简化：每个字符宽度为字体大小的0.6倍）
+        // TODO: 使用font.family、font.weight、font.style等信息
         const char_width = font.size * 0.6;
         const text_width = char_width * @as(f32, @floatFromInt(text.len));
         const text_height = font.size;
