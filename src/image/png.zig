@@ -87,20 +87,47 @@ pub const PngEncoder = struct {
         try self.writeChunk(output, "IHDR", ihdr_data.items);
     }
 
+    /// PNG滤波器类型
+    const FilterType = enum(u8) {
+        none = 0,
+        sub = 1,
+        up = 2,
+        average = 3,
+        paeth = 4,
+    };
+
     /// 写入IDAT chunk（图像数据）
     fn writeIDATChunk(self: PngEncoder, output: *std.ArrayList(u8), pixels: []const u8, width: u32, height: u32) !void {
-        // 准备图像数据：每行前面加一个滤波器字节（0 = 无滤波器）
+        const bpp: u32 = 4; // RGBA = 4 bytes per pixel
+        const row_size = width * bpp;
+
+        // 准备图像数据：每行前面加一个滤波器字节
         var image_data = std.ArrayList(u8){};
         defer image_data.deinit(self.allocator);
 
+        // 存储前一行（用于Up、Average、Paeth滤波器）
+        const prior_row = try self.allocator.alloc(u8, row_size);
+        defer self.allocator.free(prior_row);
+        @memset(prior_row, 0); // 第一行之前都是0
+
         var y: u32 = 0;
         while (y < height) : (y += 1) {
-            // 每行前面加滤波器字节（0 = None）
-            try image_data.append(self.allocator, 0);
-            // 写入该行的像素数据
-            const row_start = y * width * 4;
-            const row_end = row_start + width * 4;
-            try image_data.appendSlice(self.allocator, pixels[row_start..row_end]);
+            const row_start = y * row_size;
+            const row_end = row_start + row_size;
+            const current_row = pixels[row_start..row_end];
+
+            // 选择最优滤波器
+            const best_filter = self.selectBestFilter(current_row, prior_row, bpp);
+            const filtered_row = try self.applyFilter(current_row, prior_row, best_filter, bpp);
+            defer self.allocator.free(filtered_row);
+
+            // 写入滤波器类型字节
+            try image_data.append(self.allocator, @intFromEnum(best_filter));
+            // 写入滤波后的行数据
+            try image_data.appendSlice(self.allocator, filtered_row);
+
+            // 更新prior_row为当前行（未滤波的原始数据，用于下一行的滤波器）
+            @memcpy(prior_row, current_row);
         }
 
         // 使用DEFLATE压缩图像数据
@@ -108,6 +135,99 @@ pub const PngEncoder = struct {
         defer self.allocator.free(compressed);
 
         try self.writeChunk(output, "IDAT", compressed);
+    }
+
+    /// 选择最优滤波器（简化实现：选择压缩后最小的）
+    /// TODO: 完整实现需要实际压缩每个滤波器结果，选择最小的
+    /// 当前实现：使用简单的启发式方法
+    fn selectBestFilter(self: PngEncoder, current_row: []const u8, prior_row: []const u8, bpp: u32) FilterType {
+        _ = self;
+        _ = current_row;
+        _ = bpp;
+
+        // 简化实现：对于第一行使用None，其他行使用Sub
+        // TODO: 实现完整的滤波器选择算法（尝试所有滤波器，选择压缩后最小的）
+        if (prior_row[0] == 0 and prior_row[1] == 0) {
+            // 第一行使用None滤波器
+            return .none;
+        } else {
+            // 其他行使用Sub滤波器（通常效果较好）
+            return .sub;
+        }
+    }
+
+    /// 应用PNG滤波器
+    fn applyFilter(self: PngEncoder, current_row: []const u8, prior_row: []const u8, filter_type: FilterType, bpp: u32) ![]u8 {
+        const filtered = try self.allocator.alloc(u8, current_row.len);
+        errdefer self.allocator.free(filtered);
+
+        switch (filter_type) {
+            .none => {
+                // None滤波器：直接复制
+                @memcpy(filtered, current_row);
+            },
+            .sub => {
+                // Sub滤波器：filtered[x] = original[x] - original[x-bpp]
+                var i: usize = 0;
+                while (i < current_row.len) : (i += 1) {
+                    if (i < bpp) {
+                        filtered[i] = current_row[i];
+                    } else {
+                        filtered[i] = current_row[i] -% current_row[i - bpp];
+                    }
+                }
+            },
+            .up => {
+                // Up滤波器：filtered[x] = original[x] - prior[x]
+                var i: usize = 0;
+                while (i < current_row.len) : (i += 1) {
+                    filtered[i] = current_row[i] -% prior_row[i];
+                }
+            },
+            .average => {
+                // Average滤波器：filtered[x] = original[x] - floor((original[x-bpp] + prior[x]) / 2)
+                var i: usize = 0;
+                while (i < current_row.len) : (i += 1) {
+                    const left = if (i >= bpp) current_row[i - bpp] else 0;
+                    const up = prior_row[i];
+                    filtered[i] = current_row[i] -% @as(u8, @intCast((@as(u16, left) + @as(u16, up)) / 2));
+                }
+            },
+            .paeth => {
+                // Paeth滤波器：filtered[x] = original[x] - paethPredictor(original[x-bpp], prior[x], prior[x-bpp])
+                var i: usize = 0;
+                while (i < current_row.len) : (i += 1) {
+                    const left = if (i >= bpp) current_row[i - bpp] else 0;
+                    const up = prior_row[i];
+                    const up_left = if (i >= bpp) prior_row[i - bpp] else 0;
+                    const predictor = self.paethPredictor(left, up, up_left);
+                    filtered[i] = current_row[i] -% predictor;
+                }
+            },
+        }
+
+        return filtered;
+    }
+
+    /// Paeth预测器
+    fn paethPredictor(self: PngEncoder, a: u8, b: u8, c: u8) u8 {
+        _ = self;
+        const a_i16 = @as(i16, @intCast(a));
+        const b_i16 = @as(i16, @intCast(b));
+        const c_i16 = @as(i16, @intCast(c));
+
+        const p = a_i16 + b_i16 - c_i16;
+        const pa = if (p > a_i16) p - a_i16 else a_i16 - p;
+        const pb = if (p > b_i16) p - b_i16 else b_i16 - p;
+        const pc = if (p > c_i16) p - c_i16 else c_i16 - p;
+
+        if (pa <= pb and pa <= pc) {
+            return a;
+        } else if (pb <= pc) {
+            return b;
+        } else {
+            return c;
+        }
     }
 
     /// 写入IEND chunk（文件结束标记）

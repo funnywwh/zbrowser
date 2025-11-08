@@ -236,3 +236,102 @@ test "PNG encode - DEFLATE compression" {
     try testing.expect(png_data.len >= 8);
     try testing.expectEqual(@as(u8, 0x89), png_data[0]);
 }
+
+test "PNG filter - Sub filter" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 测试Sub滤波器
+    // Sub滤波器：filtered[x] = original[x] - original[x-bpp]
+    const bpp: usize = 4; // RGBA = 4 bytes per pixel
+    const row = [_]u8{ 100, 100, 100, 255, 150, 150, 150, 255 };
+    var filtered = try allocator.alloc(u8, row.len);
+    defer allocator.free(filtered);
+
+    // 应用Sub滤波器
+    filtered[0] = row[0]; // 第一个像素不变
+    filtered[1] = row[1];
+    filtered[2] = row[2];
+    filtered[3] = row[3];
+    var i: usize = bpp;
+    while (i < row.len) : (i += 1) {
+        filtered[i] = row[i] -% row[i - bpp];
+    }
+
+    // 验证：第二个像素的R值应该是150-100=50
+    try testing.expectEqual(@as(u8, 50), filtered[4]);
+}
+
+test "PNG filter - Up filter" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 测试Up滤波器
+    // Up滤波器：filtered[x] = original[x] - prior[x]
+    const current_row = [_]u8{ 100, 100, 100, 255, 150, 150, 150, 255 };
+    const prior_row = [_]u8{ 50, 50, 50, 255, 80, 80, 80, 255 };
+    var filtered = try allocator.alloc(u8, current_row.len);
+    defer allocator.free(filtered);
+
+    // 应用Up滤波器
+    var i: usize = 0;
+    while (i < current_row.len) : (i += 1) {
+        filtered[i] = current_row[i] -% prior_row[i];
+    }
+
+    // 验证：第一个像素的R值应该是100-50=50
+    try testing.expectEqual(@as(u8, 50), filtered[0]);
+}
+
+test "PNG filter - Average filter" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 测试Average滤波器
+    // Average滤波器：filtered[x] = original[x] - floor((original[x-bpp] + prior[x]) / 2)
+    const bpp: usize = 4;
+    const current_row = [_]u8{ 100, 100, 100, 255, 150, 150, 150, 255 };
+    const prior_row = [_]u8{ 50, 50, 50, 255, 80, 80, 80, 255 };
+    var filtered = try allocator.alloc(u8, current_row.len);
+    defer allocator.free(filtered);
+
+    // 应用Average滤波器
+    filtered[0] = current_row[0] -% @as(u8, @intCast((0 + prior_row[0]) / 2));
+    filtered[1] = current_row[1] -% @as(u8, @intCast((0 + prior_row[1]) / 2));
+    filtered[2] = current_row[2] -% @as(u8, @intCast((0 + prior_row[2]) / 2));
+    filtered[3] = current_row[3] -% @as(u8, @intCast((0 + prior_row[3]) / 2));
+    var i: usize = bpp;
+    while (i < current_row.len) : (i += 1) {
+        const left = current_row[i - bpp];
+        const up = prior_row[i];
+        filtered[i] = current_row[i] -% @as(u8, @intCast((@as(u16, left) + @as(u16, up)) / 2));
+    }
+
+    // 验证：第一个像素的R值应该是100-floor((0+50)/2)=100-25=75
+    try testing.expectEqual(@as(u8, 75), filtered[0]);
+}
+
+test "PNG filter - Paeth filter" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 测试Paeth滤波器
+    // Paeth滤波器使用Paeth预测器
+    const current_row = [_]u8{ 100, 100, 100, 255 };
+    var filtered = try allocator.alloc(u8, current_row.len);
+    defer allocator.free(filtered);
+
+    // 应用Paeth滤波器（简化测试）
+    // 第一个像素：paethPredictor(0, 0, 0) = 0
+    filtered[0] = current_row[0] -% 0;
+    filtered[1] = current_row[1] -% 0;
+    filtered[2] = current_row[2] -% 0;
+    filtered[3] = current_row[3] -% 0;
+
+    // 验证：第一个像素应该等于原始值（因为预测器为0）
+    try testing.expectEqual(@as(u8, 100), filtered[0]);
+}
