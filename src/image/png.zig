@@ -8,6 +8,31 @@ pub const PngEncoder = struct {
     /// PNG文件签名（8字节）
     const PNG_SIGNATURE = [_]u8{ 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A };
 
+    /// CRC32查找表（预计算）
+    const CRC32_TABLE = initCRC32Table();
+
+    /// 初始化CRC32查找表
+    fn initCRC32Table() [256]u32 {
+        @setEvalBranchQuota(10000);
+        var table: [256]u32 = undefined;
+        const polynomial: u32 = 0xEDB88320; // PNG使用的CRC32多项式
+
+        var i: u32 = 0;
+        while (i < 256) : (i += 1) {
+            var crc: u32 = i;
+            var j: u32 = 0;
+            while (j < 8) : (j += 1) {
+                if (crc & 1 != 0) {
+                    crc = (crc >> 1) ^ polynomial;
+                } else {
+                    crc >>= 1;
+                }
+            }
+            table[i] = crc;
+        }
+        return table;
+    }
+
     /// 初始化PNG编码器
     pub fn init(allocator: std.mem.Allocator) PngEncoder {
         return .{ .allocator = allocator };
@@ -113,33 +138,76 @@ pub const PngEncoder = struct {
     }
 
     /// 计算CRC32校验码
-    /// TODO: 简化实现 - 当前使用简单的校验和
-    /// 完整实现需要使用CRC32算法（IEEE 802.3标准）
-    /// 参考：PNG规范要求使用CRC32多项式 0xEDB88320
-    fn calculateCRC(self: PngEncoder, data: []const u8) u32 {
+    /// 使用IEEE 802.3标准的CRC32算法，多项式为0xEDB88320
+    /// 这是PNG规范要求的CRC32实现
+    pub fn calculateCRC(self: PngEncoder, data: []const u8) u32 {
         _ = self;
-        // TODO: 实现完整的CRC32算法
-        // 当前使用简单的校验和作为占位符
-        var sum: u32 = 0;
+        var crc: u32 = 0xFFFFFFFF;
+
         for (data) |byte| {
-            sum +%= byte;
+            const index = @as(u8, @truncate(crc ^ @as(u32, byte)));
+            crc = (crc >> 8) ^ CRC32_TABLE[index];
         }
-        return sum;
+
+        return crc ^ 0xFFFFFFFF;
     }
 
     /// DEFLATE压缩
-    /// TODO: 简化实现 - 当前返回未压缩的数据
+    /// TODO: 简化实现 - 当前返回未压缩的数据（加上zlib头部和ADLER32校验）
     /// 完整实现需要使用DEFLATE压缩算法（zlib格式）
     /// 参考：RFC 1950 (zlib), RFC 1951 (DEFLATE)
-    fn deflateCompress(self: PngEncoder, data: []const u8) ![]u8 {
-        // TODO: 实现DEFLATE压缩
-        // 当前返回未压缩的数据（加上zlib头部和尾部）
-        // 这是一个占位符实现，完整实现需要使用std.compress.deflate或类似库
+    ///
+    /// PNG使用zlib格式的DEFLATE压缩，包含：
+    /// 1. zlib头部（2字节）
+    /// 2. DEFLATE压缩数据
+    /// 3. ADLER32校验（4字节）
+    ///
+    /// 当前实现只添加zlib头部和ADLER32，数据未压缩
+    pub fn deflateCompress(self: PngEncoder, data: []const u8) ![]u8 {
+        // TODO: 实现完整的DEFLATE压缩算法
+        // 当前实现：添加zlib头部和ADLER32校验，但数据未压缩
 
-        // 简化实现：返回原始数据（不压缩）
-        // 注意：这不是有效的PNG，但可以让测试通过基本结构检查
-        const result = try self.allocator.alloc(u8, data.len);
-        @memcpy(result, data);
+        // zlib头部：CMF (1字节) + FLG (1字节)
+        // CMF: 0x78 = deflate方法，32K窗口
+        // FLG: 0x9C = FCHECK + FDICT + FLEVEL
+        const zlib_header = [_]u8{ 0x78, 0x9C };
+
+        // 计算ADLER32校验
+        const adler32 = self.calculateAdler32(data);
+
+        // 构建结果：zlib头部 + 原始数据 + ADLER32
+        const result_len = zlib_header.len + data.len + 4;
+        const result = try self.allocator.alloc(u8, result_len);
+        errdefer self.allocator.free(result);
+
+        var offset: usize = 0;
+        @memcpy(result[offset..][0..zlib_header.len], &zlib_header);
+        offset += zlib_header.len;
+
+        @memcpy(result[offset..][0..data.len], data);
+        offset += data.len;
+
+        // 写入ADLER32（big-endian）
+        result[offset] = @as(u8, @truncate(adler32 >> 24));
+        result[offset + 1] = @as(u8, @truncate(adler32 >> 16));
+        result[offset + 2] = @as(u8, @truncate(adler32 >> 8));
+        result[offset + 3] = @as(u8, @truncate(adler32));
+
         return result;
+    }
+
+    /// 计算ADLER32校验（用于zlib）
+    fn calculateAdler32(self: PngEncoder, data: []const u8) u32 {
+        _ = self;
+        var a: u32 = 1;
+        var b: u32 = 0;
+        const adler32_mod: u32 = 65521; // ADLER32模数
+
+        for (data) |byte| {
+            a = (a + @as(u32, byte)) % adler32_mod;
+            b = (b + a) % adler32_mod;
+        }
+
+        return (b << 16) | a;
     }
 };
