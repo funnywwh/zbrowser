@@ -18,8 +18,11 @@ pub const ComputedStyle = struct {
     pub fn deinit(self: *ComputedStyle) void {
         var it = self.properties.iterator();
         while (it.next()) |entry| {
+            // 释放 key（HashMap 的 key）
             self.allocator.free(entry.key_ptr.*);
-            entry.value_ptr.deinit();
+            // 释放 value（Declaration），但不要释放 Declaration.name（因为它是 key）
+            // 使用 deinitValueOnly 只释放 value
+            entry.value_ptr.deinitValueOnly();
         }
         self.properties.deinit();
     }
@@ -46,6 +49,18 @@ pub const Cascade = struct {
             return computed;
         }
 
+        // 添加默认样式
+        const default_display_name = try self.allocator.dupe(u8, "display");
+        const default_display_value = try self.allocator.dupe(u8, "block");
+        const default_decl = parser.Declaration{
+            .name = default_display_name,
+            .value = parser.Value{ .keyword = default_display_value },
+            .important = false,
+            .allocator = self.allocator,
+        };
+        // put 后，key 的所有权转移给 HashMap，不需要单独释放
+        try computed.properties.put(default_display_name, default_decl);
+
         // 遍历所有样式表
         for (stylesheets) |stylesheet| {
             // 遍历所有规则
@@ -56,28 +71,37 @@ pub const Cascade = struct {
                         // 匹配，添加声明
                         for (rule.declarations.items) |decl| {
                             const name = try self.allocator.dupe(u8, decl.name);
-                            errdefer self.allocator.free(name);
-                            
+
                             // 复制值
-                            var value = try self.copyValue(decl.value);
-                            errdefer value.deinit(self.allocator);
-                            
+                            const value = try self.copyValue(decl.value);
+
                             const new_decl = parser.Declaration{
                                 .name = name,
                                 .value = value,
                                 .important = decl.important,
                                 .allocator = self.allocator,
                             };
-                            
+
                             // 如果已存在，根据优先级决定是否覆盖
                             if (computed.properties.getPtr(decl.name)) |existing| {
                                 // 简化：如果新声明是important，覆盖；否则不覆盖
                                 if (decl.important and !existing.important) {
                                     existing.deinit();
                                     existing.* = new_decl;
+                                } else {
+                                    // 不覆盖，释放新声明的资源
+                                    self.allocator.free(name);
+                                    var mutable_value = value;
+                                    mutable_value.deinit(self.allocator);
                                 }
                             } else {
-                                try computed.properties.put(name, new_decl);
+                                // put 失败时会清理
+                                computed.properties.put(name, new_decl) catch |err| {
+                                    self.allocator.free(name);
+                                    var mutable_value = value;
+                                    mutable_value.deinit(self.allocator);
+                                    return err;
+                                };
                             }
                         }
                         break; // 一个选择器匹配就够了
@@ -92,7 +116,7 @@ pub const Cascade = struct {
     fn matchesSelector(self: Cascade, element: *dom.Node, sel: *const selector.Selector) bool {
         // 简化实现：只检查第一个序列
         if (sel.sequences.items.len == 0) return false;
-        
+
         const seq = &sel.sequences.items[0];
         if (seq.selectors.items.len == 0) return false;
 

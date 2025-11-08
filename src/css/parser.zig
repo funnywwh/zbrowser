@@ -37,7 +37,14 @@ pub const Declaration = struct {
     allocator: std.mem.Allocator,
 
     pub fn deinit(self: *Declaration) void {
+        // 释放 name（在 Rule 中使用时）
         self.allocator.free(self.name);
+        // 释放 value
+        self.value.deinit(self.allocator);
+    }
+
+    /// 只释放 value，不释放 name（用于 HashMap 中，name 是 key）
+    pub fn deinitValueOnly(self: *Declaration) void {
         self.value.deinit(self.allocator);
     }
 };
@@ -91,6 +98,7 @@ pub const Parser = struct {
     pub fn deinit(self: *Self) void {
         if (self.current_token) |*token| {
             token.deinit(self.allocator);
+            self.current_token = null;
         }
     }
 
@@ -164,16 +172,7 @@ pub const Parser = struct {
             declarations.deinit();
         }
 
-        var last_pos: usize = self.tokenizer.pos;
         while (self.current_token) |token| {
-            // 防止死循环
-            if (self.tokenizer.pos == last_pos) {
-                try self.advance();
-                last_pos = self.tokenizer.pos;
-                continue;
-            }
-            last_pos = self.tokenizer.pos;
-
             if (token.token_type == .delim and token.data.delim == '}') {
                 try self.advance();
                 break;
@@ -185,20 +184,16 @@ pub const Parser = struct {
                 continue;
             }
 
+            if (token.token_type == .eof) {
+                break;
+            }
+
             // 解析声明
             if (self.parseDeclaration()) |decl| {
                 try declarations.append(decl);
             } else |_| {
                 // 解析错误，跳过到下一个分号或右大括号
-                var skip_last_pos: usize = self.tokenizer.pos;
                 while (self.current_token) |t| {
-                    if (self.tokenizer.pos == skip_last_pos) {
-                        try self.advance();
-                        skip_last_pos = self.tokenizer.pos;
-                        continue;
-                    }
-                    skip_last_pos = self.tokenizer.pos;
-
                     if (t.token_type == .delim and (t.data.delim == ';' or t.data.delim == '}')) {
                         break;
                     }
@@ -222,10 +217,11 @@ pub const Parser = struct {
         var sel = selector.Selector.init(self.allocator);
         errdefer sel.deinit();
 
-        const sequence = try self.parseSelectorSequence();
-        try sel.sequences.append(sequence);
+        const first_sequence = try self.parseSelectorSequence();
+        try sel.sequences.append(first_sequence);
 
         // 解析组合器和后续序列
+        // 注意：对于后代选择器（空白分隔），应该添加到同一个序列中
         while (self.current_token) |token| {
             // 如果遇到规则结束符，直接退出
             if (token.token_type == .delim) {
@@ -240,24 +236,32 @@ pub const Parser = struct {
 
             // 检查是否有显式组合器（>, +, ~）
             if (self.parseCombinator()) |combinator| {
+                // 显式组合器：创建新序列
                 const next_sequence = try self.parseSelectorSequence();
+                // 先 append，再获取前一个序列的引用（避免引用失效）
+                const prev_idx = sel.sequences.items.len;
                 try sel.sequences.append(next_sequence);
                 // 将组合器添加到前一个序列
-                if (sel.sequences.items.len > 1) {
-                    const prev_idx = sel.sequences.items.len - 2;
-                    try sel.sequences.items[prev_idx].combinators.append(combinator);
-                }
+                var prev_sequence = &sel.sequences.items[prev_idx - 1];
+                try prev_sequence.combinators.append(combinator);
             } else {
                 // 没有显式组合器，检查是否是后代选择器（空白分隔）
-                // 如果下一个token是简单选择器的开始，说明中间有空白（后代组合器）
+                // 后代选择器：添加到当前序列
                 if (self.canStartSimpleSelector()) {
-                    const next_sequence = try self.parseSelectorSequence();
-                    try sel.sequences.append(next_sequence);
-                    // 添加后代组合器
-                    if (sel.sequences.items.len > 1) {
-                        const prev_idx = sel.sequences.items.len - 2;
-                        try sel.sequences.items[prev_idx].combinators.append(.descendant);
+                    // 获取当前序列（最后一个）
+                    const sequence_idx = sel.sequences.items.len - 1;
+                    var sequence = &sel.sequences.items[sequence_idx];
+                    // 添加后代组合器到当前序列（在选择器之间）
+                    try sequence.combinators.append(.descendant);
+                    // 解析下一个选择器序列，但将其选择器添加到当前序列
+                    var next_sequence = try self.parseSelectorSequence();
+                    // 将下一个序列的选择器添加到当前序列
+                    for (next_sequence.selectors.items) |simple_sel| {
+                        try sequence.selectors.append(simple_sel);
                     }
+                    // 清理下一个序列（选择器已移动，但需要清理空的ArrayList）
+                    next_sequence.selectors.deinit();
+                    next_sequence.combinators.deinit();
                 } else {
                     // 不是选择器，退出
                     break;
@@ -295,19 +299,32 @@ pub const Parser = struct {
         }
 
         // 继续解析更多简单选择器（如 div.container#id）
+        // 注意：这里只解析同一序列中的选择器（如 div.container#id），不处理组合器
+        // 组合器（包括后代选择器）在 parseSelector 中处理
+        // 如果下一个token是delim（.、#、*），是同一序列的选择器
+        // 如果下一个token是ident或hash，可能是后代选择器，停止让 parseSelector 处理
         while (self.current_token) |t| {
-            // 如果遇到结束符，停止
             if (t.token_type == .delim) {
                 const delim = t.data.delim;
-                if (delim == ',' or delim == '{' or delim == '}' or delim == '>' or delim == '+' or delim == '~') {
+                // 如果是 . 或 # 或 *，是同一序列的选择器，继续解析
+                if (delim == '.' or delim == '#' or delim == '*') {
+                    // 继续解析同一序列的选择器
+                } else {
+                    // 其他分隔符（,、{、}、>、+、~等），停止
                     break;
                 }
+            } else if (t.token_type == .ident or t.token_type == .hash) {
+                // ident 或 hash 可能是后代选择器，停止让 parseSelector 处理
+                break;
+            } else {
+                // 其他类型，停止
+                break;
             }
             if (t.token_type == .eof) {
                 break;
             }
 
-            // 尝试解析更多简单选择器
+            // 尝试解析更多简单选择器（同一序列中的，如 .container 或 #id）
             if (self.parseSimpleSelector()) |simple_sel| {
                 try sequence.selectors.append(simple_sel);
             } else |_| {
@@ -326,19 +343,23 @@ pub const Parser = struct {
         switch (token.token_type) {
             .ident => {
                 const ident = token.data.ident;
+                // 先复制，再advance（advance会释放token）
+                const ident_copy = try self.allocator.dupe(u8, ident);
                 try self.advance();
                 return selector.SimpleSelector{
                     .selector_type = .type,
-                    .value = try self.allocator.dupe(u8, ident),
+                    .value = ident_copy,
                     .allocator = self.allocator,
                 };
             },
             .hash => {
                 const hash = token.data.hash;
+                // 先复制，再advance（advance会释放token）
+                const hash_copy = try self.allocator.dupe(u8, hash);
                 try self.advance();
                 return selector.SimpleSelector{
                     .selector_type = .id,
-                    .value = try self.allocator.dupe(u8, hash),
+                    .value = hash_copy,
                     .allocator = self.allocator,
                 };
             },
@@ -349,10 +370,12 @@ pub const Parser = struct {
                     const next_token = self.current_token orelse return error.UnexpectedEof;
                     if (next_token.token_type == .ident) {
                         const ident = next_token.data.ident;
+                        // 先复制，再advance（advance会释放token）
+                        const ident_copy = try self.allocator.dupe(u8, ident);
                         try self.advance();
                         return selector.SimpleSelector{
                             .selector_type = .class,
-                            .value = try self.allocator.dupe(u8, ident),
+                            .value = ident_copy,
                             .allocator = self.allocator,
                         };
                     }
@@ -455,9 +478,11 @@ pub const Parser = struct {
         switch (token.token_type) {
             .ident => {
                 const ident = token.data.ident;
+                // 先复制，再advance（advance会释放token）
+                const ident_copy = try self.allocator.dupe(u8, ident);
                 try self.advance();
                 return Value{
-                    .keyword = try self.allocator.dupe(u8, ident),
+                    .keyword = ident_copy,
                 };
             },
             .number => {
@@ -466,6 +491,7 @@ pub const Parser = struct {
                 // 检查是否有单位
                 if (self.current_token) |t| {
                     if (t.token_type == .ident) {
+                        // 先复制，再advance（advance会释放token）
                         const unit = try self.allocator.dupe(u8, t.data.ident);
                         try self.advance();
                         return Value{
@@ -480,11 +506,13 @@ pub const Parser = struct {
             },
             .dimension => {
                 const dim = token.data.dimension;
+                // 先复制unit，再advance（advance会释放token）
+                const unit_copy = try self.allocator.dupe(u8, dim.unit);
                 try self.advance();
                 return Value{
                     .length = .{
                         .value = dim.value,
-                        .unit = dim.unit,
+                        .unit = unit_copy,
                     },
                 };
             },
@@ -496,8 +524,11 @@ pub const Parser = struct {
             .hash => {
                 // 解析颜色
                 const hash = token.data.hash;
+                // 先复制，再advance（advance会释放token）
+                const hash_copy = try self.allocator.dupe(u8, hash);
                 try self.advance();
-                const color = try self.parseColor(hash);
+                const color = try self.parseColor(hash_copy);
+                self.allocator.free(hash_copy);
                 return Value{ .color = color };
             },
             else => {
@@ -537,6 +568,7 @@ pub const Parser = struct {
     fn advance(self: *Self) !void {
         if (self.current_token) |*token| {
             token.deinit(self.allocator);
+            self.current_token = null;
         }
         self.current_token = try self.tokenizer.next();
     }
