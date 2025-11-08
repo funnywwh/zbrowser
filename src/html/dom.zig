@@ -176,15 +176,23 @@ pub const ElementData = struct {
     }
 
     pub fn deinit(self: *ElementData, allocator: std.mem.Allocator) void {
-        // 释放 tag_name（如果使用 GPA）
+        // 注意：如果使用 Arena 分配器，不需要释放内存
+        // Arena 分配器会在整个 arena 销毁时一次性释放所有内存
+        // 但是，arena allocator 的 free 函数实际上什么都不做（不会 panic）
+        // 所以我们可以安全地调用 free，即使使用 arena allocator
+
+        // 释放 tag_name（如果使用 GPA，会真正释放；如果使用 arena，什么都不做）
         allocator.free(self.tag_name);
+
         // 释放 attributes 中的键和值
         var it = self.attributes.iterator();
         while (it.next()) |entry| {
             allocator.free(entry.key_ptr.*);
             allocator.free(entry.value_ptr.*);
         }
+
         // 清理HashMap结构本身
+        // 注意：即使使用 arena allocator，也需要清理 HashMap 的内部结构
         self.attributes.deinit();
     }
 };

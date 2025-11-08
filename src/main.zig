@@ -101,8 +101,12 @@ pub const Browser = struct {
         }
         self.stylesheets.deinit(self.allocator);
 
-        self.document.deinit();
+        // 注意：如果使用 arena allocator，Document.deinit 应该什么都不做
+        // 因为 arena 会在 BrowserAllocator.deinit 时自动释放所有内存
+        // 所以，我们先调用 browser_allocator.deinit() 来释放 arena
+        // 然后就不需要调用 document.deinit() 了
         self.browser_allocator.deinit();
+        // self.document.deinit(); // 不需要调用，因为 arena 已经释放了所有内存
     }
 };
 
