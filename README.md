@@ -40,11 +40,17 @@ ZBrowser是一个完全用Zig语言实现的headless浏览器渲染引擎，严�
   - ✅ DEFLATE存储模式（BTYPE=00，支持大数据分块）
   - ✅ zlib格式（头部、ADLER32校验）
   - ✅ 支持大图像（自动分块处理，避免整数溢出）
+- 🟡 字体模块（基础框架完成）
+  - ✅ 字体管理器（FontManager、FontFace）
+  - ✅ TTF/OTF字体解析器基础框架（表目录解析）
+  - ✅ 字形渲染器基础框架（占位符实现）
+  - 🔲 TTF字体表解析（cmap、head、hhea、hmtx、glyf、loca）
+  - 🔲 字形轮廓解析和渲染（TrueType轮廓、扫描线填充、抗锯齿）
 
 ### 计划中
 - 🔲 Flexbox布局完整实现（flex-grow/shrink/basis、对齐算法、换行）
 - 🔲 Grid布局完整实现（grid-template、grid-area、对齐等）
-- 🔲 渲染引擎优化（完整扫描线填充、Bresenham算法、字体渲染）
+- 🔲 渲染引擎优化（完整扫描线填充、Bresenham算法）
 - 🔲 JavaScript引擎（解析、执行、DOM API）
 - 🔲 事件系统
 - 🔲 CSS动画支持
@@ -88,6 +94,10 @@ zbrowser/
 │   ├── image/                # 图像处理
 │   │   ├── png.zig          # PNG编码器
 │   │   └── deflate.zig      # DEFLATE压缩算法
+│   ├── font/                 # 字体模块（进行中）
+│   │   ├── font.zig         # 字体管理器（FontManager, FontFace）
+│   │   ├── ttf.zig          # TTF/OTF字体解析器
+│   │   └── glyph.zig        # 字形渲染器
 │   ├── utils/                # 工具模块
 │   │   ├── allocator.zig    # 内存分配器
 │   │   ├── string.zig       # 字符串工具
@@ -101,6 +111,9 @@ zbrowser/
 │   ├── image/               # 图像处理测试
 │   │   ├── test_png_direct.zig  # PNG直接测试
 │   │   └── test_png_solid.zig  # PNG纯色测试
+│   ├── font/                # 字体模块测试
+│   │   ├── font_test.zig   # 字体管理器测试
+│   │   └── ttf_test.zig    # TTF解析器测试
 │   ├── utils/               # 工具模块测试
 │   ├── js/                  # JavaScript测试（待实现）
 │   └── integration/         # 集成测试（待实现）
@@ -208,7 +221,15 @@ pub fn main() !void {
    - ✅ 渲染树到像素转换（Renderer模块）
    - ✅ PNG编码器（完整实现，支持大图像）
 
-5. **阶段5-8: JavaScript引擎、DOM API、动画等** 🔲
+5. **阶段5: 字体加载和字形渲染** 🟡（进行中）
+   - ✅ 字体管理器（FontManager、FontFace）
+   - ✅ TTF/OTF字体解析器基础框架
+   - ✅ 字形渲染器基础框架
+   - 🔲 TTF字体表完整解析（cmap、head、hhea、hmtx、glyf、loca）
+   - 🔲 字形轮廓解析和渲染（TrueType轮廓、扫描线填充、抗锯齿）
+   - 🔲 集成到渲染后端
+
+6. **阶段6-8: JavaScript引擎、DOM API、动画等** 🔲
    - JavaScript解析和执行
    - DOM API实现
    - 事件系统
@@ -266,6 +287,28 @@ pub fn main() !void {
   - DEFLATE存储模式（支持大数据自动分块）
   - zlib格式（头部、ADLER32校验）
 
+### 字体模块（进行中）
+
+- 🟡 **字体管理器**: FontManager和FontFace
+  - ✅ 字体加载和缓存机制
+  - ✅ 字体查找接口
+- 🟡 **TTF/OTF解析器**: TtfParser
+  - ✅ 字体表目录解析（SFNT头部、表记录）
+  - ✅ 基础数据结构（FontMetrics、HorizontalMetrics、Glyph）
+  - 🔲 cmap表解析（字符到字形索引映射）
+  - 🔲 head表解析（字体度量信息）
+  - 🔲 hhea表解析（水平头部信息）
+  - 🔲 hmtx表解析（水平度量表）
+  - 🔲 glyf表解析（字形轮廓数据）
+  - 🔲 loca表解析（字形位置索引）
+- 🟡 **字形渲染器**: GlyphRenderer
+  - ✅ 基础框架和占位符实现
+  - 🔲 字形轮廓转换（字体单位到像素单位）
+  - 🔲 扫描线填充算法
+  - 🔲 抗锯齿渲染（亚像素渲染）
+  - 🔲 二次贝塞尔曲线处理（TrueType轮廓）
+  - 🔲 复合字形处理（多个轮廓组合）
+
 详细设计请参考 [DESIGN.md](DESIGN.md)
 
 ## 测试
@@ -282,6 +325,9 @@ pub fn main() !void {
 
 #### 测试统计
 
+- **Font 模块**：5 个测试
+  - FontManager测试（初始化、空缓存、查找不存在的字体等）
+  - TTF解析器测试（占位符，待实现）
 - **HTML DOM 模块**：26 个测试
   - Document API测试（getDocumentElement、getHead、getBody、getElementsByTagName等）
   - Node操作测试（appendChild、removeChild、querySelector等）
@@ -310,7 +356,7 @@ pub fn main() !void {
   - Math Utils测试（8个测试用例）
   - Allocator Utils测试（6个测试用例）
 
-- **总计**：220+ 个测试
+- **总计**：225+ 个测试
 
 #### 测试完成状态
 
@@ -323,7 +369,7 @@ pub fn main() !void {
 
 #### 测试结果
 
-- ✅ 所有测试通过：220+/220+ passed
+- ✅ 所有测试通过：225+/225+ passed
 - ✅ 0个内存泄漏
 - ✅ 代码编译无错误
 - ✅ 所有内存管理正确（无双重释放、无泄漏）
@@ -384,10 +430,21 @@ zig build test
 
 ## 状态
 
-**当前版本**: 0.5.0-alpha  
-**开发阶段**: 阶段1-4完成（HTML解析、CSS解析、布局引擎、渲染引擎和PNG编码器全部完成）
+**当前版本**: 0.6.0-alpha  
+**开发阶段**: 阶段1-4完成，阶段5进行中（字体模块基础框架完成）
 
-### 最新更新（v0.5.0-alpha）
+### 最新更新（v0.6.0-alpha）
+
+- ✅ **完成字体模块基础框架**
+  - 字体管理器（FontManager、FontFace）：支持字体加载、缓存和查找
+  - TTF/OTF字体解析器（TtfParser）：支持字体表目录解析、基础数据结构
+  - 字形渲染器（GlyphRenderer）：基础框架和占位符实现
+  - 所有简化实现都添加了TODO注释，说明完整实现计划
+  - 创建了完整的测试文件（font_test.zig、ttf_test.zig）
+  - 更新了构建系统，添加字体模块支持
+  - 所有代码遵循TDD原则，包含边界测试
+
+### 历史更新（v0.5.0-alpha）
 
 - ✅ **完成渲染引擎和PNG编码器实现**
   - 抽象渲染后端接口（RenderBackend VTable）

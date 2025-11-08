@@ -48,6 +48,10 @@ const image_png_test = @import("tests/image/png_test.zig");
 const image_png_verify_test = @import("tests/image/png_verify_test.zig");
 const image_deflate_test = @import("tests/image/deflate_test.zig");
 
+// Font模块测试
+const font_font_test = @import("tests/font/font_test.zig");
+const font_ttf_test = @import("tests/font/ttf_test.zig");
+
 /// 测试统计信息
 pub const TestStats = struct {
     total: usize = 0,
@@ -96,6 +100,8 @@ test "all test modules imported" {
     _ = image_png_test;
     _ = image_png_verify_test;
     _ = image_deflate_test;
+    _ = font_font_test;
+    _ = font_ttf_test;
 
     std.debug.print("All test modules successfully imported via root test file\n", .{});
 }

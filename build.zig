@@ -285,6 +285,32 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    // Font模块
+    const font_ttf_module = b.createModule(.{
+        .root_source_file = b.path("src/font/ttf.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    const font_glyph_module = b.createModule(.{
+        .root_source_file = b.path("src/font/glyph.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "backend", .module = render_backend_module },
+            .{ .name = "ttf", .module = font_ttf_module },
+        },
+    });
+
+    const font_module = b.createModule(.{
+        .root_source_file = b.path("src/font/font.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "ttf", .module = font_ttf_module },
+        },
+    });
+
     // 创建allocator模块（用于main可执行文件）
     const allocator_module_for_exe = b.createModule(.{
         .root_source_file = b.path("src/utils/allocator.zig"),
@@ -416,6 +442,10 @@ pub fn build(b: *std.Build) void {
             // Image模块
             .{ .name = "png", .module = image_png_module },
             .{ .name = "deflate", .module = image_deflate_module },
+            // Font模块
+            .{ .name = "font", .module = font_module },
+            .{ .name = "ttf", .module = font_ttf_module },
+            .{ .name = "glyph", .module = font_glyph_module },
         },
     });
 
