@@ -118,24 +118,83 @@ pub fn main() !void {
     var browser = try Browser.init(allocator);
     defer browser.deinit();
 
+    // 定义HTML内容
     const html_content =
         \\<!DOCTYPE html>
         \\<html>
         \\<head>
-        \\  <title>Test Page</title>
+        \\  <title>ZBrowser Test Page</title>
         \\</head>
         \\<body>
-        \\  <h1>Hello, World!</h1>
-        \\  <p>This is a test page.</p>
+        \\  <h1>Hello, ZBrowser!</h1>
+        \\  <p>This is a test page rendered by ZBrowser.</p>
+        \\  <div style="background-color: #f0f0f0; padding: 20px; margin: 10px;">
+        \\    <h2>Features</h2>
+        \\    <ul>
+        \\      <li>HTML5 Parsing</li>
+        \\      <li>CSS3 Styling</li>
+        \\      <li>Layout Engine</li>
+        \\      <li>PNG Rendering</li>
+        \\    </ul>
+        \\  </div>
         \\</body>
         \\</html>
     ;
 
-    try browser.loadHTML(html_content);
+    // 定义CSS样式
+    const css_content =
+        \\body {
+        \\  font-family: Arial, sans-serif;
+        \\  margin: 20px;
+        \\  background-color: #ffffff;
+        \\}
+        \\h1 {
+        \\  color: #333333;
+        \\  font-size: 32px;
+        \\  margin-bottom: 10px;
+        \\}
+        \\h2 {
+        \\  color: #666666;
+        \\  font-size: 24px;
+        \\  margin-top: 0;
+        \\}
+        \\p {
+        \\  color: #444444;
+        \\  font-size: 16px;
+        \\  line-height: 1.5;
+        \\}
+        \\ul {
+        \\  list-style-type: disc;
+        \\  padding-left: 30px;
+        \\}
+        \\li {
+        \\  color: #555555;
+        \\  font-size: 14px;
+        \\  margin: 5px 0;
+        \\}
+    ;
 
+    // 加载HTML
+    try browser.loadHTML(html_content);
     std.debug.print("HTML parsed successfully!\n", .{});
 
+    // 添加CSS样式表
+    try browser.addStylesheet(css_content);
+    std.debug.print("CSS stylesheet added successfully!\n", .{});
+
+    // 检查body元素是否存在
     if (browser.document.getBody()) |_| {
         std.debug.print("Body element found\n", .{});
+    } else {
+        std.debug.print("Warning: Body element not found\n", .{});
     }
+
+    // 渲染页面为PNG
+    const width: u32 = 800;
+    const height: u32 = 600;
+    const output_path = "output.png";
+
+    std.debug.print("Rendering page to PNG ({d}x{d})...\n", .{ width, height });
+    try browser.renderToPNG(width, height, output_path);
+    std.debug.print("Page rendered successfully to: {s}\n", .{output_path});
 }

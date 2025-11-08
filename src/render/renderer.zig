@@ -43,12 +43,20 @@ pub const Renderer = struct {
         defer computed_style.deinit();
 
         // 获取布局框的位置和尺寸
-        const content_rect = layout_box.box_model.content;
+        const content_box_rect = layout_box.box_model.content;
         const total_size = layout_box.box_model.totalSize();
 
+        // 转换为backend.Rect
+        const content_rect = backend.Rect.init(
+            content_box_rect.x,
+            content_box_rect.y,
+            content_box_rect.width,
+            content_box_rect.height,
+        );
+
         // 计算边框框的位置（包含margin）
-        const border_x = content_rect.x - layout_box.box_model.padding.left - layout_box.box_model.border.left;
-        const border_y = content_rect.y - layout_box.box_model.padding.top - layout_box.box_model.border.top;
+        const border_x = content_box_rect.x - layout_box.box_model.padding.left - layout_box.box_model.border.left;
+        const border_y = content_box_rect.y - layout_box.box_model.padding.top - layout_box.box_model.border.top;
         const border_rect = backend.Rect.init(
             border_x,
             border_y,
