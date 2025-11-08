@@ -428,31 +428,76 @@ pub const CpuRenderBackend = struct {
     }
 
     /// 内部路径描边实现
-    /// TODO: 简化实现 - 当前使用简单的直线连接
-    /// 完整实现需要：
-    /// 1. 使用Bresenham算法绘制直线
-    /// 2. 处理线宽和线帽
-    /// 3. 抗锯齿处理
+    /// 使用Bresenham算法绘制直线
+    /// TODO: 完整实现需要：
+    /// 1. 处理线宽和线帽（round、square、butt）
+    /// 2. 抗锯齿处理
     fn strokePathInternal(self: *CpuRenderBackend, color: backend.Color, width: f32) void {
         if (self.current_path.items.len < 2) {
             return; // 至少需要2个点才能绘制路径
         }
 
-        // 简化实现：绘制连接各点的直线
+        // 使用Bresenham算法绘制连接各点的直线
         var i: usize = 0;
         while (i < self.current_path.items.len - 1) : (i += 1) {
             const p1 = self.current_path.items[i];
             const p2 = self.current_path.items[i + 1];
 
-            // 绘制直线（简化：使用矩形近似）
-            const dx = p2.x - p1.x;
-            const dy = p2.y - p1.y;
-            const length = @sqrt(dx * dx + dy * dy);
+            // 使用Bresenham算法绘制直线
+            self.drawLineBresenham(p1.x, p1.y, p2.x, p2.y, color, width);
+        }
+    }
 
-            if (length > 0) {
-                // 简化：绘制一个矩形来表示直线
-                const rect = backend.Rect.init(p1.x, p1.y, length, width);
+    /// 使用Bresenham算法绘制直线
+    /// 参考：Bresenham's line algorithm
+    fn drawLineBresenham(self: *CpuRenderBackend, x0: f32, y0: f32, x1: f32, y1: f32, color: backend.Color, width: f32) void {
+        const start_x = @as(i32, @intFromFloat(x0));
+        const start_y = @as(i32, @intFromFloat(y0));
+        const end_x = @as(i32, @intFromFloat(x1));
+        const end_y = @as(i32, @intFromFloat(y1));
+
+        const dx: i32 = @intCast(@abs(end_x - start_x));
+        const dy: i32 = @intCast(@abs(end_y - start_y));
+        const sx: i32 = if (start_x < end_x) 1 else -1;
+        const sy: i32 = if (start_y < end_y) 1 else -1;
+
+        var err: i32 = dx - dy;
+        var x = start_x;
+        var y = start_y;
+
+        // 绘制直线上的每个像素
+        while (true) {
+            // 绘制当前像素（考虑线宽）
+            if (width <= 1.0) {
+                // 单像素宽度
+                if (x >= 0 and x < @as(i32, @intCast(self.width)) and
+                    y >= 0 and y < @as(i32, @intCast(self.height)))
+                {
+                    const index = (@as(usize, @intCast(y)) * self.width + @as(usize, @intCast(x))) * 4;
+                    self.pixels[index] = color.r;
+                    self.pixels[index + 1] = color.g;
+                    self.pixels[index + 2] = color.b;
+                    self.pixels[index + 3] = color.a;
+                }
+            } else {
+                // 多像素宽度：绘制一个小矩形
+                const rect = backend.Rect.init(@as(f32, @floatFromInt(x)), @as(f32, @floatFromInt(y)), width, width);
                 fillRectInternal(self, rect, color);
+            }
+
+            // 检查是否到达终点
+            if (x == end_x and y == end_y) {
+                break;
+            }
+
+            const e2 = 2 * err;
+            if (e2 > -dy) {
+                err -= dy;
+                x += sx;
+            }
+            if (e2 < dx) {
+                err += dx;
+                y += sy;
             }
         }
     }
