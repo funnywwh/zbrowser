@@ -42,6 +42,10 @@ test "layoutFlexbox basic - single item" {
     // 检查布局结果
     try testing.expect(container_box.is_layouted);
     try testing.expect(item_box.is_layouted);
+
+    // 检查位置：单个item应该在(0, 0)
+    try testing.expectEqual(@as(f32, 0), item_box.box_model.content.x);
+    try testing.expectEqual(@as(f32, 0), item_box.box_model.content.y);
 }
 
 test "layoutFlexbox multiple items - row direction" {
@@ -92,6 +96,14 @@ test "layoutFlexbox multiple items - row direction" {
     try testing.expect(container_box.is_layouted);
     try testing.expect(item1_box.is_layouted);
     try testing.expect(item2_box.is_layouted);
+
+    // 检查位置：row方向，items应该水平排列
+    // item1应该在(0, 0)
+    try testing.expectEqual(@as(f32, 0), item1_box.box_model.content.x);
+    try testing.expectEqual(@as(f32, 0), item1_box.box_model.content.y);
+    // item2应该在(100, 0)（item1的宽度）
+    try testing.expectEqual(@as(f32, 100), item2_box.box_model.content.x);
+    try testing.expectEqual(@as(f32, 0), item2_box.box_model.content.y);
 }
 
 test "layoutFlexbox boundary - empty container" {
@@ -196,4 +208,77 @@ test "layoutFlexbox boundary - large container" {
     // 检查布局结果
     try testing.expect(container_box.is_layouted);
     try testing.expect(item_box.is_layouted);
+
+    // 检查位置：item应该在(0, 0)
+    try testing.expectEqual(@as(f32, 0), item_box.box_model.content.x);
+    try testing.expectEqual(@as(f32, 0), item_box.box_model.content.y);
+}
+
+test "layoutFlexbox boundary - three items row" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 创建测试节点
+    const container_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, container_node);
+
+    const item1_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, item1_node);
+
+    const item2_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, item2_node);
+
+    const item3_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, item3_node);
+
+    // 创建布局框
+    var container_box = box.LayoutBox.init(container_node, allocator);
+    container_box.display = .flex;
+    container_box.box_model.content.x = 0;
+    container_box.box_model.content.y = 0;
+    container_box.box_model.content.width = 800;
+    container_box.box_model.content.height = 600;
+    defer container_box.deinit();
+
+    var item1_box = box.LayoutBox.init(item1_node, allocator);
+    item1_box.box_model.content.width = 100;
+    item1_box.box_model.content.height = 50;
+    defer item1_box.deinit();
+
+    var item2_box = box.LayoutBox.init(item2_node, allocator);
+    item2_box.box_model.content.width = 150;
+    item2_box.box_model.content.height = 50;
+    defer item2_box.deinit();
+
+    var item3_box = box.LayoutBox.init(item3_node, allocator);
+    item3_box.box_model.content.width = 200;
+    item3_box.box_model.content.height = 50;
+    defer item3_box.deinit();
+
+    // 添加子元素
+    try container_box.children.append(allocator, &item1_box);
+    try container_box.children.append(allocator, &item2_box);
+    try container_box.children.append(allocator, &item3_box);
+    item1_box.parent = &container_box;
+    item2_box.parent = &container_box;
+    item3_box.parent = &container_box;
+
+    // 执行Flexbox布局
+    const containing_block = box.Size{ .width = 800, .height = 600 };
+    flexbox.layoutFlexbox(&container_box, containing_block);
+
+    // 检查布局结果
+    try testing.expect(container_box.is_layouted);
+    try testing.expect(item1_box.is_layouted);
+    try testing.expect(item2_box.is_layouted);
+    try testing.expect(item3_box.is_layouted);
+
+    // 检查位置：row方向，items应该水平排列
+    try testing.expectEqual(@as(f32, 0), item1_box.box_model.content.x);
+    try testing.expectEqual(@as(f32, 0), item1_box.box_model.content.y);
+    try testing.expectEqual(@as(f32, 100), item2_box.box_model.content.x);
+    try testing.expectEqual(@as(f32, 0), item2_box.box_model.content.y);
+    try testing.expectEqual(@as(f32, 250), item3_box.box_model.content.x);
+    try testing.expectEqual(@as(f32, 0), item3_box.box_model.content.y);
 }
