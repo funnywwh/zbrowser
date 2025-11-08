@@ -43,16 +43,16 @@ test "layoutPosition relative - with offset" {
     layout_box.position = .relative;
     layout_box.box_model.content.x = 10;
     layout_box.box_model.content.y = 20;
-    // TODO: 从样式表中获取top、right、bottom、left值
-    // 暂时使用简化实现：假设有offset字段
+    layout_box.position_left = 30;
+    layout_box.position_top = 40;
     defer layout_box.deinit();
 
     // relative定位应该相对于正常位置偏移
-    // TODO: 实现relative定位逻辑
     position.layoutPosition(&layout_box, box.Size{ .width = 800, .height = 600 });
 
     // 位置应该根据offset调整
-    // TODO: 添加具体的测试断言
+    try testing.expectEqual(@as(f32, 40), layout_box.box_model.content.x); // 10 + 30
+    try testing.expectEqual(@as(f32, 60), layout_box.box_model.content.y); // 20 + 40
 }
 
 test "layoutPosition absolute - positioned relative to containing block" {
@@ -69,14 +69,18 @@ test "layoutPosition absolute - positioned relative to containing block" {
     layout_box.position = .absolute;
     layout_box.box_model.content.x = 0;
     layout_box.box_model.content.y = 0;
+    layout_box.box_model.content.width = 100;
+    layout_box.box_model.content.height = 50;
+    layout_box.position_left = 50;
+    layout_box.position_top = 100;
     defer layout_box.deinit();
 
     // absolute定位应该相对于包含块定位
-    // TODO: 实现absolute定位逻辑
     position.layoutPosition(&layout_box, box.Size{ .width = 800, .height = 600 });
 
-    // 位置应该根据top、right、bottom、left计算
-    // TODO: 添加具体的测试断言
+    // 位置应该根据top、left计算
+    try testing.expectEqual(@as(f32, 50), layout_box.box_model.content.x);
+    try testing.expectEqual(@as(f32, 100), layout_box.box_model.content.y);
 }
 
 test "layoutPosition fixed - positioned relative to viewport" {
@@ -93,14 +97,18 @@ test "layoutPosition fixed - positioned relative to viewport" {
     layout_box.position = .fixed;
     layout_box.box_model.content.x = 0;
     layout_box.box_model.content.y = 0;
+    layout_box.box_model.content.width = 100;
+    layout_box.box_model.content.height = 50;
+    layout_box.position_left = 200;
+    layout_box.position_top = 150;
     defer layout_box.deinit();
 
     // fixed定位应该相对于视口定位
-    // TODO: 实现fixed定位逻辑
     position.layoutPosition(&layout_box, box.Size{ .width = 800, .height = 600 });
 
-    // 位置应该根据top、right、bottom、left计算，相对于视口
-    // TODO: 添加具体的测试断言
+    // 位置应该根据top、left计算，相对于视口
+    try testing.expectEqual(@as(f32, 200), layout_box.box_model.content.x);
+    try testing.expectEqual(@as(f32, 150), layout_box.box_model.content.y);
 }
 
 test "layoutPosition sticky - sticks to position when scrolling" {
@@ -115,16 +123,19 @@ test "layoutPosition sticky - sticks to position when scrolling" {
     // 创建布局框
     var layout_box = box.LayoutBox.init(node, allocator);
     layout_box.position = .sticky;
-    layout_box.box_model.content.x = 0;
-    layout_box.box_model.content.y = 0;
+    layout_box.box_model.content.x = 10;
+    layout_box.box_model.content.y = 20;
+    layout_box.position_left = 30;
+    layout_box.position_top = 40;
     defer layout_box.deinit();
 
     // sticky定位在滚动时会"粘"在指定位置
-    // TODO: 实现sticky定位逻辑
+    // TODO: 完整实现需要跟踪滚动位置，当前只处理初始位置
     position.layoutPosition(&layout_box, box.Size{ .width = 800, .height = 600 });
 
-    // 位置应该根据滚动位置和top、right、bottom、left计算
-    // TODO: 添加具体的测试断言
+    // 初始位置应该使用relative定位逻辑
+    try testing.expectEqual(@as(f32, 40), layout_box.box_model.content.x); // 10 + 30
+    try testing.expectEqual(@as(f32, 60), layout_box.box_model.content.y); // 20 + 40
 }
 
 test "layoutPosition boundary - empty input" {

@@ -142,6 +142,14 @@ pub const LayoutBox = struct {
     /// 定位类型（static, relative, absolute, fixed, sticky）
     position: PositionType,
 
+    /// 定位属性（top、right、bottom、left）
+    /// 这些值从样式表中获取，用于relative、absolute、fixed、sticky定位
+    /// 如果值为null，表示该属性未设置（使用auto）
+    position_top: ?f32,
+    position_right: ?f32,
+    position_bottom: ?f32,
+    position_left: ?f32,
+
     /// 浮动类型（none, left, right）
     float: FloatType,
 
@@ -172,6 +180,10 @@ pub const LayoutBox = struct {
             },
             .display = .block,
             .position = .static,
+            .position_top = null,
+            .position_right = null,
+            .position_bottom = null,
+            .position_left = null,
             .float = .none,
             .children = std.ArrayList(*LayoutBox){
                 .items = &[_]*LayoutBox{},
