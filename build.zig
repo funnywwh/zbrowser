@@ -274,6 +274,20 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    const render_renderer_module = b.createModule(.{
+        .root_source_file = b.path("src/render/renderer.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "box", .module = layout_box_module },
+            .{ .name = "dom", .module = dom_module },
+            .{ .name = "cascade", .module = css_cascade_module },
+            .{ .name = "parser", .module = css_parser_module },
+            .{ .name = "backend", .module = render_backend_module },
+            .{ .name = "style_utils", .module = layout_style_utils_module },
+        },
+    });
+
     // Image模块
     const image_deflate_module = b.createModule(.{
         .root_source_file = b.path("src/image/deflate.zig"),
@@ -334,6 +348,7 @@ pub fn build(b: *std.Build) void {
             // Render模块
             .{ .name = "backend", .module = render_backend_module },
             .{ .name = "cpu_backend", .module = render_cpu_backend_module },
+            .{ .name = "renderer", .module = render_renderer_module },
             // Image模块
             .{ .name = "png", .module = image_png_module },
             .{ .name = "deflate", .module = image_deflate_module },

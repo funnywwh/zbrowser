@@ -40,6 +40,7 @@ const layout_engine_test = @import("tests/layout/engine_test.zig");
 // Render模块测试
 const render_backend_test = @import("tests/render/backend_test.zig");
 const render_cpu_backend_test = @import("tests/render/cpu_backend_test.zig");
+const render_renderer_test = @import("tests/render/renderer_test.zig");
 
 // Image模块测试
 const image_png_test = @import("tests/image/png_test.zig");
@@ -86,8 +87,9 @@ test "all test modules imported" {
     _ = layout_flexbox_test;
     _ = layout_grid_test;
     _ = layout_engine_test;
-        _ = render_backend_test;
-        _ = render_cpu_backend_test;
+    _ = render_backend_test;
+    _ = render_cpu_backend_test;
+    _ = render_renderer_test;
         _ = image_png_test;
         _ = image_deflate_test;
 
