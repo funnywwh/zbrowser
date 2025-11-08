@@ -104,6 +104,18 @@ zbrowser/
 - ✅ 实现默认样式支持
 - ✅ 将样式应用到DOM树，生成样式树
 - ✅ 编写CSS解析器测试用例（10个测试用例，全部通过）
+- 🔲 支持更多CSS单位解析和计算
+  - em单位（相对于父元素字体大小）
+  - rem单位（相对于根元素字体大小）
+  - 百分比单位（%）
+  - 视口单位（vw、vh、vmin、vmax）
+  - 其他相对单位（ch、ex等）
+- 🔲 解析更多CSS属性
+  - 盒模型属性：padding（padding-top/right/bottom/left）、border（border-width/style/color）、margin（margin-top/right/bottom/left）
+  - 尺寸属性：width、height、min-width、max-width、min-height、max-height
+  - 定位属性：top、right、bottom、left、z-index
+  - 布局属性：display、position、float、clear
+  - 其他常用属性：color、background-color、font-size、font-family、line-height等
 
 **验收标准**：
 - ✅ 能正确解析CSS3样式表
@@ -111,6 +123,8 @@ zbrowser/
 - ✅ 样式正确应用到DOM节点
 - ✅ 测试覆盖率100%（10/10测试通过）
 - ✅ 0内存泄漏
+- 🔲 支持所有常用CSS单位的解析和计算
+- 🔲 支持所有常用CSS属性的解析
 
 **完成时间**：2024年（当前版本）
 
@@ -124,16 +138,33 @@ zbrowser/
   - block.zig：块级格式化上下文（BFC）、块级布局
   - inline.zig：行内格式化上下文（IFC）、行内布局
   - position.zig：定位布局（static, relative, absolute, fixed, sticky）
-- 实现Flexbox布局
-  - flexbox.zig：Flexbox算法（主轴/交叉轴计算、对齐、换行）
-- 实现Grid布局
-  - grid.zig：Grid算法（网格线计算、区域分配、对齐）
+- 实现完整的Flexbox布局
+  - flexbox.zig：Flexbox算法实现
+  - flex-grow：flex项增长因子计算
+  - flex-shrink：flex项收缩因子计算
+  - flex-basis：flex项基础尺寸计算
+  - 对齐算法：justify-content（主轴对齐）、align-items（交叉轴对齐）、align-self（单个项对齐）、align-content（多行对齐）
+  - 换行支持：flex-wrap（nowrap、wrap、wrap-reverse）
+  - 方向控制：flex-direction（row、column、row-reverse、column-reverse）
+  - 完整的Flexbox规范算法实现
+- 实现完整的Grid布局
+  - grid.zig：Grid算法实现
+  - repeat()函数：支持auto-fill、auto-fit、固定次数重复
+  - minmax()函数：最小值和最大值约束
+  - fr单位：分数单位（fractional unit）计算
+  - 自动放置算法：自动网格项放置
+  - gap属性：grid-gap、row-gap、column-gap支持
+  - 网格线命名和引用
+  - 网格区域（grid-area）支持
+  - 对齐属性：justify-items、align-items、justify-content、align-content
+  - 完整的Grid规范算法实现
 - 实现浮动和清除浮动
 - 编写布局引擎测试用例（覆盖率100%）
 
 **验收标准**：
 - 正确计算元素尺寸和位置
-- Flexbox和Grid布局正确
+- Flexbox布局完全符合规范（包括flex-grow/shrink/basis、对齐、换行）
+- Grid布局完全符合规范（包括repeat()、minmax()、fr单位、自动放置、gap）
 - 测试覆盖率100%
 
 ### 阶段4: 渲染引擎（核心）

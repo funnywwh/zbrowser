@@ -265,6 +265,15 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    const render_cpu_backend_module = b.createModule(.{
+        .root_source_file = b.path("src/render/cpu_backend.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "backend", .module = render_backend_module },
+        },
+    });
+
     // 创建根测试模块（统一入口）
     // test.zig 作为根测试文件，统一导入所有子测试模块
     // 所有测试都通过 test.zig 运行，不需要单独的测试配置
@@ -308,6 +317,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "engine", .module = layout_engine_module },
             // Render模块
             .{ .name = "backend", .module = render_backend_module },
+            .{ .name = "cpu_backend", .module = render_cpu_backend_module },
         },
     });
 
