@@ -46,6 +46,9 @@ zbrowser/
 │   │   ├── inline.zig       # 行内布局
 │   │   └── position.zig     # 定位布局
 │   ├── render/
+│   │   ├── backend.zig      # 抽象渲染后端接口
+│   │   ├── cpu_backend.zig  # CPU渲染后端
+│   │   ├── gpu_backend.zig # GPU渲染后端（计划中）
 │   │   ├── painter.zig      # 绘制引擎
 │   │   ├── text.zig         # 文本渲染
 │   │   ├── image.zig        # 图片渲染
@@ -153,6 +156,10 @@ zbrowser/
 **目标**：实现渲染和PNG输出
 
 **任务**：
+- 实现抽象渲染后端
+  - backend.zig：定义统一的渲染后端接口（RenderBackend VTable）
+  - cpu_backend.zig：CPU渲染后端实现（软件光栅化、像素缓冲、抗锯齿）
+  - gpu_backend.zig：GPU渲染后端实现（硬件加速、Shader、纹理管理）- 计划中
 - 实现绘制引擎
   - painter.zig：2D图形绘制（直线、矩形、圆、路径、抗锯齿）
   - text.zig：文本渲染（字体度量、字形渲染、换行、对齐）
@@ -164,9 +171,11 @@ zbrowser/
 - 编写渲染引擎测试用例（覆盖率100%）
 
 **验收标准**：
-- 能正确渲染文本、图形、背景、边框
+- 抽象渲染后端接口设计完成，支持CPU和GPU后端
+- CPU渲染后端实现完成，能正确渲染文本、图形、背景、边框
 - 输出PNG图片质量与Chrome一致
 - 测试覆盖率100%
+- GPU后端框架搭建完成（计划中）
 
 ### 阶段5: JavaScript引擎（扩展）
 
