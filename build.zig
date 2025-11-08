@@ -336,6 +336,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "cpu_backend", .module = render_cpu_backend_module },
             // Image模块
             .{ .name = "png", .module = image_png_module },
+            .{ .name = "deflate", .module = image_deflate_module },
         },
     });
 

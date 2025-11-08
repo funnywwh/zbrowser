@@ -43,6 +43,7 @@ const render_cpu_backend_test = @import("tests/render/cpu_backend_test.zig");
 
 // Image模块测试
 const image_png_test = @import("tests/image/png_test.zig");
+const image_deflate_test = @import("tests/image/deflate_test.zig");
 
 /// 测试统计信息
 pub const TestStats = struct {
@@ -88,6 +89,7 @@ test "all test modules imported" {
         _ = render_backend_test;
         _ = render_cpu_backend_test;
         _ = image_png_test;
+        _ = image_deflate_test;
 
     std.debug.print("All test modules successfully imported via root test file\n", .{});
 }
