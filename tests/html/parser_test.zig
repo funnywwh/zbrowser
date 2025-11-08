@@ -1064,3 +1064,247 @@ test "parser parse HTML with entity encoding" {
         }
     }
 }
+
+test "parser insertion mode initial with DOCTYPE" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 测试initial模式：处理DOCTYPE
+    const html_content = "<!DOCTYPE html><html><head></head><body></body></html>";
+    const doc = try dom.Document.init(allocator);
+    const doc_ptr = try allocator.create(dom.Document);
+    defer {
+        freeAllNodes(allocator, &doc_ptr.node);
+        doc_ptr.node.first_child = null;
+        doc_ptr.node.last_child = null;
+        allocator.destroy(doc_ptr);
+    }
+    doc_ptr.* = doc;
+
+    var parser = html.Parser.init(html_content, doc_ptr, allocator);
+    defer parser.deinit();
+    try parser.parse();
+
+    // 应该能够解析，找到html元素
+    const html_elem = doc_ptr.getDocumentElement();
+    try std.testing.expect(html_elem != null);
+}
+
+test "parser insertion mode initial with comment" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 测试initial模式：处理DOCTYPE前的注释
+    const html_content = "<!-- Comment before DOCTYPE --><!DOCTYPE html><html><head></head><body></body></html>";
+    const doc = try dom.Document.init(allocator);
+    const doc_ptr = try allocator.create(dom.Document);
+    defer {
+        freeAllNodes(allocator, &doc_ptr.node);
+        doc_ptr.node.first_child = null;
+        doc_ptr.node.last_child = null;
+        allocator.destroy(doc_ptr);
+    }
+    doc_ptr.* = doc;
+
+    var parser = html.Parser.init(html_content, doc_ptr, allocator);
+    defer parser.deinit();
+    try parser.parse();
+
+    // 应该能够解析，找到html元素
+    const html_elem = doc_ptr.getDocumentElement();
+    try std.testing.expect(html_elem != null);
+}
+
+test "parser insertion mode before_html" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 测试before_html模式：处理html标签
+    const html_content = "<html><head></head><body></body></html>";
+    const doc = try dom.Document.init(allocator);
+    const doc_ptr = try allocator.create(dom.Document);
+    defer {
+        freeAllNodes(allocator, &doc_ptr.node);
+        doc_ptr.node.first_child = null;
+        doc_ptr.node.last_child = null;
+        allocator.destroy(doc_ptr);
+    }
+    doc_ptr.* = doc;
+
+    var parser = html.Parser.init(html_content, doc_ptr, allocator);
+    defer parser.deinit();
+    try parser.parse();
+
+    // 应该能够解析，找到html元素
+    const html_elem = doc_ptr.getDocumentElement();
+    try std.testing.expect(html_elem != null);
+}
+
+test "parser insertion mode before_head" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 测试before_head模式：处理head标签
+    const html_content = "<html><head><title>Test</title></head><body></body></html>";
+    const doc = try dom.Document.init(allocator);
+    const doc_ptr = try allocator.create(dom.Document);
+    defer {
+        freeAllNodes(allocator, &doc_ptr.node);
+        doc_ptr.node.first_child = null;
+        doc_ptr.node.last_child = null;
+        allocator.destroy(doc_ptr);
+    }
+    doc_ptr.* = doc;
+
+    var parser = html.Parser.init(html_content, doc_ptr, allocator);
+    defer parser.deinit();
+    try parser.parse();
+
+    // 应该能够解析，找到head元素
+    const head = doc_ptr.getHead();
+    try std.testing.expect(head != null);
+    if (head) |head_node| {
+        // 应该找到title元素
+        const title = head_node.querySelector("title");
+        try std.testing.expect(title != null);
+    }
+}
+
+test "parser insertion mode in_head" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 测试in_head模式：处理head内的标签
+    const html_content = "<html><head><meta charset=\"UTF-8\"><title>Test</title><style>body {}</style></head><body></body></html>";
+    const doc = try dom.Document.init(allocator);
+    const doc_ptr = try allocator.create(dom.Document);
+    defer {
+        freeAllNodes(allocator, &doc_ptr.node);
+        doc_ptr.node.first_child = null;
+        doc_ptr.node.last_child = null;
+        allocator.destroy(doc_ptr);
+    }
+    doc_ptr.* = doc;
+
+    var parser = html.Parser.init(html_content, doc_ptr, allocator);
+    defer parser.deinit();
+    try parser.parse();
+
+    // 应该能够解析，找到head元素
+    const head = doc_ptr.getHead();
+    try std.testing.expect(head != null);
+    if (head) |head_node| {
+        // 应该找到meta、title、style元素
+        const meta = head_node.querySelector("meta");
+        try std.testing.expect(meta != null);
+        const title = head_node.querySelector("title");
+        try std.testing.expect(title != null);
+        const style = head_node.querySelector("style");
+        try std.testing.expect(style != null);
+    }
+}
+
+test "parser insertion mode after_head" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 测试after_head模式：处理body标签前的空白和body标签
+    const html_content = "<html><head></head>\n<body><div>Content</div></body></html>";
+    const doc = try dom.Document.init(allocator);
+    const doc_ptr = try allocator.create(dom.Document);
+    defer {
+        freeAllNodes(allocator, &doc_ptr.node);
+        doc_ptr.node.first_child = null;
+        doc_ptr.node.last_child = null;
+        allocator.destroy(doc_ptr);
+    }
+    doc_ptr.* = doc;
+
+    var parser = html.Parser.init(html_content, doc_ptr, allocator);
+    defer parser.deinit();
+    try parser.parse();
+
+    // 应该能够解析，找到body元素
+    const body = doc_ptr.getBody();
+    try std.testing.expect(body != null);
+    if (body) |body_node| {
+        // 应该找到div元素
+        const div = body_node.querySelector("div");
+        try std.testing.expect(div != null);
+    }
+}
+
+test "parser insertion mode in_body" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 测试in_body模式：处理body内的标签
+    const html_content = "<html><head></head><body><div><p>Paragraph</p></div><span>Text</span></body></html>";
+    const doc = try dom.Document.init(allocator);
+    const doc_ptr = try allocator.create(dom.Document);
+    defer {
+        freeAllNodes(allocator, &doc_ptr.node);
+        doc_ptr.node.first_child = null;
+        doc_ptr.node.last_child = null;
+        allocator.destroy(doc_ptr);
+    }
+    doc_ptr.* = doc;
+
+    var parser = html.Parser.init(html_content, doc_ptr, allocator);
+    defer parser.deinit();
+    try parser.parse();
+
+    // 应该能够解析，找到body元素
+    const body = doc_ptr.getBody();
+    try std.testing.expect(body != null);
+
+    // 应该找到div和span元素
+    const divs = try doc_ptr.getElementsByTagName("div", allocator);
+    defer allocator.free(divs);
+    try std.testing.expect(divs.len > 0);
+
+    const spans = try doc_ptr.getElementsByTagName("span", allocator);
+    defer allocator.free(spans);
+    try std.testing.expect(spans.len > 0);
+}
+
+test "parser error recovery unexpected end tag" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 测试错误恢复机制：遇到意外的结束标签
+    // <div><p></div> - p标签没有闭合，但div标签闭合了
+    // HTML5解析器应该容错处理，关闭p标签
+    const html_content = "<html><body><div><p>Text</div></body></html>";
+    const doc = try dom.Document.init(allocator);
+    const doc_ptr = try allocator.create(dom.Document);
+    defer {
+        freeAllNodes(allocator, &doc_ptr.node);
+        doc_ptr.node.first_child = null;
+        doc_ptr.node.last_child = null;
+        allocator.destroy(doc_ptr);
+    }
+    doc_ptr.* = doc;
+
+    var parser = html.Parser.init(html_content, doc_ptr, allocator);
+    defer parser.deinit();
+    try parser.parse();
+
+    // 应该能够容错处理，不会崩溃
+    const divs = try doc_ptr.getElementsByTagName("div", allocator);
+    defer allocator.free(divs);
+    try std.testing.expect(divs.len > 0);
+
+    // 应该能找到p元素（即使没有正确闭合）
+    const ps = try doc_ptr.getElementsByTagName("p", allocator);
+    defer allocator.free(ps);
+    try std.testing.expect(ps.len > 0);
+}

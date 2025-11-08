@@ -1,6 +1,6 @@
 # 缺失的单元测试报告
 
-**最后更新时间：2025-11-08 13:55:00**
+**最后更新时间：2025-11-08 14:00:00**
 
 ## HTML DOM 模块 (src/html/dom.zig)
 
@@ -91,14 +91,14 @@
    - ✅ **已添加：测试特殊字符和实体编码**（如 `&lt;`, `&gt;`, `&amp;`, `&quot;`, `&#39;` 等）
    - ✅ **已添加：测试Unicode字符**（中文、emoji等）
 
-3. **Parser 插入模式测试** ❌ 未添加
-   - ❌ **待添加：测试initial模式**（处理DOCTYPE、注释等）
-   - ❌ **待添加：测试before_html模式**（处理html标签）
-   - ❌ **待添加：测试before_head模式**（处理head标签）
-   - ❌ **待添加：测试in_head模式**（处理head内的标签）
-   - ❌ **待添加：测试after_head模式**（处理body标签前的空白）
-   - ❌ **待添加：测试in_body模式**（处理body内的标签）
-   - ❌ **待添加：测试错误恢复机制**（如遇到意外的结束标签时的处理）
+3. ~~**Parser 插入模式测试**~~ ✅ 已添加
+   - ✅ **已添加：测试initial模式**（处理DOCTYPE、注释等）
+   - ✅ **已添加：测试before_html模式**（处理html标签）
+   - ✅ **已添加：测试before_head模式**（处理head标签）
+   - ✅ **已添加：测试in_head模式**（处理head内的标签）
+   - ✅ **已添加：测试after_head模式**（处理body标签前的空白）
+   - ✅ **已添加：测试in_body模式**（处理body内的标签）
+   - ✅ **已添加：测试错误恢复机制**（如遇到意外的结束标签时的处理）
 
 ## HTML Tokenizer 模块 (src/html/tokenizer.zig)
 
@@ -193,10 +193,10 @@
 4. ~~Parser.parse 边界情况~~ ✅ 已完成（不完整标签、嵌套错误、实体编码、Unicode、emoji）
 5. ~~Tokenizer.next 边界情况~~ ✅ 已完成（不完整CDATA、DOCTYPE、特殊字符、Unicode、emoji）
 
-### 低优先级（错误处理）⚠️ 部分完成
-1. **Parser 插入模式测试** ❌ 待添加（可选）
-   - 测试各种插入模式的转换
-   - 测试错误恢复机制
+### 低优先级（错误处理）✅ 全部已完成
+1. ~~**Parser 插入模式测试**~~ ✅ 已完成
+   - ✅ 测试各种插入模式的转换（initial、before_html、before_head、in_head、after_head、in_body）
+   - ✅ 测试错误恢复机制（意外的结束标签）
 2. ~~**Tokenizer 错误处理测试**~~ ✅ 已完成
    - ✅ UnexpectedEOF已测试
    - ✅ InvalidTag已测试（空标签名、空白标签名、空结束标签名）
@@ -205,7 +205,7 @@
 
 ### 当前测试数量
 - **HTML DOM 模块**：26 个测试（新增3个deinit测试）
-- **HTML Parser 模块**：17 个测试（新增5个边界情况测试）
+- **HTML Parser 模块**：25 个测试（新增5个边界情况测试 + 8个插入模式测试）
 - **HTML Tokenizer 模块**：30 个测试（新增8个边界情况测试 + 3个错误处理测试）
 - **CSS 模块**：52 个测试
 - **Utils 模块**：27 个测试
@@ -225,6 +225,7 @@
 - ✅ 添加了 Parser.parse 边界情况测试（不完整标签、嵌套错误、实体编码、Unicode、emoji）
 - ✅ 添加了 Tokenizer.next 边界情况测试（不完整CDATA、DOCTYPE、特殊字符、Unicode、emoji）
 - ✅ 添加了 Tokenizer InvalidTag 错误测试（空标签名、空白标签名、空结束标签名）
+- ✅ 添加了 Parser 插入模式测试（initial、before_html、before_head、in_head、after_head、in_body、错误恢复）
 
 ## 待完成的测试清单
 
@@ -254,10 +255,10 @@
    - ✅ 测试Unicode字符（中文标签名、属性值、文本）
    - ✅ 测试emoji字符
 
-### 低优先级（错误处理）
-1. **Parser 插入模式测试**
-   - 测试initial → before_html → before_head → in_head → after_head → in_body 的转换
-   - 测试错误恢复机制（如遇到意外的结束标签）
+### 低优先级（错误处理）✅ 全部已完成
+1. ~~**Parser 插入模式测试**~~ ✅ 已完成
+   - ✅ 测试initial → before_html → before_head → in_head → after_head → in_body 的转换
+   - ✅ 测试错误恢复机制（如遇到意外的结束标签）
 
 2. ~~**Tokenizer 错误处理**~~ ✅ 已完成
    - ✅ 测试InvalidTag错误（空标签名 `<>`）
