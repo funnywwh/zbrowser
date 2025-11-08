@@ -94,3 +94,14 @@ pub const LineBox = struct {
     /// 行高
     line_height: f32,
 };
+
+/// 清理formatting_context（从*anyopaque转换并清理）
+/// 这是一个辅助函数，用于从LayoutBox中清理formatting_context
+/// 注意：这是一个unsafe操作，假设ctx_ptr指向的是InlineFormattingContext
+/// 由于*anyopaque的类型转换限制，这个函数暂时不实现
+/// TODO: 实现更通用的类型判断和清理机制
+pub fn deinitFormattingContext(ctx_ptr: *anyopaque, allocator: std.mem.Allocator) void {
+    _ = ctx_ptr;
+    _ = allocator;
+    // TODO: 实现清理逻辑
+}

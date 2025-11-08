@@ -185,6 +185,12 @@ pub const LayoutBox = struct {
     /// 注意：此方法只清理ArrayList和递归清理子节点，不释放LayoutBox本身
     /// 如果LayoutBox是用allocator.create创建的，需要先调用deinit()，再调用allocator.destroy()
     pub fn deinit(self: *LayoutBox) void {
+        // 清理formatting_context
+        // 注意：由于box模块不应该依赖context模块（避免循环依赖），
+        // formatting_context的清理由使用它的模块（如inline.zig）负责
+        // TODO: 实现更通用的清理机制
+        _ = self.formatting_context;
+
         // 递归清理子节点（子节点也需要被destroy，但这里只清理它们的资源）
         // 注意：子节点的内存释放应该由创建者负责
         // 先清理所有子节点
@@ -193,6 +199,5 @@ pub const LayoutBox = struct {
         }
         // 然后清理ArrayList本身
         self.children.deinit();
-        // formatting_context 的清理将在后续实现中处理
     }
 };
