@@ -276,3 +276,25 @@ test "tokenize whitespace in text" {
     std.debug.assert(token.token_type == .text);
     std.debug.assert(std.mem.eql(u8, token.data.text, "  Hello   World  "));
 }
+
+test "tokenize body tag with attributes" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const html_input = "<body class=\"main-body\" id=\"page-body\">";
+    var tok = tokenizer.Tokenizer.init(html_input, allocator);
+    const token_opt = try tok.next();
+    std.debug.assert(token_opt != null);
+    var token = token_opt.?;
+    defer token.deinit();
+
+    std.debug.assert(token.token_type == .start_tag);
+    std.debug.assert(std.mem.eql(u8, token.data.start_tag.name, "body"));
+    const class_attr = token.data.start_tag.attributes.get("class");
+    std.debug.assert(class_attr != null);
+    std.debug.assert(std.mem.eql(u8, class_attr.?, "main-body"));
+    const id_attr = token.data.start_tag.attributes.get("id");
+    std.debug.assert(id_attr != null);
+    std.debug.assert(std.mem.eql(u8, id_attr.?, "page-body"));
+}

@@ -77,6 +77,39 @@ test "parse HTML with attributes" {
     }
 }
 
+test "parse HTML with body attributes" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const html_content = "<html><head></head><body class=\"main-body\" id=\"page-body\"></body></html>";
+    const doc = try dom.Document.init(allocator);
+    const doc_ptr = try allocator.create(dom.Document);
+    defer {
+        freeAllNodes(allocator, &doc_ptr.node);
+        doc_ptr.node.first_child = null;
+        doc_ptr.node.last_child = null;
+        allocator.destroy(doc_ptr);
+    }
+    doc_ptr.* = doc;
+
+    var parser = html.Parser.init(html_content, doc_ptr, allocator);
+    defer parser.deinit();
+    try parser.parse();
+
+    const body = doc_ptr.getBody();
+    try std.testing.expect(body != null);
+    if (body.?.asElement()) |elem| {
+        try std.testing.expect(std.mem.eql(u8, elem.tag_name, "body"));
+        const class_attr = elem.getAttribute("class");
+        try std.testing.expect(class_attr != null);
+        try std.testing.expect(std.mem.eql(u8, class_attr.?, "main-body"));
+        const id_attr = elem.getAttribute("id");
+        try std.testing.expect(id_attr != null);
+        try std.testing.expect(std.mem.eql(u8, id_attr.?, "page-body"));
+    }
+}
+
 test "parse HTML with text content" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();

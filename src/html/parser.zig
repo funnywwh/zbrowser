@@ -233,6 +233,27 @@ pub const Parser = struct {
                 const comment_node = try self.createCommentNode(tok.data.comment);
                 try self.currentNode().appendChild(comment_node, self.allocator);
             },
+            .text => {
+                // 跳过空白文本（可能是换行符等）
+                const text_content = tok.data.text;
+                var is_whitespace_only = true;
+                for (text_content) |c| {
+                    if (!string.isWhitespace(c)) {
+                        is_whitespace_only = false;
+                        break;
+                    }
+                }
+                if (is_whitespace_only) {
+                    // 忽略空白文本，继续解析下一个token
+                    return;
+                }
+                // 非空白文本，隐式创建body元素
+                const body_node = try self.createElement("body");
+                try self.currentNode().appendChild(body_node, self.allocator);
+                try self.open_elements.append(body_node);
+                self.insertion_mode = .in_body;
+                try self.handleInBody(tok);
+            },
             .start_tag => {
                 if (std.mem.eql(u8, tok.data.start_tag.name, "body")) {
                     const body_node = try self.createElementNode(tok.data.start_tag);

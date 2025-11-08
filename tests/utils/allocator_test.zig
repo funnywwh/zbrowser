@@ -57,7 +57,7 @@ test "BrowserAllocator multiple allocations" {
     // GPA分配
     const ptr3 = try gpa_alloc.alloc(u8, 50);
     const ptr4 = try gpa_alloc.alloc(u8, 50);
-    
+
     // 在 deinit 之前释放内存
     gpa_alloc.free(ptr4);
     gpa_alloc.free(ptr3);
@@ -88,9 +88,9 @@ test "BrowserAllocator gpa allocation with strings" {
     const str1 = try gpa_alloc.dupe(u8, "hello");
     const str2 = try gpa_alloc.dupe(u8, "world");
 
-    std.debug.assert(std.mem.eql(u8, str1, "hello"));
-    std.debug.assert(std.mem.eql(u8, str2, "world"));
-    
+    try std.testing.expect(std.mem.eql(u8, str1, "hello"));
+    try std.testing.expect(std.mem.eql(u8, str2, "world"));
+
     // 在 deinit 之前释放内存
     gpa_alloc.free(str2);
     gpa_alloc.free(str1);
