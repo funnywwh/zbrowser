@@ -29,7 +29,28 @@ pub const LayoutEngine = struct {
         // 创建布局框
         const layout_box = try self.allocator.create(box.LayoutBox);
         errdefer self.allocator.destroy(layout_box);
-        layout_box.* = box.LayoutBox.init(node, self.allocator);
+        
+        // 直接初始化字段，而不是使用结构体赋值
+        // 这样可以确保ArrayList字段被正确初始化
+        layout_box.node = node;
+        layout_box.box_model = box.BoxModel{
+            .content = box.Rect{ .x = 0, .y = 0, .width = 0, .height = 0 },
+            .padding = box.Edges{ .top = 0, .right = 0, .bottom = 0, .left = 0 },
+            .border = box.Edges{ .top = 0, .right = 0, .bottom = 0, .left = 0 },
+            .margin = box.Edges{ .top = 0, .right = 0, .bottom = 0, .left = 0 },
+            .box_sizing = .content_box,
+        };
+        layout_box.display = .block;
+        layout_box.position = .static;
+        layout_box.float = .none;
+        layout_box.children = std.ArrayList(*box.LayoutBox){
+            .items = &[_]*box.LayoutBox{},
+            .capacity = 0,
+        };
+        layout_box.parent = null;
+        layout_box.formatting_context = null;
+        layout_box.is_layouted = false;
+        layout_box.allocator = self.allocator;
 
         // TODO: 从样式表获取display、position、float等属性
         // 暂时使用默认值（block、static、none）

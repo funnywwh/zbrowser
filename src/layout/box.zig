@@ -187,30 +187,46 @@ pub const LayoutBox = struct {
     /// 清理布局框及其子节点
     /// 注意：此方法只清理ArrayList和递归清理子节点，不释放LayoutBox本身
     /// 如果LayoutBox是用allocator.create创建的，需要先调用deinit()，再调用allocator.destroy()
+    ///
+    /// 注意：此方法不会释放子节点的内存，只清理子节点的内容
+    /// 如果子节点是用allocator.create创建的，需要在调用deinit()后手动调用allocator.destroy()
     pub fn deinit(self: *LayoutBox) void {
-        // 清理formatting_context
-        // 注意：由于box模块不应该依赖context模块（避免循环依赖），
-        // formatting_context的清理由使用它的模块（如inline.zig）负责
-        // TODO: 实现更通用的清理机制
-        _ = self.formatting_context;
-
-        // 递归清理子节点（子节点也需要被destroy，但这里只清理它们的资源）
-        // 注意：子节点的内存释放应该由创建者负责
-        // 在Zig 0.15.2中，ArrayList的items默认是&[_]T{}，可以安全访问
-        // 但是，如果children从未被使用（capacity为0），items.ptr可能无效
-        // 所以需要先检查items.len，只有在items.len > 0时才访问items
-        // 注意：即使capacity为0，items.len也应该可以安全访问（因为items默认是&[_]T{}）
-        // 但是，如果self.children本身无效，访问items.len也会导致段错误
-        // 解决方案：使用items.len来检查，因为即使capacity为0，items.len也应该可以安全访问
-        if (self.children.items.len > 0) {
-            // 先清理所有子节点
+        // 先清理所有子节点
+        // 注意：只清理子节点的内容，不释放子节点的内存
+        // 子节点的内存需要在调用deinit()后手动释放（如果子节点是用allocator.create创建的）
+        const items_len = self.children.items.len;
+        if (items_len > 0) {
             const children_slice = self.children.items;
             for (children_slice) |child| {
                 child.deinit();
             }
         }
+
         // 然后清理ArrayList本身（只有在capacity > 0时才需要）
-        if (self.children.capacity > 0) {
+        const capacity = self.children.capacity;
+        if (capacity > 0) {
+            self.children.deinit(self.allocator);
+        }
+    }
+
+    /// 清理布局框及其子节点，并释放所有子节点的内存
+    /// 注意：此方法假设所有子节点都是用allocator.create创建的
+    /// 如果LayoutBox是用allocator.create创建的，需要先调用deinitAndDestroyChildren()，再调用allocator.destroy()
+    pub fn deinitAndDestroyChildren(self: *LayoutBox) void {
+        // 先清理所有子节点
+        const items_len = self.children.items.len;
+        if (items_len > 0) {
+            const children_slice = self.children.items;
+            for (children_slice) |child| {
+                child.deinitAndDestroyChildren();
+                // 子节点是用allocator.create创建的，需要释放内存
+                self.allocator.destroy(child);
+            }
+        }
+
+        // 然后清理ArrayList本身（只有在capacity > 0时才需要）
+        const capacity = self.children.capacity;
+        if (capacity > 0) {
             self.children.deinit(self.allocator);
         }
     }
