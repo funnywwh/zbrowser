@@ -863,3 +863,163 @@ test "node querySelector edge cases" {
     try std.testing.expect(found3 != null);
     try std.testing.expect(found3 == child);
 }
+
+// 辅助函数：递归释放节点（在deinit之后释放节点本身的内存）
+fn freeNodeAfterDeinit(allocator: std.mem.Allocator, node: *dom.Node) void {
+    var current = node.first_child;
+    while (current) |child| {
+        const next = child.next_sibling;
+        freeNodeAfterDeinit(allocator, child);
+        allocator.destroy(child);
+        current = next;
+    }
+}
+
+test "document deinit" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 创建文档
+    const doc = try dom.Document.init(allocator);
+    const doc_ptr = try allocator.create(dom.Document);
+    doc_ptr.* = doc;
+    defer allocator.destroy(doc_ptr);
+
+    // 创建html元素
+    const html_elem_data = try dom.ElementData.init(allocator, "html");
+    const html_node = try allocator.create(dom.Node);
+    html_node.* = .{
+        .node_type = .element,
+        .data = .{ .element = html_elem_data },
+    };
+    try doc_ptr.node.appendChild(html_node, allocator);
+
+    // 创建head元素
+    const head_elem_data = try dom.ElementData.init(allocator, "head");
+    const head_node = try allocator.create(dom.Node);
+    head_node.* = .{
+        .node_type = .element,
+        .data = .{ .element = head_elem_data },
+    };
+    try html_node.appendChild(head_node, allocator);
+
+    // 创建body元素
+    var body_elem_data = try dom.ElementData.init(allocator, "body");
+    try body_elem_data.setAttribute("id", "main-body", allocator);
+    try body_elem_data.setAttribute("class", "container", allocator);
+    const body_node = try allocator.create(dom.Node);
+    body_node.* = .{
+        .node_type = .element,
+        .data = .{ .element = body_elem_data },
+    };
+    try html_node.appendChild(body_node, allocator);
+
+    // 创建文本节点
+    const text_content = try allocator.dupe(u8, "Hello World");
+    const text_node = try allocator.create(dom.Node);
+    text_node.* = .{
+        .node_type = .text,
+        .data = .{ .text = text_content },
+    };
+    try body_node.appendChild(text_node, allocator);
+
+    // 创建注释节点
+    const comment_content = try allocator.dupe(u8, "This is a comment");
+    const comment_node = try allocator.create(dom.Node);
+    comment_node.* = .{
+        .node_type = .comment,
+        .data = .{ .comment = comment_content },
+    };
+    try body_node.appendChild(comment_node, allocator);
+
+    // 创建div元素（嵌套）
+    var div_elem_data = try dom.ElementData.init(allocator, "div");
+    try div_elem_data.setAttribute("class", "nested", allocator);
+    const div_node = try allocator.create(dom.Node);
+    div_node.* = .{
+        .node_type = .element,
+        .data = .{ .element = div_elem_data },
+    };
+    try body_node.appendChild(div_node, allocator);
+
+    // 创建div内的文本节点
+    const div_text_content = try allocator.dupe(u8, "Nested text");
+    const div_text_node = try allocator.create(dom.Node);
+    div_text_node.* = .{
+        .node_type = .text,
+        .data = .{ .text = div_text_content },
+    };
+    try div_node.appendChild(div_text_node, allocator);
+
+    // 调用deinit，应该递归释放所有节点的数据（element数据、text内容、comment内容）
+    doc_ptr.deinit();
+
+    // 手动释放所有节点本身的内存
+    if (doc_ptr.node.first_child) |html_elem| {
+        freeNodeAfterDeinit(allocator, html_elem);
+        allocator.destroy(html_elem);
+    }
+
+    // 如果使用GPA，deinit()会检查内存泄漏
+    // 如果所有内存都被正确释放，gpa.deinit()不会报告泄漏
+}
+
+test "elementData deinit" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 创建元素数据
+    var elem_data = try dom.ElementData.init(allocator, "div");
+
+    // 设置多个属性
+    try elem_data.setAttribute("id", "test-id", allocator);
+    try elem_data.setAttribute("class", "test-class", allocator);
+    try elem_data.setAttribute("data-value", "test-value", allocator);
+    try elem_data.setAttribute("title", "Test Title", allocator);
+
+    // 验证属性存在
+    try std.testing.expect(elem_data.hasAttribute("id"));
+    try std.testing.expect(elem_data.hasAttribute("class"));
+    try std.testing.expect(elem_data.hasAttribute("data-value"));
+    try std.testing.expect(elem_data.hasAttribute("title"));
+
+    // 调用deinit，应该释放tag_name和所有属性的key和value
+    elem_data.deinit(allocator);
+
+    // 如果使用GPA，deinit()会检查内存泄漏
+    // 如果所有内存都被正确释放，gpa.deinit()不会报告泄漏
+}
+
+test "elementData deinit with multiple attribute updates" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 创建元素数据
+    var elem_data = try dom.ElementData.init(allocator, "div");
+
+    // 设置属性
+    try elem_data.setAttribute("id", "old-id", allocator);
+    // 更新属性（应该释放旧值）
+    try elem_data.setAttribute("id", "new-id", allocator);
+    try elem_data.setAttribute("class", "old-class", allocator);
+    // 更新属性（应该释放旧值）
+    try elem_data.setAttribute("class", "new-class", allocator);
+
+    // 验证新值
+    const id_attr = elem_data.getAttribute("id");
+    try std.testing.expect(id_attr != null);
+    try std.testing.expect(std.mem.eql(u8, id_attr.?, "new-id"));
+
+    const class_attr = elem_data.getAttribute("class");
+    try std.testing.expect(class_attr != null);
+    try std.testing.expect(std.mem.eql(u8, class_attr.?, "new-class"));
+
+    // 调用deinit，应该释放tag_name和所有属性的key和value
+    elem_data.deinit(allocator);
+
+    // 如果使用GPA，deinit()会检查内存泄漏
+    // 如果所有内存都被正确释放，gpa.deinit()不会报告泄漏
+}

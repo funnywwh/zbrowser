@@ -2,6 +2,8 @@
 
 **最后更新时间：2025-11-08 13:34:45**
 
+**文档状态更新：2025-11-08 13:45:00**
+
 ## HTML DOM 模块 (src/html/dom.zig)
 
 ### 已测试的功能 ✅
@@ -40,16 +42,17 @@
    - ✅ 测试正常情况：找到多个匹配元素
    - ✅ 测试边界情况：没有匹配元素时返回空数组
 
-5. **Document.deinit** - 文档销毁 ❌ 未添加
-   - ❌ 测试内存释放：确保所有节点和属性都被正确释放
-   - ❌ 测试使用GPA分配器时的内存泄漏检测
-   - ❌ 测试递归释放所有子节点
-   - ❌ 测试释放element、text、comment等不同类型的节点
+5. ~~**Document.deinit**~~ ✅ 已添加
+   - ✅ 测试内存释放：确保所有节点和属性都被正确释放
+   - ✅ 测试使用GPA分配器时的内存泄漏检测
+   - ✅ 测试递归释放所有子节点
+   - ✅ 测试释放element、text、comment等不同类型的节点
 
-6. **ElementData.deinit** - 元素数据销毁 ❌ 未添加
-   - ❌ 测试内存释放：确保tag_name和attributes都被正确释放
-   - ❌ 测试使用GPA分配器时的内存泄漏检测
-   - ❌ 测试释放多个属性的情况
+6. ~~**ElementData.deinit**~~ ✅ 已添加
+   - ✅ 测试内存释放：确保tag_name和attributes都被正确释放
+   - ✅ 测试使用GPA分配器时的内存泄漏检测
+   - ✅ 测试释放多个属性的情况
+   - ✅ 测试属性更新时的内存释放（旧值被正确释放）
 
 7. ~~**Node.removeChild 边界情况**~~ ✅ 已添加
    - ✅ 测试移除不存在的子节点
@@ -174,13 +177,13 @@
 
 ## 测试覆盖率建议
 
-### 高优先级（核心功能）✅ 大部分已完成
+### 高优先级（核心功能）✅ 全部已完成
 1. ~~Document.getDocumentElement~~ ✅ 已完成
 2. ~~Document.getHead~~ ✅ 已完成
 3. ~~Document.getBody~~ ✅ 已完成
 4. ~~Document.getElementsByTagName~~ ✅ 已完成
-5. **Document.deinit** ❌ 待添加（需要详细的内存泄漏检测测试）
-6. **ElementData.deinit** ❌ 待添加（需要详细的内存泄漏检测测试）
+5. ~~Document.deinit~~ ✅ 已完成（详细的内存泄漏检测测试）
+6. ~~ElementData.deinit~~ ✅ 已完成（详细的内存泄漏检测测试）
 7. ~~Parser.deinit~~ ✅ 已完成
 8. ~~Token.deinit~~ ✅ 已完成
 
@@ -203,7 +206,7 @@
 ## 测试统计
 
 ### 当前测试数量
-- **HTML DOM 模块**：23 个测试
+- **HTML DOM 模块**：26 个测试（新增3个deinit测试）
 - **HTML Parser 模块**：12 个测试
 - **HTML Tokenizer 模块**：19 个测试
 - **CSS 模块**：52 个测试
@@ -218,19 +221,23 @@
 - ✅ 添加了 Parser.deinit 和边界情况测试
 - ✅ 添加了 Token.deinit 和错误处理测试
 - ✅ 修复了 ElementData.setAttribute 的内存泄漏问题
+- ✅ 添加了 Document.deinit 测试（递归释放所有节点类型）
+- ✅ 添加了 ElementData.deinit 测试（释放tag_name和多个属性）
+- ✅ 添加了 ElementData.deinit 测试（属性更新时的内存释放）
 
 ## 待完成的测试清单
 
-### 高优先级（需要尽快添加）
-1. **Document.deinit 测试**
-   - 测试递归释放所有子节点
-   - 测试释放element、text、comment等不同类型的节点
-   - 测试使用GPA时的内存泄漏检测
+### 高优先级（需要尽快添加）✅ 全部已完成
+1. ~~**Document.deinit 测试**~~ ✅ 已完成
+   - ✅ 测试递归释放所有子节点
+   - ✅ 测试释放element、text、comment等不同类型的节点
+   - ✅ 测试使用GPA时的内存泄漏检测
 
-2. **ElementData.deinit 测试**
-   - 测试释放tag_name
-   - 测试释放多个属性（key和value）
-   - 测试使用GPA时的内存泄漏检测
+2. ~~**ElementData.deinit 测试**~~ ✅ 已完成
+   - ✅ 测试释放tag_name
+   - ✅ 测试释放多个属性（key和value）
+   - ✅ 测试使用GPA时的内存泄漏检测
+   - ✅ 测试属性更新时的内存释放
 
 ### 中优先级（边界情况）
 1. **Parser.parse 边界情况**
