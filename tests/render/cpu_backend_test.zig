@@ -136,3 +136,112 @@ test "CpuRenderBackend initial background - white" {
         try testing.expectEqual(@as(u8, 255), pixels[i + 3]); // A
     }
 }
+
+test "CpuRenderBackend strokeRect - basic" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const render_backend = try cpu_backend.CpuRenderBackend.init(allocator, 100, 100);
+    defer render_backend.deinit();
+
+    const rect = backend.Rect.init(10, 10, 50, 50);
+    const color = backend.Color.rgb(255, 0, 0); // 红色
+    render_backend.base.strokeRect(rect, color, 2.0);
+
+    const pixels = try render_backend.getPixels(allocator);
+    defer allocator.free(pixels);
+
+    // 检查边框像素（左上角）
+    const top_left_x: u32 = 10;
+    const top_left_y: u32 = 10;
+    const index = (top_left_y * 100 + top_left_x) * 4;
+    try testing.expectEqual(@as(u8, 255), pixels[index]); // R (红色边框)
+    try testing.expectEqual(@as(u8, 0), pixels[index + 1]); // G
+    try testing.expectEqual(@as(u8, 0), pixels[index + 2]); // B
+
+    // 检查内部像素应该是白色（未填充）
+    const inside_x: u32 = 35;
+    const inside_y: u32 = 35;
+    const inside_index = (inside_y * 100 + inside_x) * 4;
+    try testing.expectEqual(@as(u8, 255), pixels[inside_index]); // R (白色背景)
+    try testing.expectEqual(@as(u8, 255), pixels[inside_index + 1]); // G
+    try testing.expectEqual(@as(u8, 255), pixels[inside_index + 2]); // B
+}
+
+test "CpuRenderBackend strokeRect - boundary" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const render_backend = try cpu_backend.CpuRenderBackend.init(allocator, 100, 100);
+    defer render_backend.deinit();
+
+    // 绘制整个画布的边框
+    const rect = backend.Rect.init(0, 0, 100, 100);
+    const color = backend.Color.rgb(0, 255, 0); // 绿色
+    render_backend.base.strokeRect(rect, color, 1.0);
+
+    const pixels = try render_backend.getPixels(allocator);
+    defer allocator.free(pixels);
+
+    // 检查边框像素（左上角）
+    const index = (0 * 100 + 0) * 4;
+    try testing.expectEqual(@as(u8, 0), pixels[index]); // R
+    try testing.expectEqual(@as(u8, 255), pixels[index + 1]); // G (绿色边框)
+    try testing.expectEqual(@as(u8, 0), pixels[index + 2]); // B
+
+    // 检查内部像素应该是白色
+    const inside_index = (50 * 100 + 50) * 4;
+    try testing.expectEqual(@as(u8, 255), pixels[inside_index]); // R (白色背景)
+    try testing.expectEqual(@as(u8, 255), pixels[inside_index + 1]); // G
+    try testing.expectEqual(@as(u8, 255), pixels[inside_index + 2]); // B
+}
+
+test "CpuRenderBackend strokeRect - zero width" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const render_backend = try cpu_backend.CpuRenderBackend.init(allocator, 100, 100);
+    defer render_backend.deinit();
+
+    // 边框宽度为0
+    const rect = backend.Rect.init(10, 10, 50, 50);
+    const color = backend.Color.rgb(255, 0, 0);
+    render_backend.base.strokeRect(rect, color, 0.0);
+
+    // 应该不会崩溃，但也不会绘制任何内容
+    const pixels = try render_backend.getPixels(allocator);
+    defer allocator.free(pixels);
+
+    // 检查背景仍然是白色
+    const index = (35 * 100 + 35) * 4;
+    try testing.expectEqual(@as(u8, 255), pixels[index]); // R (白色背景)
+    try testing.expectEqual(@as(u8, 255), pixels[index + 1]); // G
+    try testing.expectEqual(@as(u8, 255), pixels[index + 2]); // B
+}
+
+test "CpuRenderBackend strokeRect - out of bounds" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const render_backend = try cpu_backend.CpuRenderBackend.init(allocator, 100, 100);
+    defer render_backend.deinit();
+
+    // 超出边界的矩形
+    const rect = backend.Rect.init(50, 50, 100, 100);
+    const color = backend.Color.rgb(255, 0, 0);
+    render_backend.base.strokeRect(rect, color, 2.0);
+
+    // 应该只绘制在边界内的部分
+    const pixels = try render_backend.getPixels(allocator);
+    defer allocator.free(pixels);
+
+    // 检查边界内的边框像素
+    const index = (50 * 100 + 50) * 4;
+    try testing.expectEqual(@as(u8, 255), pixels[index]); // R (红色边框)
+    try testing.expectEqual(@as(u8, 0), pixels[index + 1]); // G
+    try testing.expectEqual(@as(u8, 0), pixels[index + 2]); // B
+}

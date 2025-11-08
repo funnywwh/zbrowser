@@ -132,11 +132,88 @@ pub const CpuRenderBackend = struct {
     };
 
     fn strokeRectImpl(self_ptr: *backend.RenderBackend, rect: backend.Rect, color: backend.Color, width: f32) void {
-        _ = self_ptr;
-        _ = rect;
-        _ = color;
-        _ = width;
-        // TODO: 实现strokeRect
+        const self = fromRenderBackend(self_ptr);
+        strokeRectInternal(self, rect, color, width);
+    }
+
+    /// 内部绘制矩形边框实现
+    fn strokeRectInternal(self: *CpuRenderBackend, rect: backend.Rect, color: backend.Color, width: f32) void {
+        // 如果宽度为0或负数，不绘制
+        if (width <= 0) {
+            return;
+        }
+
+        const stroke_width = @as(i32, @intFromFloat(width));
+        if (stroke_width <= 0) {
+            return;
+        }
+
+        // 计算实际绘制区域（裁剪到画布边界）
+        const start_x = @max(0, @as(i32, @intFromFloat(rect.x)));
+        const start_y = @max(0, @as(i32, @intFromFloat(rect.y)));
+        const end_x = @min(@as(i32, @intCast(self.width)), @as(i32, @intFromFloat(rect.x + rect.width)));
+        const end_y = @min(@as(i32, @intCast(self.height)), @as(i32, @intFromFloat(rect.y + rect.height)));
+
+        // 如果矩形完全在边界外，不绘制
+        if (start_x >= end_x or start_y >= end_y) {
+            return;
+        }
+
+        // 绘制上边框
+        const top_y_end = @min(end_y, start_y + stroke_width);
+        var y = start_y;
+        while (y < top_y_end) : (y += 1) {
+            var x = start_x;
+            while (x < end_x) : (x += 1) {
+                const index = (@as(usize, @intCast(y)) * self.width + @as(usize, @intCast(x))) * 4;
+                self.pixels[index] = color.r;
+                self.pixels[index + 1] = color.g;
+                self.pixels[index + 2] = color.b;
+                self.pixels[index + 3] = color.a;
+            }
+        }
+
+        // 绘制下边框
+        const bottom_y_start = @max(start_y, end_y - stroke_width);
+        y = bottom_y_start;
+        while (y < end_y) : (y += 1) {
+            var x = start_x;
+            while (x < end_x) : (x += 1) {
+                const index = (@as(usize, @intCast(y)) * self.width + @as(usize, @intCast(x))) * 4;
+                self.pixels[index] = color.r;
+                self.pixels[index + 1] = color.g;
+                self.pixels[index + 2] = color.b;
+                self.pixels[index + 3] = color.a;
+            }
+        }
+
+        // 绘制左边框
+        const left_x_end = @min(end_x, start_x + stroke_width);
+        y = start_y;
+        while (y < end_y) : (y += 1) {
+            var x = start_x;
+            while (x < left_x_end) : (x += 1) {
+                const index = (@as(usize, @intCast(y)) * self.width + @as(usize, @intCast(x))) * 4;
+                self.pixels[index] = color.r;
+                self.pixels[index + 1] = color.g;
+                self.pixels[index + 2] = color.b;
+                self.pixels[index + 3] = color.a;
+            }
+        }
+
+        // 绘制右边框
+        const right_x_start = @max(start_x, end_x - stroke_width);
+        y = start_y;
+        while (y < end_y) : (y += 1) {
+            var x = right_x_start;
+            while (x < end_x) : (x += 1) {
+                const index = (@as(usize, @intCast(y)) * self.width + @as(usize, @intCast(x))) * 4;
+                self.pixels[index] = color.r;
+                self.pixels[index + 1] = color.g;
+                self.pixels[index + 2] = color.b;
+                self.pixels[index + 3] = color.a;
+            }
+        }
     }
 
     fn fillTextImpl(self_ptr: *backend.RenderBackend, text: []const u8, x: f32, y: f32, font: backend.Font, color: backend.Color) void {
