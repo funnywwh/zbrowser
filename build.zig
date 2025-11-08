@@ -274,6 +274,13 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    // Image模块
+    const image_png_module = b.createModule(.{
+        .root_source_file = b.path("src/image/png.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
     // 创建根测试模块（统一入口）
     // test.zig 作为根测试文件，统一导入所有子测试模块
     // 所有测试都通过 test.zig 运行，不需要单独的测试配置
@@ -318,6 +325,8 @@ pub fn build(b: *std.Build) void {
             // Render模块
             .{ .name = "backend", .module = render_backend_module },
             .{ .name = "cpu_backend", .module = render_cpu_backend_module },
+            // Image模块
+            .{ .name = "png", .module = image_png_module },
         },
     });
 
