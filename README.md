@@ -202,64 +202,63 @@ pub fn main() !void {
 
 ### 测试覆盖
 
-当前测试覆盖以下场景：
+**✅ 所有测试已完成！** 当前测试覆盖以下模块：
 
-#### HTML解析测试（8个测试用例）
+#### 测试统计
 
-1. **简单HTML解析** - 验证基本的HTML结构解析
-2. **带属性的HTML** - 验证元素属性的解析和访问
-3. **文本内容** - 验证文本节点的解析
-4. **注释** - 验证HTML注释的解析
-5. **自闭合标签** - 验证br、img等自闭合标签
-6. **复杂HTML（多属性）** - 验证包含多种属性的复杂HTML结构
-   - 支持lang、charset、class、id、data-*等属性
-   - 支持嵌套结构（header、nav、main、article、section、footer）
-   - 支持表单元素、链接、图片等
-7. **特殊属性值** - 验证特殊属性值的解析
-   - JSON数据属性
-   - 复杂URL（包含查询参数）
-   - 内联CSS样式
-   - HTML实体
-   - 布尔属性
-8. **包含JavaScript代码的HTML** - 验证script标签和JavaScript代码的解析
-   - 内联脚本（type="text/javascript"）
-   - 内联脚本（无type属性）
-   - 外部脚本（src属性）
-   - ES6模块脚本（type="module"）
+- **HTML DOM 模块**：26 个测试
+  - Document API测试（getDocumentElement、getHead、getBody、getElementsByTagName等）
+  - Node操作测试（appendChild、removeChild、querySelector等）
+  - ElementData测试（getAttribute、setAttribute、getClasses等）
+  - 内存管理测试（Document.deinit、ElementData.deinit）
 
-#### HTML解析测试（8个测试用例）
+- **HTML Parser 模块**：25 个测试
+  - 基础解析测试（简单HTML、带属性、文本、注释、自闭合标签等）
+  - 边界情况测试（不完整标签、嵌套错误、实体编码、Unicode、emoji）
+  - 插入模式测试（initial、before_html、before_head、in_head、after_head、in_body）
+  - 错误恢复机制测试
 
-1. **简单HTML解析** - 验证基本的HTML结构解析
-2. **带属性的HTML** - 验证元素属性的解析和访问
-3. **文本内容** - 验证文本节点的解析
-4. **注释** - 验证HTML注释的解析
-5. **自闭合标签** - 验证br、img等自闭合标签
-6. **复杂HTML（多属性）** - 验证包含多种属性的复杂HTML结构
-7. **特殊属性值** - 验证特殊属性值的解析
-8. **包含JavaScript代码的HTML** - 验证script标签和JavaScript代码的解析
+- **HTML Tokenizer 模块**：30 个测试
+  - 基础tokenization测试（开始标签、结束标签、文本、注释、CDATA、DOCTYPE等）
+  - 边界情况测试（不完整CDATA、DOCTYPE、特殊字符、Unicode、emoji）
+  - 错误处理测试（UnexpectedEOF、InvalidTag）
 
-#### CSS解析测试（10个测试用例）
+- **CSS 模块**：52 个测试
+  - CSS Tokenizer测试（27个测试用例）
+  - CSS Parser测试（10个测试用例）
+  - CSS Selector测试（12个测试用例）
+  - CSS Cascade测试（3个测试用例）
 
-1. **解析简单CSS规则** - 验证基本的CSS规则解析
-2. **解析CSS规则列表** - 验证多个CSS规则的解析
-3. **解析CSS with descendant selector** - 验证后代选择器（空格分隔）
-4. **解析CSS with child selector** - 验证子选择器（>）
-5. **选择器匹配测试** - 验证各种选择器类型的匹配
-6. **计算元素样式** - 验证样式计算和应用
-7. **计算样式with specificity** - 验证样式优先级计算
-8. **计算默认样式** - 验证默认样式的应用
+- **Utils 模块**：27 个测试
+  - String Utils测试（13个测试用例）
+  - Math Utils测试（8个测试用例）
+  - Allocator Utils测试（6个测试用例）
+
+- **总计**：160 个测试
+
+#### 测试完成状态
+
+- ✅ **高优先级（核心功能）**：全部完成
+  - Document.deinit、ElementData.deinit、Parser.deinit、Token.deinit等内存管理测试
+- ✅ **中优先级（边界情况）**：全部完成
+  - 不完整HTML、嵌套错误、实体编码、Unicode、emoji等边界情况测试
+- ✅ **低优先级（错误处理）**：全部完成
+  - InvalidTag错误、插入模式、错误恢复机制等测试
 
 #### 测试结果
 
-- ✅ 所有测试通过：HTML测试 `8/8 passed`，CSS测试 `10/10 passed`
+- ✅ 所有测试通过：160/160 passed
 - ✅ 0个内存泄漏
 - ✅ 代码编译无错误
 - ✅ 所有内存管理正确（无双重释放、无泄漏）
+- ✅ 使用GeneralPurposeAllocator进行内存泄漏检测
 
 运行测试：
 ```bash
 zig build test
 ```
+
+详细测试报告请参考 [tests/MISSING_TESTS.md](tests/MISSING_TESTS.md)
 
 ## 开发规范
 
@@ -320,17 +319,23 @@ zig build test
   - 选择器匹配：支持类型、类、ID、属性、伪类、组合器
   - 样式层叠：实现优先级计算和样式继承
   - 样式计算：计算元素最终样式，支持默认样式
+- ✅ **完成所有测试任务**
+  - 高优先级测试：8项全部完成（Document.deinit、ElementData.deinit等）
+  - 中优先级测试：5项全部完成（边界情况、不完整HTML、Unicode等）
+  - 低优先级测试：2项全部完成（错误处理、插入模式测试）
+  - 新增测试：24个测试用例
+  - 测试总数：160个测试，全部通过
 - ✅ **修复所有内存管理问题**
   - 修复段错误：在advance()之前先复制token数据
   - 修复双重释放：添加deinitValueOnly()方法，正确处理HashMap中的Declaration
   - 修复内存泄漏：所有分配的内存都正确释放
-- ✅ **修复所有解析问题**
-  - 修复死循环：简化循环逻辑，明确终止条件
-  - 修复后代选择器解析：正确解析空白分隔的选择器
-  - 修复General Protection Exception：正确处理ArrayList引用
-- ✅ **测试覆盖**
-  - HTML解析测试：8个测试用例，全部通过
-  - CSS解析测试：10个测试用例，全部通过
+  - 修复ElementData.setAttribute内存泄漏：正确释放旧属性值
+- ✅ **测试覆盖详情**
+  - HTML DOM模块：26个测试
+  - HTML Parser模块：25个测试（包括边界情况和插入模式测试）
+  - HTML Tokenizer模块：30个测试（包括边界情况和错误处理测试）
+  - CSS模块：52个测试
+  - Utils模块：27个测试
   - 所有测试通过，0内存泄漏
 
 ### 历史更新（v0.1.0-alpha）
