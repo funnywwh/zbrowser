@@ -135,8 +135,11 @@ pub const Tokenizer = struct {
             return try self.parseString(c);
         }
 
-        // 检查数字
-        if (string.isDigit(c) or (c == '.' and self.pos + 1 < self.input.len and string.isDigit(self.input[self.pos + 1]))) {
+        // 检查数字（包括以 + 或 - 开头的数字）
+        if (string.isDigit(c) or
+            (c == '.' and self.pos + 1 < self.input.len and string.isDigit(self.input[self.pos + 1])) or
+            ((c == '+' or c == '-') and self.pos + 1 < self.input.len and (string.isDigit(self.input[self.pos + 1]) or (self.input[self.pos + 1] == '.' and self.pos + 2 < self.input.len and string.isDigit(self.input[self.pos + 2])))))
+        {
             return try self.parseNumber();
         }
 
@@ -253,13 +256,27 @@ pub const Tokenizer = struct {
         var has_dot = false;
 
         // 可选的正负号
-        if (self.input[self.pos] == '+' or self.input[self.pos] == '-') {
+        const has_sign = if (self.pos < self.input.len and (self.input[self.pos] == '+' or self.input[self.pos] == '-')) true else false;
+        if (has_sign) {
             self.pos += 1;
         }
 
         // 整数部分
+        const digit_start = self.pos;
         while (self.pos < self.input.len and string.isDigit(self.input[self.pos])) {
             self.pos += 1;
+        }
+
+        // 如果没有数字，这不是一个有效的数字
+        if (self.pos == digit_start) {
+            // 回退到开始位置
+            self.pos = start;
+            // 返回分隔符
+            self.pos += 1;
+            return Token{
+                .token_type = .delim,
+                .data = .{ .delim = self.input[start] },
+            };
         }
 
         // 小数点
@@ -271,14 +288,28 @@ pub const Tokenizer = struct {
             }
         }
 
-        // 科学计数法
+        // 科学计数法（只有当 e/E 后面跟着数字或 +/- 符号时才认为是科学计数法）
         if (self.pos < self.input.len and (self.input[self.pos] == 'e' or self.input[self.pos] == 'E')) {
+            const e_pos = self.pos;
             self.pos += 1;
+            var has_exponent = false;
+
+            // 检查是否有 +/- 符号
             if (self.pos < self.input.len and (self.input[self.pos] == '+' or self.input[self.pos] == '-')) {
                 self.pos += 1;
             }
-            while (self.pos < self.input.len and string.isDigit(self.input[self.pos])) {
-                self.pos += 1;
+
+            // 检查是否有数字
+            if (self.pos < self.input.len and string.isDigit(self.input[self.pos])) {
+                has_exponent = true;
+                while (self.pos < self.input.len and string.isDigit(self.input[self.pos])) {
+                    self.pos += 1;
+                }
+            }
+
+            // 如果没有有效的指数部分，回退到 e 的位置（这可能是单位的一部分）
+            if (!has_exponent) {
+                self.pos = e_pos;
             }
         }
 

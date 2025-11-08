@@ -113,23 +113,12 @@ pub const Tokenizer = struct {
             };
         }
 
-        // 跳过空白字符（在标签外）
-        self.skipWhitespace();
-
-        if (self.pos >= self.input.len) {
-            return Token{
-                .token_type = .eof,
-                .data = .{ .eof = {} },
-                .allocator = null,
-            };
-        }
-
         // 检查是否是标签
         if (self.input[self.pos] == '<') {
             return try self.parseTag();
         }
 
-        // 否则是文本
+        // 否则是文本（保留所有字符，包括空白字符）
         return try self.parseText();
     }
 
@@ -156,9 +145,17 @@ pub const Tokenizer = struct {
             return try self.parseCDATA();
         }
 
-        // 检查是否是DOCTYPE
-        if (self.pos + 8 < self.input.len and std.mem.eql(u8, self.input[self.pos .. self.pos + 9], "!DOCTYPE")) {
-            return try self.parseDoctype();
+        // 检查是否是DOCTYPE - 必须在检查结束标签之前
+        // 注意：DOCTYPE 检查必须在注释和 CDATA 检查之后，但在结束标签检查之前
+        if (self.pos + 8 < self.input.len) {
+            // 确保有足够的字符进行比较
+            const check_len = @min(9, self.input.len - self.pos);
+            if (check_len == 9) {
+                const check_str = self.input[self.pos .. self.pos + 9];
+                if (std.mem.eql(u8, check_str, "!DOCTYPE")) {
+                    return try self.parseDoctype();
+                }
+            }
         }
 
         // 检查是否是结束标签

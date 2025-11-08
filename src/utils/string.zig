@@ -50,33 +50,36 @@ pub fn decodeHtmlEntity(allocator: std.mem.Allocator, entity: []const u8) ![]con
     }
 
     // 处理命名实体
-    const named_entities = std.ComptimeStringMap([]const u8, .{
-        .{ "&lt;", "<" },
-        .{ "&gt;", ">" },
-        .{ "&amp;", "&" },
-        .{ "&quot;", "\"" },
-        .{ "&apos;", "'" },
-        .{ "&nbsp;", " " },
-    });
-
-    if (named_entities.get(entity)) |decoded| {
-        return try allocator.dupe(u8, decoded);
+    if (std.mem.eql(u8, entity, "&lt;")) {
+        return try allocator.dupe(u8, "<");
+    } else if (std.mem.eql(u8, entity, "&gt;")) {
+        return try allocator.dupe(u8, ">");
+    } else if (std.mem.eql(u8, entity, "&amp;")) {
+        return try allocator.dupe(u8, "&");
+    } else if (std.mem.eql(u8, entity, "&quot;")) {
+        return try allocator.dupe(u8, "\"");
+    } else if (std.mem.eql(u8, entity, "&apos;")) {
+        return try allocator.dupe(u8, "'");
+    } else if (std.mem.eql(u8, entity, "&nbsp;")) {
+        return try allocator.dupe(u8, " ");
     }
 
     // 处理数字实体 &#123; 或 &#x1F;
     if (entity.len > 3 and entity[1] == '#') {
         const is_hex = entity[2] == 'x' or entity[2] == 'X';
         const start_idx: usize = if (is_hex) 3 else 2;
-        const end_idx = std.mem.indexOfScalar(u8, entity[start_idx..], ';') orelse entity.len;
+        const semicolon_pos = std.mem.indexOfScalar(u8, entity[start_idx..], ';');
 
-        if (end_idx < entity.len) {
-            const num_str = entity[start_idx..end_idx];
-            const num = if (is_hex) try std.fmt.parseInt(u21, num_str, 16) else try std.fmt.parseInt(u21, num_str, 10);
+        if (semicolon_pos) |pos| {
+            const num_str = entity[start_idx .. start_idx + pos];
+            if (num_str.len > 0) {
+                const num = if (is_hex) try std.fmt.parseInt(u21, num_str, 16) else try std.fmt.parseInt(u21, num_str, 10);
 
-            // 转换为UTF-8
-            var buf: [4]u8 = undefined;
-            const len = std.unicode.utf8Encode(num, &buf) catch return try allocator.dupe(u8, entity);
-            return try allocator.dupe(u8, buf[0..len]);
+                // 转换为UTF-8
+                var buf: [4]u8 = undefined;
+                const len = std.unicode.utf8Encode(num, &buf) catch return try allocator.dupe(u8, entity);
+                return try allocator.dupe(u8, buf[0..len]);
+            }
         }
     }
 

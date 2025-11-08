@@ -377,24 +377,24 @@ pub const Parser = struct {
     }
 
     fn createElement(self: *Self, tag_name: []const u8) !*dom.Node {
-        const tag_owned = try self.allocator.dupe(u8, tag_name);
+        // ElementData.init 会复制 tag_name，所以直接传入 tag_name
         const node = try self.allocator.create(dom.Node);
         node.* = .{
             .node_type = .element,
             .data = .{
-                .element = dom.ElementData.init(self.allocator, tag_owned),
+                .element = try dom.ElementData.init(self.allocator, tag_name),
             },
         };
         return node;
     }
 
     fn createElementNode(self: *Self, tag_data: tokenizer.Token.TagData) !*dom.Node {
-        const tag_owned = try self.allocator.dupe(u8, tag_data.name);
+        // ElementData.init 会复制 tag_name，所以直接传入 tag_data.name
         const node = try self.allocator.create(dom.Node);
         node.* = .{
             .node_type = .element,
             .data = .{
-                .element = dom.ElementData.init(self.allocator, tag_owned),
+                .element = try dom.ElementData.init(self.allocator, tag_data.name),
             },
         };
 

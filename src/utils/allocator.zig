@@ -4,14 +4,12 @@ const std = @import("std");
 pub const BrowserAllocator = struct {
     arena: std.heap.ArenaAllocator,
     gpa: std.heap.GeneralPurposeAllocator(.{}),
-    gpa_allocator: std.mem.Allocator,
 
     pub fn init(backing_allocator: std.mem.Allocator) BrowserAllocator {
-        var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+        const gpa = std.heap.GeneralPurposeAllocator(.{}){};
         return .{
             .arena = std.heap.ArenaAllocator.init(backing_allocator),
             .gpa = gpa,
-            .gpa_allocator = gpa.allocator(),
         };
     }
 
@@ -22,7 +20,7 @@ pub const BrowserAllocator = struct {
 
     /// 返回GPA分配器（用于临时对象）
     pub fn gpaAllocator(self: *BrowserAllocator) std.mem.Allocator {
-        return self.gpa_allocator;
+        return self.gpa.allocator();
     }
 
     pub fn deinit(self: *BrowserAllocator) void {

@@ -120,9 +120,10 @@ pub const ElementData = struct {
     attributes: std.StringHashMap([]const u8),
     namespace: []const u8 = "http://www.w3.org/1999/xhtml",
 
-    pub fn init(allocator: std.mem.Allocator, tag_name: []const u8) ElementData {
+    pub fn init(allocator: std.mem.Allocator, tag_name: []const u8) !ElementData {
+        const tag_name_owned = try allocator.dupe(u8, tag_name);
         return .{
-            .tag_name = tag_name,
+            .tag_name = tag_name_owned,
             .attributes = std.StringHashMap([]const u8).init(allocator),
         };
     }
@@ -411,22 +412,22 @@ pub const Document = struct {
 
     // 内部辅助方法：通过ID递归查找元素
     fn _findElementById(self: *Document, node: *Node, id: []const u8) ?*Node {
-        var current = node.first_child;
-        while (current) |n| {
-            if (n.node_type == .element) {
-                if (n.asElement()) |elem| {
-                    if (elem.getId()) |elem_id| {
-                        if (std.mem.eql(u8, elem_id, id)) {
-                            return n;
-                        }
+        // 首先检查当前节点本身（如果它是元素且有ID）
+        if (node.node_type == .element) {
+            if (node.asElement()) |elem| {
+                if (elem.getId()) |elem_id| {
+                    if (std.mem.eql(u8, elem_id, id)) {
+                        return node;
                     }
                 }
             }
-            // 递归查找子节点
-            if (n.first_child) |found| {
-                if (self._findElementById(found, id)) |result| {
-                    return result;
-                }
+        }
+
+        // 然后递归查找所有子节点
+        var current = node.first_child;
+        while (current) |n| {
+            if (self._findElementById(n, id)) |result| {
+                return result;
             }
             current = n.next_sibling;
         }

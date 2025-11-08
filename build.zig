@@ -102,17 +102,8 @@ pub fn build(b: *std.Build) void {
         },
     });
 
-    // 测试模块导入所有需要的模块
-    const test_module = b.createModule(.{
-        .root_source_file = b.path("src/test/runner.zig"),
-        .target = target,
-        .optimize = optimize,
-        .imports = &.{
-            .{ .name = "html", .module = html_module },
-            .{ .name = "dom", .module = dom_module },
-            .{ .name = "tokenizer", .module = tokenizer_module },
-        },
-    });
+    // 注意：test_module (src/test/runner.zig) 不再使用
+    // 所有测试都通过 test.zig 统一入口运行
 
     // CSS模块
     const css_tokenizer_module = b.createModule(.{
@@ -134,7 +125,8 @@ pub fn build(b: *std.Build) void {
         },
     });
 
-    const css_module = b.createModule(.{
+    // CSS parser 模块 - 统一使用一个实例避免冲突
+    const css_parser_module = b.createModule(.{
         .root_source_file = b.path("src/css/parser.zig"),
         .target = target,
         .optimize = optimize,
@@ -144,36 +136,8 @@ pub fn build(b: *std.Build) void {
         },
     });
 
-    // 测试文件模块
-    const parser_test_module = b.createModule(.{
-        .root_source_file = b.path("tests/html/parser_test.zig"),
-        .target = target,
-        .optimize = optimize,
-        .imports = &.{
-            .{ .name = "html", .module = html_module },
-            .{ .name = "dom", .module = dom_module },
-        },
-    });
-
-    const css_parser_test_module = b.createModule(.{
-        .root_source_file = b.path("tests/css/parser_test.zig"),
-        .target = target,
-        .optimize = optimize,
-        .imports = &.{
-            .{ .name = "css", .module = css_module },
-            .{ .name = "selector", .module = css_selector_module_for_parser },
-        },
-    });
-
-    const css_parser_module_for_cascade = b.createModule(.{
-        .root_source_file = b.path("src/css/parser.zig"),
-        .target = target,
-        .optimize = optimize,
-        .imports = &.{
-            .{ .name = "tokenizer", .module = css_tokenizer_module },
-            .{ .name = "selector", .module = css_selector_module_for_parser },
-        },
-    });
+    // 使用统一的 css_parser_module 避免重复
+    const css_parser_module_for_cascade = css_parser_module;
 
     const css_cascade_module = b.createModule(.{
         .root_source_file = b.path("src/css/cascade.zig"),
@@ -186,58 +150,48 @@ pub fn build(b: *std.Build) void {
         },
     });
 
-    const css_cascade_test_module = b.createModule(.{
-        .root_source_file = b.path("tests/css/cascade_test.zig"),
+    // 创建根测试模块（统一入口）
+    // test.zig 作为根测试文件，统一导入所有子测试模块
+    // 所有测试都通过 test.zig 运行，不需要单独的测试配置
+    const root_test_module = b.createModule(.{
+        .root_source_file = b.path("test.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{
-            .{ .name = "cascade", .module = css_cascade_module },
-            .{ .name = "dom", .module = dom_module },
+            // HTML模块
             .{ .name = "html", .module = html_module },
-            .{ .name = "css", .module = css_parser_module_for_cascade },
-        },
-    });
-
-    const css_selector_test_module = b.createModule(.{
-        .root_source_file = b.path("tests/css/selector_test.zig"),
-        .target = target,
-        .optimize = optimize,
-        .imports = &.{
+            .{ .name = "dom", .module = dom_module },
+            .{ .name = "tokenizer", .module = tokenizer_module }, // HTML tokenizer
+            // CSS模块
+            .{ .name = "css", .module = css_parser_module },
             .{ .name = "selector", .module = css_selector_module_for_parser },
-            .{ .name = "dom", .module = dom_module },
-            .{ .name = "html", .module = html_module },
+            .{ .name = "cascade", .module = css_cascade_module },
+            // CSS tokenizer - 使用不同的名称避免冲突
+            .{ .name = "css_tokenizer", .module = css_tokenizer_module },
+            // Utils模块
+            .{ .name = "string", .module = string_module },
+            .{ .name = "math", .module = b.createModule(.{
+                .root_source_file = b.path("src/utils/math.zig"),
+                .target = target,
+                .optimize = optimize,
+            }) },
+            .{ .name = "allocator", .module = b.createModule(.{
+                .root_source_file = b.path("src/utils/allocator.zig"),
+                .target = target,
+                .optimize = optimize,
+            }) },
         },
     });
 
-    const unit_tests = b.addTest(.{
-        .root_module = test_module,
+    // 根测试（统一入口）- 所有测试都通过 test.zig 运行
+    const root_tests = b.addTest(.{
+        .root_module = root_test_module,
     });
 
-    const parser_tests = b.addTest(.{
-        .root_module = parser_test_module,
-    });
+    const run_root_tests = b.addRunArtifact(root_tests);
 
-    const css_parser_tests = b.addTest(.{
-        .root_module = css_parser_test_module,
-    });
-
-    const css_selector_tests = b.addTest(.{
-        .root_module = css_selector_test_module,
-    });
-
-    const css_cascade_tests = b.addTest(.{
-        .root_module = css_cascade_test_module,
-    });
-
-    const run_unit_tests = b.addRunArtifact(unit_tests);
-    const run_parser_tests = b.addRunArtifact(parser_tests);
-    const run_css_parser_tests = b.addRunArtifact(css_parser_tests);
-    const run_css_selector_tests = b.addRunArtifact(css_selector_tests);
-    const run_css_cascade_tests = b.addRunArtifact(css_cascade_tests);
-    const test_step = b.step("test", "Run unit tests");
-    test_step.dependOn(&run_unit_tests.step);
-    test_step.dependOn(&run_parser_tests.step);
-    test_step.dependOn(&run_css_parser_tests.step);
-    test_step.dependOn(&run_css_selector_tests.step);
-    test_step.dependOn(&run_css_cascade_tests.step);
+    // 主测试步骤（运行所有测试）
+    // 所有测试都通过 test.zig 统一入口运行
+    const test_step = b.step("test", "Run all unit tests");
+    test_step.dependOn(&run_root_tests.step);
 }

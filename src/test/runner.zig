@@ -153,12 +153,12 @@ fn freeNode(allocator: std.mem.Allocator, node: *dom.Node) void {
 }
 
 fn createElement(allocator: std.mem.Allocator, tag_name: []const u8) !*dom.Node {
-    const tag_owned = try allocator.dupe(u8, tag_name);
+    // ElementData.init 会复制 tag_name，所以直接传入 tag_name
     const node = try allocator.create(dom.Node);
     node.* = .{
         .node_type = .element,
         .data = .{
-            .element = dom.ElementData.init(allocator, tag_owned),
+            .element = try dom.ElementData.init(allocator, tag_name),
         },
     };
     return node;
