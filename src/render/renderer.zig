@@ -34,8 +34,25 @@ pub const Renderer = struct {
     fn renderLayoutBox(self: *Renderer, layout_box: *box.LayoutBox) !void {
         // 如果display为none，不渲染
         if (layout_box.display == .none) {
+            std.debug.print("[Renderer] renderLayoutBox: display=none, skipping\n", .{});
             return;
         }
+
+        // 日志：渲染开始
+        const node_type_str = switch (layout_box.node.node_type) {
+            .element => if (layout_box.node.asElement()) |elem| elem.tag_name else "unknown",
+            .text => "text",
+            .comment => "comment",
+            .document => "document",
+            .doctype => "doctype",
+        };
+        std.debug.print("[Renderer] renderLayoutBox: node_type={s}, content=({d:.1}, {d:.1}, {d:.1}x{d:.1})\n", .{
+            node_type_str,
+            layout_box.box_model.content.x,
+            layout_box.box_model.content.y,
+            layout_box.box_model.content.width,
+            layout_box.box_model.content.height,
+        });
 
         // 计算样式（用于获取颜色、背景等）
         var cascade_engine = cascade.Cascade.init(self.allocator);
@@ -85,6 +102,10 @@ pub const Renderer = struct {
         // 获取背景颜色
         const bg_color = self.getBackgroundColor(computed_style);
 
+        std.debug.print("[Renderer] renderBackground: bg_color={?}, rect=({d:.1}, {d:.1}, {d:.1}x{d:.1})\n", .{
+            bg_color, rect.x, rect.y, rect.width, rect.height,
+        });
+
         if (bg_color) |color| {
             // 绘制背景矩形
             self.render_backend.fillRect(rect, color);
@@ -113,8 +134,11 @@ pub const Renderer = struct {
             // 从Node.data中获取文本内容
             const text_content = layout_box.node.data.text;
 
+            std.debug.print("[Renderer] renderContent: text_node found, content=\"{s}\", len={d}\n", .{ text_content, text_content.len });
+
             // 如果文本内容为空或只有空白字符，不渲染
             if (text_content.len == 0) {
+                std.debug.print("[Renderer] renderContent: text is empty, skipping\n", .{});
                 return;
             }
 
@@ -122,13 +146,20 @@ pub const Renderer = struct {
             const text_color = self.getTextColor(computed_style);
             const font = self.getFont(computed_style);
 
+            std.debug.print("[Renderer] renderContent: text_color={?}, font_size={d:.1}\n", .{ text_color, font.size });
+
             if (text_color) |color| {
                 // 绘制文本（简化：使用fillText）
                 // y坐标需要调整：rect.y是内容区域的顶部，我们需要在内容区域内绘制文本
                 // 文本基线应该在内容区域的顶部 + 字体大小
                 const text_y = rect.y + font.size;
+                std.debug.print("[Renderer] renderContent: calling fillText at ({d:.1}, {d:.1})\n", .{ rect.x, text_y });
                 self.render_backend.fillText(text_content, rect.x, text_y, font, color);
+            } else {
+                std.debug.print("[Renderer] renderContent: no text color, skipping\n", .{});
             }
+        } else {
+            std.debug.print("[Renderer] renderContent: not a text node (node_type={}), skipping\n", .{layout_box.node.node_type});
         }
     }
 

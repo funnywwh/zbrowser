@@ -145,6 +145,10 @@ pub const CpuRenderBackend = struct {
     /// 填充矩形
     fn fillRectImpl(self_ptr: *backend.RenderBackend, rect: backend.Rect, color: backend.Color) void {
         const self = fromRenderBackend(self_ptr);
+        std.debug.print("[CPU Backend] fillRect: x={d:.1}, y={d:.1}, w={d:.1}, h={d:.1}, color=#{x:0>2}{x:0>2}{x:0>2}\n", .{
+            rect.x,  rect.y,  rect.width, rect.height,
+            color.r, color.g, color.b,
+        });
         fillRectInternal(self, rect, color);
     }
 
@@ -240,6 +244,10 @@ pub const CpuRenderBackend = struct {
 
     fn strokeRectImpl(self_ptr: *backend.RenderBackend, rect: backend.Rect, color: backend.Color, width: f32) void {
         const self = fromRenderBackend(self_ptr);
+        std.debug.print("[CPU Backend] strokeRect: x={d:.1}, y={d:.1}, w={d:.1}, h={d:.1}, width={d:.1}, color=#{x:0>2}{x:0>2}{x:0>2}\n", .{
+            rect.x,  rect.y,  rect.width, rect.height, width,
+            color.r, color.g, color.b,
+        });
         strokeRectInternal(self, rect, color, width);
     }
 
@@ -325,6 +333,10 @@ pub const CpuRenderBackend = struct {
 
     fn fillTextImpl(self_ptr: *backend.RenderBackend, text: []const u8, x: f32, y: f32, font: backend.Font, color: backend.Color) void {
         const self = fromRenderBackend(self_ptr);
+        std.debug.print("[CPU Backend] fillText: text=\"{s}\", x={d:.1}, y={d:.1}, font_size={d:.1}, color=#{x:0>2}{x:0>2}{x:0>2}\n", .{
+            text,    x,       y,       font.size,
+            color.r, color.g, color.b,
+        });
         fillTextInternal(self, text, x, y, font, color);
     }
 

@@ -298,7 +298,19 @@ pub const Parser = struct {
     fn handleInBody(self: *Self, tok: tokenizer.Token) !void {
         switch (tok.token_type) {
             .text => {
-                const text_node = try self.createTextNode(tok.data.text);
+                // 检查文本内容是否只包含空白字符
+                const text_content = tok.data.text;
+                var is_whitespace_only = true;
+                for (text_content) |c| {
+                    if (!string.isWhitespace(c)) {
+                        is_whitespace_only = false;
+                        break;
+                    }
+                }
+
+                // 如果只包含空白字符，仍然创建文本节点（用于布局）
+                // 但可以跳过渲染（在渲染器中处理）
+                const text_node = try self.createTextNode(text_content);
                 try self.currentNode().appendChild(text_node, self.allocator);
             },
             .comment => {
