@@ -529,3 +529,45 @@ test "tokenizer emoji in attribute values" {
         try std.testing.expect(attr.len > 0);
     }
 }
+
+test "tokenizer InvalidTag error" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 测试空标签名（InvalidTag错误）
+    const html_input = "<>";
+    var tok = tokenizer.Tokenizer.init(html_input, allocator);
+
+    // 应该返回InvalidTag错误（空标签名）
+    const token_opt = tok.next();
+    try std.testing.expectError(error.InvalidTag, token_opt);
+}
+
+test "tokenizer InvalidTag error with whitespace" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 测试只有空白字符的标签名（InvalidTag错误）
+    const html_input = "< >";
+    var tok = tokenizer.Tokenizer.init(html_input, allocator);
+
+    // 应该返回InvalidTag错误（空标签名）
+    const token_opt = tok.next();
+    try std.testing.expectError(error.InvalidTag, token_opt);
+}
+
+test "tokenizer InvalidTag error with end tag" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 测试空结束标签名（InvalidTag错误）
+    const html_input = "</>";
+    var tok = tokenizer.Tokenizer.init(html_input, allocator);
+
+    // 应该返回InvalidTag错误（空标签名）
+    const token_opt = tok.next();
+    try std.testing.expectError(error.InvalidTag, token_opt);
+}

@@ -1,6 +1,6 @@
 # 缺失的单元测试报告
 
-**最后更新时间：2025-11-08 13:50:00**
+**最后更新时间：2025-11-08 13:55:00**
 
 ## HTML DOM 模块 (src/html/dom.zig)
 
@@ -135,10 +135,11 @@
    - ✅ **已添加：测试Unicode字符**（中文标签名、属性值、文本内容）
    - ✅ **已添加：测试emoji字符**（在文本和属性值中）
 
-3. ~~**Tokenizer 错误处理**~~ ✅ 部分添加
+3. ~~**Tokenizer 错误处理**~~ ✅ 已添加
    - ✅ 测试UnexpectedEOF错误（不完整的标签、属性、注释）
-   - ❌ **待添加：测试InvalidTag错误**（如 `<>` 空标签名的情况）
-   - ❌ **待添加：测试其他错误情况**（如无效的字符序列）
+   - ✅ **已添加：测试InvalidTag错误**（如 `<>` 空标签名的情况）
+   - ✅ **已添加：测试InvalidTag错误**（只有空白字符的标签名）
+   - ✅ **已添加：测试InvalidTag错误**（空结束标签名）
 
 ## CSS 模块
 
@@ -193,20 +194,19 @@
 5. ~~Tokenizer.next 边界情况~~ ✅ 已完成（不完整CDATA、DOCTYPE、特殊字符、Unicode、emoji）
 
 ### 低优先级（错误处理）⚠️ 部分完成
-1. **Parser 插入模式测试** ❌ 待添加
+1. **Parser 插入模式测试** ❌ 待添加（可选）
    - 测试各种插入模式的转换
    - 测试错误恢复机制
-2. **Tokenizer 错误处理测试** ⚠️ 部分完成
+2. ~~**Tokenizer 错误处理测试**~~ ✅ 已完成
    - ✅ UnexpectedEOF已测试
-   - ❌ InvalidTag待测试
-   - ❌ 其他错误情况待测试
+   - ✅ InvalidTag已测试（空标签名、空白标签名、空结束标签名）
 
 ## 测试统计
 
 ### 当前测试数量
 - **HTML DOM 模块**：26 个测试（新增3个deinit测试）
 - **HTML Parser 模块**：17 个测试（新增5个边界情况测试）
-- **HTML Tokenizer 模块**：27 个测试（新增8个边界情况测试）
+- **HTML Tokenizer 模块**：30 个测试（新增8个边界情况测试 + 3个错误处理测试）
 - **CSS 模块**：52 个测试
 - **Utils 模块**：27 个测试
 - **总计**：约 133+ 个测试
@@ -224,6 +224,7 @@
 - ✅ 添加了 ElementData.deinit 测试（属性更新时的内存释放）
 - ✅ 添加了 Parser.parse 边界情况测试（不完整标签、嵌套错误、实体编码、Unicode、emoji）
 - ✅ 添加了 Tokenizer.next 边界情况测试（不完整CDATA、DOCTYPE、特殊字符、Unicode、emoji）
+- ✅ 添加了 Tokenizer InvalidTag 错误测试（空标签名、空白标签名、空结束标签名）
 
 ## 待完成的测试清单
 
@@ -258,9 +259,10 @@
    - 测试initial → before_html → before_head → in_head → after_head → in_body 的转换
    - 测试错误恢复机制（如遇到意外的结束标签）
 
-2. **Tokenizer 错误处理**
-   - 测试InvalidTag错误（空标签名 `<>`）
-   - 测试其他错误情况
+2. ~~**Tokenizer 错误处理**~~ ✅ 已完成
+   - ✅ 测试InvalidTag错误（空标签名 `<>`）
+   - ✅ 测试InvalidTag错误（空白标签名 `< >`）
+   - ✅ 测试InvalidTag错误（空结束标签名 `</>`）
 
 ## 测试编写建议
 
