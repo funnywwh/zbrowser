@@ -502,7 +502,11 @@ pub const Parser = struct {
                         };
                     }
                 }
-                return Value{ .keyword = try self.allocator.dupe(u8, try std.fmt.allocPrint(self.allocator, "{d}", .{num})) };
+                const num_str = try std.fmt.allocPrint(self.allocator, "{d}", .{num});
+                errdefer self.allocator.free(num_str);
+                const keyword = try self.allocator.dupe(u8, num_str);
+                self.allocator.free(num_str); // 释放临时字符串
+                return Value{ .keyword = keyword };
             },
             .dimension => {
                 const dim = token.data.dimension;
