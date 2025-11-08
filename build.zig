@@ -215,6 +215,15 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    const layout_grid_module = b.createModule(.{
+        .root_source_file = b.path("src/layout/grid.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "box", .module = layout_box_module },
+        },
+    });
+
     const layout_engine_module = b.createModule(.{
         .root_source_file = b.path("src/layout/engine.zig"),
         .target = target,
@@ -267,6 +276,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "position", .module = layout_position_module },
             .{ .name = "float", .module = layout_float_module },
             .{ .name = "flexbox", .module = layout_flexbox_module },
+            .{ .name = "grid", .module = layout_grid_module },
             .{ .name = "engine", .module = layout_engine_module },
         },
     });
