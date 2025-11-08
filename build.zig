@@ -188,6 +188,15 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    const layout_position_module = b.createModule(.{
+        .root_source_file = b.path("src/layout/position.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "box", .module = layout_box_module },
+        },
+    });
+
     const layout_engine_module = b.createModule(.{
         .root_source_file = b.path("src/layout/engine.zig"),
         .target = target,
@@ -237,6 +246,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "context", .module = layout_context_module },
             .{ .name = "block", .module = layout_block_module },
             .{ .name = "inline", .module = layout_inline_module },
+            .{ .name = "position", .module = layout_position_module },
             .{ .name = "engine", .module = layout_engine_module },
         },
     });
