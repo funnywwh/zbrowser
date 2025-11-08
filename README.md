@@ -14,9 +14,10 @@ ZBrowser是一个完全用Zig语言实现的headless浏览器渲染引擎，严�
 - ✅ CSS3解析器（递归下降解析器、tokenizer、选择器匹配）
 - ✅ CSS样式层叠计算（优先级、继承、默认样式）
 - ✅ 基础工具模块（内存管理、字符串处理、数学工具）
+- ✅ 布局引擎基础（盒模型、布局上下文、BFC、IFC）
 
 ### 计划中
-- 🔲 布局引擎（Block、Inline、Flexbox、Grid）
+- 🔲 布局算法（Block、Inline、Flexbox、Grid布局算法）
 - 🔲 渲染引擎（文本、图形、图片）
 - 🔲 PNG编码器
 - 🔲 JavaScript引擎（解析、执行、DOM API）
@@ -40,9 +41,15 @@ zbrowser/
 │   │   ├── parser.zig        # HTML5解析器
 │   │   ├── dom.zig           # DOM树结构
 │   │   └── tokenizer.zig     # HTML词法分析器
-│   ├── css/                  # CSS解析模块（待实现）
+│   ├── css/                  # CSS解析模块
+│   │   ├── parser.zig        # CSS3解析器
+│   │   ├── selector.zig      # CSS选择器匹配
+│   │   ├── cascade.zig       # 样式层叠计算
+│   │   ├── tokenizer.zig    # CSS词法分析器
 │   ├── js/                   # JavaScript引擎（待实现）
-│   ├── layout/               # 布局引擎（待实现）
+│   ├── layout/               # 布局引擎（进行中）
+│   │   ├── box.zig          # 盒模型数据结构
+│   │   └── context.zig      # 布局上下文（BFC、IFC）
 │   ├── render/               # 渲染引擎（待实现）
 │   ├── image/                # 图像处理（待实现）
 │   ├── utils/                # 工具模块
@@ -308,10 +315,27 @@ zig build test
 
 ## 状态
 
-**当前版本**: 0.2.0-alpha  
-**开发阶段**: 阶段1-2完成，阶段3进行中
+**当前版本**: 0.3.0-alpha  
+**开发阶段**: 阶段1-2完成，阶段3进行中（布局引擎基础完成）
 
-### 最新更新（v0.2.0-alpha）
+### 最新更新（v0.3.0-alpha）
+
+- ✅ **完成布局引擎基础实现**
+  - 盒模型数据结构（Rect、Size、Point、Edges、BoxModel、LayoutBox）
+  - 布局上下文（FormattingContext、BFC、IFC）
+  - 行框（LineBox）数据结构
+  - 支持content-box和border-box盒模型
+  - 完整的初始化和清理机制
+- ✅ **布局引擎测试覆盖**
+  - 盒模型测试：10个测试用例（Rect、Size、Point、Edges、BoxModel、LayoutBox）
+  - 布局上下文测试：10个测试用例（FormattingContext、BFC、IFC、LineBox）
+  - 所有测试通过，0内存泄漏
+- ✅ **遵循TDD开发流程**
+  - 先写测试，再写实现
+  - 100%测试覆盖率
+  - 严格的内存管理
+
+### 历史更新（v0.2.0-alpha）
 
 - ✅ **完成CSS解析器实现**（递归下降方法）
   - CSS Tokenizer：完整的词法分析器，支持所有CSS token类型
@@ -336,6 +360,7 @@ zig build test
   - HTML Tokenizer模块：30个测试（包括边界情况和错误处理测试）
   - CSS模块：52个测试
   - Utils模块：27个测试
+  - Layout模块：20个测试（盒模型10个，布局上下文10个）
   - 所有测试通过，0内存泄漏
 
 ### 历史更新（v0.1.0-alpha）
