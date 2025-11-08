@@ -217,13 +217,45 @@ pub const CpuRenderBackend = struct {
     }
 
     fn fillTextImpl(self_ptr: *backend.RenderBackend, text: []const u8, x: f32, y: f32, font: backend.Font, color: backend.Color) void {
-        _ = self_ptr;
-        _ = text;
-        _ = x;
-        _ = y;
-        _ = font;
-        _ = color;
-        // TODO: 实现fillText
+        const self = fromRenderBackend(self_ptr);
+        fillTextInternal(self, text, x, y, font, color);
+    }
+
+    /// 内部文本渲染实现
+    /// TODO: 简化实现 - 当前使用简单的占位符矩形表示文本
+    /// 完整实现需要：
+    /// 1. 字体加载和字形渲染
+    /// 2. 字符宽度计算（考虑字距、连字等）
+    /// 3. 文本换行和对齐
+    /// 4. 抗锯齿处理
+    fn fillTextInternal(self: *CpuRenderBackend, text: []const u8, x: f32, y: f32, font: backend.Font, color: backend.Color) void {
+        _ = font; // TODO: 使用字体信息
+
+        // 如果文本为空，不绘制
+        if (text.len == 0) {
+            return;
+        }
+
+        // 简化实现：使用矩形占位符表示文本
+        // 估算文本宽度（简化：每个字符宽度为字体大小的0.6倍）
+        const char_width = font.size * 0.6;
+        const text_width = char_width * @as(f32, @floatFromInt(text.len));
+        const text_height = font.size;
+
+        // 计算文本位置（y是基线位置，需要调整）
+        // 简化：假设基线在文本底部
+        const text_y = y - text_height;
+
+        // 如果文本完全在边界外，不绘制
+        if (x + text_width < 0 or x >= @as(f32, @floatFromInt(self.width)) or
+            text_y + text_height < 0 or text_y >= @as(f32, @floatFromInt(self.height)))
+        {
+            return;
+        }
+
+        // 绘制文本占位符矩形
+        const text_rect = backend.Rect.init(x, text_y, text_width, text_height);
+        fillRectInternal(self, text_rect, color);
     }
 
     fn drawImageImpl(self_ptr: *backend.RenderBackend, image: *backend.Image, src_rect: backend.Rect, dst_rect: backend.Rect) void {
