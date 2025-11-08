@@ -44,11 +44,12 @@ pub fn build(b: *std.Build) void {
     // 暂时注释掉，稍后重新定义
 
     // 创建工具模块
-    const string_module = b.createModule(.{
-        .root_source_file = b.path("src/utils/string.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
+    // 注意：string_module已由string_module_exe替代，这里不再定义
+    // const string_module = b.createModule(.{
+    //     .root_source_file = b.path("src/utils/string.zig"),
+    //     .target = target,
+    //     .optimize = optimize,
+    // });
 
     // 创建依赖模块
     // 注意：dom_module已由dom_module_exe替代，这里不再定义
@@ -66,7 +67,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
         .imports = &.{
-            .{ .name = "string", .module = string_module },
+            .{ .name = "string", .module = string_module_exe },
         },
     });
 
@@ -78,7 +79,7 @@ pub fn build(b: *std.Build) void {
         .imports = &.{
             .{ .name = "dom", .module = dom_module_exe },
             .{ .name = "tokenizer", .module = tokenizer_module },
-            .{ .name = "string", .module = string_module },
+            .{ .name = "string", .module = string_module_exe },
         },
     });
 
@@ -338,7 +339,7 @@ pub fn build(b: *std.Build) void {
             // CSS tokenizer - 使用不同的名称避免冲突
             .{ .name = "css_tokenizer", .module = css_tokenizer_module },
             // Utils模块
-            .{ .name = "string", .module = string_module },
+            .{ .name = "string", .module = string_module_exe },
             .{ .name = "math", .module = b.createModule(.{
                 .root_source_file = b.path("src/utils/math.zig"),
                 .target = target,
