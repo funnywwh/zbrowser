@@ -2,6 +2,7 @@ const std = @import("std");
 const testing = std.testing;
 const grid = @import("grid");
 const box = @import("box");
+const css = @import("css");
 const test_helpers = @import("../test_helpers.zig");
 const dom = @import("dom");
 
@@ -37,7 +38,7 @@ test "layoutGrid basic - single item" {
 
     // 执行Grid布局
     const containing_block = box.Size{ .width = 800, .height = 600 };
-    grid.layoutGrid(&container_box, containing_block);
+    grid.layoutGrid(&container_box, containing_block, &[_]css.Stylesheet{});
 
     // 检查布局结果
     try testing.expect(container_box.is_layouted);
@@ -90,7 +91,7 @@ test "layoutGrid multiple items - basic grid" {
 
     // 执行Grid布局
     const containing_block = box.Size{ .width = 800, .height = 600 };
-    grid.layoutGrid(&container_box, containing_block);
+    grid.layoutGrid(&container_box, containing_block, &[_]css.Stylesheet{});
 
     // 检查布局结果
     try testing.expect(container_box.is_layouted);
@@ -118,7 +119,7 @@ test "layoutGrid boundary - empty container" {
 
     // 执行Grid布局（应该能正常处理空容器）
     const containing_block = box.Size{ .width = 800, .height = 600 };
-    grid.layoutGrid(&container_box, containing_block);
+    grid.layoutGrid(&container_box, containing_block, &[_]css.Stylesheet{});
 
     // 检查布局结果
     try testing.expect(container_box.is_layouted);
@@ -157,7 +158,7 @@ test "layoutGrid boundary - zero size container" {
 
     // 执行Grid布局（应该能正常处理零尺寸容器）
     const containing_block = box.Size{ .width = 0, .height = 0 };
-    grid.layoutGrid(&container_box, containing_block);
+    grid.layoutGrid(&container_box, containing_block, &[_]css.Stylesheet{});
 
     // 检查布局结果
     try testing.expect(container_box.is_layouted);
@@ -195,7 +196,7 @@ test "layoutGrid boundary - large container" {
 
     // 执行Grid布局（应该能正常处理大容器）
     const containing_block = box.Size{ .width = 10000, .height = 10000 };
-    grid.layoutGrid(&container_box, containing_block);
+    grid.layoutGrid(&container_box, containing_block, &[_]css.Stylesheet{});
 
     // 检查布局结果
     try testing.expect(container_box.is_layouted);

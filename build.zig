@@ -206,12 +206,26 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    const layout_style_utils_module = b.createModule(.{
+        .root_source_file = b.path("src/layout/style_utils.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "box", .module = layout_box_module },
+            .{ .name = "cascade", .module = css_cascade_module },
+            .{ .name = "parser", .module = css_parser_module },
+        },
+    });
+
     const layout_flexbox_module = b.createModule(.{
         .root_source_file = b.path("src/layout/flexbox.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{
             .{ .name = "box", .module = layout_box_module },
+            .{ .name = "cascade", .module = css_cascade_module },
+            .{ .name = "parser", .module = css_parser_module },
+            .{ .name = "style_utils", .module = layout_style_utils_module },
         },
     });
 
@@ -221,6 +235,9 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .imports = &.{
             .{ .name = "box", .module = layout_box_module },
+            .{ .name = "cascade", .module = css_cascade_module },
+            .{ .name = "parser", .module = css_parser_module },
+            .{ .name = "style_utils", .module = layout_style_utils_module },
         },
     });
 
@@ -237,6 +254,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "grid", .module = layout_grid_module },
             .{ .name = "cascade", .module = css_cascade_module },
             .{ .name = "parser", .module = css_parser_module },
+            .{ .name = "style_utils", .module = layout_style_utils_module },
         },
     });
 
@@ -279,6 +297,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "float", .module = layout_float_module },
             .{ .name = "flexbox", .module = layout_flexbox_module },
             .{ .name = "grid", .module = layout_grid_module },
+            .{ .name = "style_utils", .module = layout_style_utils_module },
             .{ .name = "engine", .module = layout_engine_module },
         },
     });

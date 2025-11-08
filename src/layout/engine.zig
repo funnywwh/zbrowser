@@ -7,11 +7,13 @@ const flexbox = @import("flexbox");
 const grid = @import("grid");
 const cascade = @import("cascade");
 const css_parser = @import("parser");
+const style_utils = @import("style_utils");
 
 /// 布局引擎
 /// 负责从DOM树构建布局树，并执行布局计算
 pub const LayoutEngine = struct {
     allocator: std.mem.Allocator,
+    stylesheets: []const css_parser.Stylesheet = &[_]css_parser.Stylesheet{},
 
     /// 初始化布局引擎
     pub fn init(allocator: std.mem.Allocator) LayoutEngine {
@@ -19,15 +21,8 @@ pub const LayoutEngine = struct {
     }
 
     /// 构建布局树（从DOM树构建）
-    /// TODO: 简化实现 - 当前不处理样式表，只构建基本的布局树结构
-    /// 完整实现需要：
-    /// 1. 处理样式表，计算每个元素的display、position、float等属性
-    /// 2. 根据display类型设置LayoutBox的display属性
-    /// 3. 计算盒模型（padding、border、margin）
+    /// 计算样式并应用到布局框
     pub fn buildLayoutTree(self: *LayoutEngine, node: *dom.Node, stylesheets: []const css_parser.Stylesheet) !*box.LayoutBox {
-        // TODO: 暂时不使用样式表的内容，后续实现样式计算
-        // 但stylesheets参数需要在递归调用中传递
-
         // 创建布局框
         const layout_box = try self.allocator.create(box.LayoutBox);
         errdefer self.allocator.destroy(layout_box);
@@ -54,8 +49,14 @@ pub const LayoutEngine = struct {
         layout_box.is_layouted = false;
         layout_box.allocator = self.allocator;
 
-        // TODO: 从样式表获取display、position、float等属性
-        // 暂时使用默认值（block、static、none）
+        // 计算样式并应用到布局框
+        var cascade_engine = cascade.Cascade.init(self.allocator);
+        var computed_style = try cascade_engine.computeStyle(node, stylesheets);
+        defer computed_style.deinit();
+
+        // 获取包含块尺寸（简化：使用默认值，后续可以从父节点获取）
+        const containing_size = box.Size{ .width = 800, .height = 600 };
+        style_utils.applyStyleToLayoutBox(layout_box, &computed_style, containing_size);
 
         // 递归构建子节点
         var child = node.first_child;
@@ -71,7 +72,7 @@ pub const LayoutEngine = struct {
 
     /// 执行布局计算
     /// 根据布局树的display类型，选择合适的布局算法
-    pub fn layout(self: *LayoutEngine, layout_tree: *box.LayoutBox, viewport: box.Size) !void {
+    pub fn layout(self: *LayoutEngine, layout_tree: *box.LayoutBox, viewport: box.Size, stylesheets: []const css_parser.Stylesheet) !void {
         // 根据display类型选择布局算法
         switch (layout_tree.display) {
             .block => {
@@ -83,11 +84,11 @@ pub const LayoutEngine = struct {
             },
             .flex, .inline_flex => {
                 // Flexbox布局
-                flexbox.layoutFlexbox(layout_tree, viewport);
+                flexbox.layoutFlexbox(layout_tree, viewport, stylesheets);
             },
             .grid, .inline_grid => {
                 // Grid布局
-                grid.layoutGrid(layout_tree, viewport);
+                grid.layoutGrid(layout_tree, viewport, stylesheets);
             },
             else => {
                 // 默认使用block布局
@@ -108,7 +109,7 @@ pub const LayoutEngine = struct {
                     .width = layout_tree.box_model.content.width,
                     .height = layout_tree.box_model.content.height,
                 };
-                try self.layout(child, containing_block);
+                try self.layout(child, containing_block, stylesheets);
             }
         }
     }

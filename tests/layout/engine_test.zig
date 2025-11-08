@@ -174,7 +174,7 @@ test "LayoutEngine layout - basic block layout" {
 
     // 执行布局
     const viewport = box.Size{ .width = 800, .height = 600 };
-    try layout_engine.layout(layout_tree, viewport);
+    try layout_engine.layout(layout_tree, viewport, &[_]css.Stylesheet{});
 
     // 检查布局结果
     try testing.expect(layout_tree.is_layouted);
@@ -215,7 +215,7 @@ test "LayoutEngine layout - block with children" {
 
     // 执行布局
     const viewport = box.Size{ .width = 800, .height = 600 };
-    try layout_engine.layout(layout_tree, viewport);
+    try layout_engine.layout(layout_tree, viewport, &[_]css.Stylesheet{});
 
     // 检查布局结果
     try testing.expect(layout_tree.is_layouted);
@@ -247,7 +247,7 @@ test "LayoutEngine layout - empty viewport" {
 
     // 执行布局（空viewport）
     const viewport = box.Size{ .width = 0, .height = 0 };
-    try layout_engine.layout(layout_tree, viewport);
+    try layout_engine.layout(layout_tree, viewport, &[_]css.Stylesheet{});
 
     // 检查布局结果
     try testing.expect(layout_tree.is_layouted);
@@ -276,7 +276,7 @@ test "LayoutEngine layout - large viewport" {
 
     // 执行布局（大viewport）
     const viewport = box.Size{ .width = 10000, .height = 10000 };
-    try layout_engine.layout(layout_tree, viewport);
+    try layout_engine.layout(layout_tree, viewport, &[_]css.Stylesheet{});
 
     // 检查布局结果
     try testing.expect(layout_tree.is_layouted);
@@ -315,7 +315,7 @@ test "LayoutEngine layout - flex container" {
 
     // 执行布局
     const viewport = box.Size{ .width = 800, .height = 600 };
-    try layout_engine.layout(layout_tree, viewport);
+    try layout_engine.layout(layout_tree, viewport, &[_]css.Stylesheet{});
 
     // 检查布局结果
     try testing.expect(layout_tree.is_layouted);
@@ -358,7 +358,7 @@ test "LayoutEngine layout - grid container" {
 
     // 执行布局
     const viewport = box.Size{ .width = 800, .height = 600 };
-    try layout_engine.layout(layout_tree, viewport);
+    try layout_engine.layout(layout_tree, viewport, &[_]css.Stylesheet{});
 
     // 检查布局结果
     try testing.expect(layout_tree.is_layouted);

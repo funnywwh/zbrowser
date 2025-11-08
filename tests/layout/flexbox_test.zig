@@ -2,6 +2,7 @@ const std = @import("std");
 const testing = std.testing;
 const flexbox = @import("flexbox");
 const box = @import("box");
+const css = @import("css");
 const test_helpers = @import("../test_helpers.zig");
 const dom = @import("dom");
 
@@ -37,7 +38,7 @@ test "layoutFlexbox basic - single item" {
 
     // 执行Flexbox布局
     const containing_block = box.Size{ .width = 800, .height = 600 };
-    flexbox.layoutFlexbox(&container_box, containing_block);
+    flexbox.layoutFlexbox(&container_box, containing_block, &[_]css.Stylesheet{});
 
     // 检查布局结果
     try testing.expect(container_box.is_layouted);
@@ -90,7 +91,7 @@ test "layoutFlexbox multiple items - row direction" {
 
     // 执行Flexbox布局
     const containing_block = box.Size{ .width = 800, .height = 600 };
-    flexbox.layoutFlexbox(&container_box, containing_block);
+    flexbox.layoutFlexbox(&container_box, containing_block, &[_]css.Stylesheet{});
 
     // 检查布局结果
     try testing.expect(container_box.is_layouted);
@@ -126,7 +127,7 @@ test "layoutFlexbox boundary - empty container" {
 
     // 执行Flexbox布局（应该能正常处理空容器）
     const containing_block = box.Size{ .width = 800, .height = 600 };
-    flexbox.layoutFlexbox(&container_box, containing_block);
+    flexbox.layoutFlexbox(&container_box, containing_block, &[_]css.Stylesheet{});
 
     // 检查布局结果
     try testing.expect(container_box.is_layouted);
@@ -165,7 +166,7 @@ test "layoutFlexbox boundary - zero size container" {
 
     // 执行Flexbox布局（应该能正常处理零尺寸容器）
     const containing_block = box.Size{ .width = 0, .height = 0 };
-    flexbox.layoutFlexbox(&container_box, containing_block);
+    flexbox.layoutFlexbox(&container_box, containing_block, &[_]css.Stylesheet{});
 
     // 检查布局结果
     try testing.expect(container_box.is_layouted);
@@ -203,7 +204,7 @@ test "layoutFlexbox boundary - large container" {
 
     // 执行Flexbox布局（应该能正常处理大容器）
     const containing_block = box.Size{ .width = 10000, .height = 10000 };
-    flexbox.layoutFlexbox(&container_box, containing_block);
+    flexbox.layoutFlexbox(&container_box, containing_block, &[_]css.Stylesheet{});
 
     // 检查布局结果
     try testing.expect(container_box.is_layouted);
@@ -266,7 +267,7 @@ test "layoutFlexbox boundary - three items row" {
 
     // 执行Flexbox布局
     const containing_block = box.Size{ .width = 800, .height = 600 };
-    flexbox.layoutFlexbox(&container_box, containing_block);
+    flexbox.layoutFlexbox(&container_box, containing_block, &[_]css.Stylesheet{});
 
     // 检查布局结果
     try testing.expect(container_box.is_layouted);
@@ -327,7 +328,7 @@ test "layoutFlexbox column direction - vertical stack" {
     // 注意：当前实现默认使用row方向，column方向需要从样式表获取
     // 这里先测试row方向，column方向的测试需要等样式系统完成后才能实现
     const containing_block = box.Size{ .width = 800, .height = 600 };
-    flexbox.layoutFlexbox(&container_box, containing_block);
+    flexbox.layoutFlexbox(&container_box, containing_block, &[_]css.Stylesheet{});
 
     // 检查布局结果
     try testing.expect(container_box.is_layouted);
