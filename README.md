@@ -20,13 +20,24 @@ ZBrowser是一个完全用Zig语言实现的headless浏览器渲染引擎，严�
 - ✅ 定位布局（static、relative、absolute、fixed、sticky）
 - ✅ 浮动布局（float: left/right，碰撞检测，清除浮动）
 - ✅ Flexbox布局基础框架
+- ✅ Grid布局基础框架
 - ✅ 布局引擎主入口（构建布局树、执行布局）
+- ✅ 抽象渲染后端接口（RenderBackend VTable）
+- ✅ CPU渲染后端（软件光栅化、像素缓冲、基本图形绘制）
+- ✅ PNG编码器（完整实现）
+  - ✅ PNG文件格式（签名、IHDR、IDAT、IEND chunks）
+  - ✅ CRC32校验算法
+  - ✅ 5种PNG滤波器（None、Sub、Up、Average、Paeth）
+  - ✅ 最优滤波器选择算法
+  - ✅ DEFLATE压缩算法（完整实现）
+  - ✅ 固定Huffman编码表（RFC 1951）
+  - ✅ LZ77压缩（哈希表优化）
+  - ✅ zlib格式（头部、ADLER32校验）
 
 ### 计划中
-- 🔲 Flexbox布局完整实现（flex-grow/shrink/basis、对齐算法）
-- 🔲 Grid布局算法
-- 🔲 渲染引擎（文本、图形、图片）
-- 🔲 PNG编码器
+- 🔲 Flexbox布局完整实现（flex-grow/shrink/basis、对齐算法、换行）
+- 🔲 Grid布局完整实现（grid-template、grid-area、对齐等）
+- 🔲 渲染引擎完整实现（文本渲染、路径绘制、变换、裁剪）
 - 🔲 JavaScript引擎（解析、执行、DOM API）
 - 🔲 事件系统
 - 🔲 CSS动画支持
@@ -63,8 +74,12 @@ zbrowser/
 │   │   ├── float.zig       # 浮动布局算法
 │   │   ├── flexbox.zig     # Flexbox布局算法
 │   │   └── engine.zig      # 布局引擎主入口
-│   ├── render/               # 渲染引擎（待实现）
-│   ├── image/                # 图像处理（待实现）
+│   ├── render/               # 渲染引擎（进行中）
+│   │   ├── backend.zig      # 抽象渲染后端接口
+│   │   └── cpu_backend.zig  # CPU渲染后端
+│   ├── image/                # 图像处理
+│   │   ├── png.zig          # PNG编码器
+│   │   └── deflate.zig      # DEFLATE压缩算法
 │   ├── utils/                # 工具模块
 │   │   ├── allocator.zig    # 内存分配器
 │   │   ├── string.zig       # 字符串工具
