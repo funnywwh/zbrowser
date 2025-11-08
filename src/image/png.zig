@@ -138,23 +138,38 @@ pub const PngEncoder = struct {
         try self.writeChunk(output, "IDAT", compressed);
     }
 
-    /// 选择最优滤波器（简化实现：选择压缩后最小的）
-    /// TODO: 完整实现需要实际压缩每个滤波器结果，选择最小的
-    /// 当前实现：使用简单的启发式方法
+    /// 选择最优滤波器
+    /// 尝试所有滤波器，选择压缩后最小的
     fn selectBestFilter(self: PngEncoder, current_row: []const u8, prior_row: []const u8, bpp: u32) FilterType {
-        _ = self;
-        _ = current_row;
-        _ = bpp;
+        var best_filter: FilterType = .none;
+        var best_size: usize = std.math.maxInt(usize);
 
-        // 简化实现：对于第一行使用None，其他行使用Sub
-        // TODO: 实现完整的滤波器选择算法（尝试所有滤波器，选择压缩后最小的）
-        if (prior_row[0] == 0 and prior_row[1] == 0) {
-            // 第一行使用None滤波器
-            return .none;
-        } else {
-            // 其他行使用Sub滤波器（通常效果较好）
-            return .sub;
+        // 尝试所有滤波器类型
+        const filter_types = [_]FilterType{ .none, .sub, .up, .average, .paeth };
+        for (filter_types) |filter_type| {
+            // 应用滤波器
+            const filtered_row = self.applyFilter(current_row, prior_row, filter_type, bpp) catch continue;
+            defer self.allocator.free(filtered_row);
+
+            // 压缩滤波后的数据（简化：只压缩这一行数据来估算）
+            // 注意：实际压缩效果可能因为上下文而不同，但这是一个合理的近似
+            const test_data = self.allocator.alloc(u8, 1 + filtered_row.len) catch continue;
+            defer self.allocator.free(test_data);
+            test_data[0] = @intFromEnum(filter_type);
+            @memcpy(test_data[1..], filtered_row);
+
+            // 压缩测试数据
+            const compressed = self.deflateCompress(test_data) catch continue;
+            defer self.allocator.free(compressed);
+
+            // 选择压缩后最小的
+            if (compressed.len < best_size) {
+                best_size = compressed.len;
+                best_filter = filter_type;
+            }
         }
+
+        return best_filter;
     }
 
     /// 应用PNG滤波器
