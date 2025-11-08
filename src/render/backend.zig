@@ -103,7 +103,7 @@ pub const RenderBackend = struct {
         setGlobalAlpha: *const fn (self: *RenderBackend, alpha: f32) void,
 
         // 获取渲染结果
-        getPixels: *const fn (self: *RenderBackend, allocator: std.mem.Allocator) ![]u8,
+        getPixels: *const fn (self: *RenderBackend, allocator: std.mem.Allocator) std.mem.Allocator.Error![]u8,
         getWidth: *const fn (self: *const RenderBackend) u32,
         getHeight: *const fn (self: *const RenderBackend) u32,
 
