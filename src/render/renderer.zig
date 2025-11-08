@@ -119,50 +119,92 @@ pub const Renderer = struct {
     /// 获取背景颜色
     fn getBackgroundColor(self: *Renderer, computed_style: *const cascade.ComputedStyle) ?backend.Color {
         _ = self;
-        _ = computed_style;
-        // TODO: 简化实现 - 当前返回默认颜色
-        // 完整实现需要：从computed_style中解析background-color属性
-        return backend.Color.rgb(255, 255, 255); // 白色
+        // 从computed_style中解析background-color属性
+        if (style_utils.getPropertyColor(computed_style, "background-color")) |color| {
+            return backend.Color.rgb(color.r, color.g, color.b);
+        }
+        // 默认返回白色
+        return backend.Color.rgb(255, 255, 255);
     }
 
     /// 获取边框颜色
     fn getBorderColor(self: *Renderer, computed_style: *const cascade.ComputedStyle) ?backend.Color {
-        _ = self;
-        _ = computed_style;
-        // TODO: 简化实现 - 当前返回默认颜色
-        // 完整实现需要：从computed_style中解析border-color属性
+        // 从computed_style中解析border-color属性
+        if (style_utils.getPropertyColor(computed_style, "border-color")) |color| {
+            return backend.Color.rgb(color.r, color.g, color.b);
+        }
+        // 如果没有设置border-color，检查是否有border-width
+        // 如果有border-width但没有color，返回默认黑色
+        if (self.getBorderWidth(computed_style) > 0) {
+            return backend.Color.rgb(0, 0, 0); // 默认黑色边框
+        }
         return null; // 无边框
     }
 
     /// 获取边框宽度
     fn getBorderWidth(self: *Renderer, computed_style: *const cascade.ComputedStyle) f32 {
         _ = self;
-        _ = computed_style;
-        // TODO: 简化实现 - 当前返回默认宽度
-        // 完整实现需要：从computed_style中解析border-width属性
+        // 从computed_style中解析border-width属性
+        // 简化：使用包含块宽度作为参考（实际应该使用元素的宽度）
+        const containing_width: f32 = 800; // 简化：使用固定值
+        if (style_utils.getPropertyLength(computed_style, "border-width", containing_width)) |width| {
+            return width;
+        }
+        // 如果没有设置border-width，检查border-top-width等单独属性
+        // 简化：只检查border-top-width
+        if (style_utils.getPropertyLength(computed_style, "border-top-width", containing_width)) |width| {
+            return width;
+        }
         return 0;
     }
 
     /// 获取文本颜色
     fn getTextColor(self: *Renderer, computed_style: *const cascade.ComputedStyle) ?backend.Color {
         _ = self;
-        _ = computed_style;
-        // TODO: 简化实现 - 当前返回默认颜色
-        // 完整实现需要：从computed_style中解析color属性
-        return backend.Color.rgb(0, 0, 0); // 黑色
+        // 从computed_style中解析color属性
+        if (style_utils.getPropertyColor(computed_style, "color")) |color| {
+            return backend.Color.rgb(color.r, color.g, color.b);
+        }
+        // 默认返回黑色
+        return backend.Color.rgb(0, 0, 0);
     }
 
     /// 获取字体
     fn getFont(self: *Renderer, computed_style: *const cascade.ComputedStyle) backend.Font {
         _ = self;
-        _ = computed_style;
-        // TODO: 简化实现 - 当前返回默认字体
-        // 完整实现需要：从computed_style中解析font-family、font-size等属性
-        return backend.Font{
+        var font = backend.Font{
             .family = "Arial",
             .size = 16,
             .weight = .normal,
             .style = .normal,
         };
+
+        // 解析font-size
+        const containing_width: f32 = 800; // 简化：使用固定值
+        if (style_utils.getPropertyLength(computed_style, "font-size", containing_width)) |size| {
+            font.size = size;
+        }
+
+        // 解析font-weight
+        if (style_utils.getPropertyKeyword(computed_style, "font-weight")) |weight| {
+            if (std.mem.eql(u8, weight, "bold") or std.mem.eql(u8, weight, "700") or std.mem.eql(u8, weight, "800") or std.mem.eql(u8, weight, "900")) {
+                font.weight = .bold;
+            }
+        }
+
+        // 解析font-style
+        if (style_utils.getPropertyKeyword(computed_style, "font-style")) |style| {
+            if (std.mem.eql(u8, style, "italic") or std.mem.eql(u8, style, "oblique")) {
+                font.style = .italic;
+            }
+        }
+
+        // 解析font-family（简化：只取第一个字体）
+        if (style_utils.getPropertyKeyword(computed_style, "font-family")) |family| {
+            // 简化：直接使用family字符串（实际应该解析字体列表）
+            font.family = family;
+        }
+
+        return font;
     }
 };

@@ -79,6 +79,17 @@ pub fn getPropertyLength(computed_style: *const cascade.ComputedStyle, name: []c
     return null;
 }
 
+/// 从ComputedStyle获取颜色值
+pub fn getPropertyColor(computed_style: *const cascade.ComputedStyle, name: []const u8) ?css_parser.Value.Color {
+    if (computed_style.getProperty(name)) |decl| {
+        return switch (decl.value) {
+            .color => |c| c,
+            else => null,
+        };
+    }
+    return null;
+}
+
 /// 应用样式到LayoutBox
 pub fn applyStyleToLayoutBox(layout_box: *box.LayoutBox, computed_style: *const cascade.ComputedStyle, containing_size: box.Size) void {
     // 解析display
