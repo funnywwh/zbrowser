@@ -203,7 +203,6 @@ test "parse CSS with descendant selector" {
     const rule = stylesheet.rules.items[0];
     const sel = &rule.selectors.items[0];
     // 后代选择器应该只有一个序列，包含两个简单选择器（div和p），中间有组合器
-    std.debug.print("DEBUG TEST: sequences.len = {}, selectors.len = {}, combinators.len = {}\n", .{ sel.sequences.items.len, sel.sequences.items[0].selectors.items.len, sel.sequences.items[0].combinators.items.len });
     std.debug.assert(sel.sequences.items.len == 1);
     const sequence = &sel.sequences.items[0];
     std.debug.assert(sequence.selectors.items.len == 2);
