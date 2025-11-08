@@ -323,6 +323,14 @@ pub fn build(b: *std.Build) void {
     // 创建根测试模块（统一入口）
     // test.zig 作为根测试文件，统一导入所有子测试模块
     // 所有测试都通过 test.zig 运行，不需要单独的测试配置
+
+    // 创建allocator模块（在main模块之前，以便main模块可以引用）
+    const allocator_module_for_tests = b.createModule(.{
+        .root_source_file = b.path("src/utils/allocator.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
     const root_test_module = b.createModule(.{
         .root_source_file = b.path("test.zig"),
         .target = target,
@@ -345,11 +353,7 @@ pub fn build(b: *std.Build) void {
                 .target = target,
                 .optimize = optimize,
             }) },
-            .{ .name = "allocator", .module = b.createModule(.{
-                .root_source_file = b.path("src/utils/allocator.zig"),
-                .target = target,
-                .optimize = optimize,
-            }) },
+            .{ .name = "allocator", .module = allocator_module_for_tests },
             // Layout模块
             .{ .name = "box", .module = layout_box_module },
             .{ .name = "context", .module = layout_context_module },
@@ -365,6 +369,25 @@ pub fn build(b: *std.Build) void {
             .{ .name = "backend", .module = render_backend_module },
             .{ .name = "cpu_backend", .module = render_cpu_backend_module },
             .{ .name = "renderer", .module = render_renderer_module },
+            .{ .name = "main", .module = b.createModule(.{
+                .root_source_file = b.path("src/main.zig"),
+                .target = target,
+                .optimize = optimize,
+                .imports = &.{
+                    .{ .name = "html", .module = html_module },
+                    .{ .name = "dom", .module = dom_module_exe },
+                    .{ .name = "parser", .module = css_parser_module },
+                    .{ .name = "engine", .module = layout_engine_module },
+                    .{ .name = "box", .module = layout_box_module },
+                    .{ .name = "cpu_backend", .module = render_cpu_backend_module },
+                    .{ .name = "renderer", .module = render_renderer_module },
+                    .{ .name = "png", .module = image_png_module },
+                    .{ .name = "cascade", .module = css_cascade_module },
+                    .{ .name = "backend", .module = render_backend_module },
+                    .{ .name = "style_utils", .module = layout_style_utils_module },
+                    .{ .name = "allocator", .module = allocator_module_for_tests },
+                },
+            }) },
             // Image模块
             .{ .name = "png", .module = image_png_module },
             .{ .name = "deflate", .module = image_deflate_module },

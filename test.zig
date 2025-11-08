@@ -41,6 +41,7 @@ const layout_engine_test = @import("tests/layout/engine_test.zig");
 const render_backend_test = @import("tests/render/backend_test.zig");
 const render_cpu_backend_test = @import("tests/render/cpu_backend_test.zig");
 const render_renderer_test = @import("tests/render/renderer_test.zig");
+const render_png_output_test = @import("tests/render/png_output_test.zig");
 
 // Image模块测试
 const image_png_test = @import("tests/image/png_test.zig");
@@ -90,8 +91,9 @@ test "all test modules imported" {
     _ = render_backend_test;
     _ = render_cpu_backend_test;
     _ = render_renderer_test;
-        _ = image_png_test;
-        _ = image_deflate_test;
+    _ = render_png_output_test;
+    _ = image_png_test;
+    _ = image_deflate_test;
 
     std.debug.print("All test modules successfully imported via root test file\n", .{});
 }
