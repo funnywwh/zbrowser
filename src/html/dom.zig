@@ -135,8 +135,17 @@ pub const ElementData = struct {
 
     /// 设置属性
     pub fn setAttribute(self: *ElementData, name: []const u8, value: []const u8, allocator: std.mem.Allocator) !void {
+        // 如果属性已存在，先释放旧值
+        if (self.attributes.fetchRemove(name)) |entry| {
+            allocator.free(entry.key);
+            allocator.free(entry.value);
+        }
+
+        // 分配新的属性名和值
         const name_owned = try allocator.dupe(u8, name);
+        errdefer allocator.free(name_owned);
         const value_owned = try allocator.dupe(u8, value);
+        errdefer allocator.free(value_owned);
         try self.attributes.put(name_owned, value_owned);
     }
 

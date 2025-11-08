@@ -298,3 +298,78 @@ test "tokenize body tag with attributes" {
     std.debug.assert(id_attr != null);
     std.debug.assert(std.mem.eql(u8, id_attr.?, "page-body"));
 }
+
+test "token deinit" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 测试start_tag token的deinit
+    const html_input1 = "<div class=\"container\">";
+    var tok1 = tokenizer.Tokenizer.init(html_input1, allocator);
+    const token1_opt = try tok1.next();
+    std.debug.assert(token1_opt != null);
+    var token1 = token1_opt.?;
+    token1.deinit(); // 应该释放所有内存
+
+    // 测试text token的deinit
+    const html_input2 = "Hello World";
+    var tok2 = tokenizer.Tokenizer.init(html_input2, allocator);
+    const token2_opt = try tok2.next();
+    std.debug.assert(token2_opt != null);
+    var token2 = token2_opt.?;
+    token2.deinit(); // 应该释放所有内存
+
+    // 测试comment token的deinit
+    const html_input3 = "<!-- This is a comment -->";
+    var tok3 = tokenizer.Tokenizer.init(html_input3, allocator);
+    const token3_opt = try tok3.next();
+    std.debug.assert(token3_opt != null);
+    var token3 = token3_opt.?;
+    token3.deinit(); // 应该释放所有内存
+
+    // 如果使用GPA，检查内存泄漏
+    // 注意：这里我们只是确保deinit不会崩溃
+}
+
+test "tokenizer incomplete tag" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 测试不完整的标签（没有闭合）
+    const html_input = "<div";
+    var tok = tokenizer.Tokenizer.init(html_input, allocator);
+
+    // 应该返回UnexpectedEOF错误（在解析属性时找不到'>'）
+    const token_opt = tok.next();
+    try std.testing.expectError(error.UnexpectedEOF, token_opt);
+}
+
+test "tokenizer incomplete attribute" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 测试不完整的属性（引号没有闭合）
+    const html_input = "<div class=\"test";
+    var tok = tokenizer.Tokenizer.init(html_input, allocator);
+
+    // 应该返回UnexpectedEOF错误（在解析属性值时找不到结束引号）
+    const token_opt = tok.next();
+    try std.testing.expectError(error.UnexpectedEOF, token_opt);
+}
+
+test "tokenizer incomplete comment" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 测试不完整的注释（没有闭合）
+    const html_input = "<!-- This is a comment";
+    var tok = tokenizer.Tokenizer.init(html_input, allocator);
+
+    // 应该返回UnexpectedEOF错误（在parseComment中找不到'-->'）
+    const token_opt = tok.next();
+    try std.testing.expectError(error.UnexpectedEOF, token_opt);
+}

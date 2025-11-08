@@ -807,3 +807,80 @@ fn freeNode(allocator: std.mem.Allocator, node: *dom.Node) void {
         allocator.destroy(node);
     }
 }
+
+test "parser deinit" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const html_content = "<html><body><p>Test</p></body></html>";
+    const doc = try dom.Document.init(allocator);
+    const doc_ptr = try allocator.create(dom.Document);
+    defer {
+        freeAllNodes(allocator, &doc_ptr.node);
+        doc_ptr.node.first_child = null;
+        doc_ptr.node.last_child = null;
+        allocator.destroy(doc_ptr);
+    }
+    doc_ptr.* = doc;
+
+    var parser = html.Parser.init(html_content, doc_ptr, allocator);
+    try parser.parse();
+
+    // 调用deinit，应该释放open_elements
+    parser.deinit();
+
+    // 如果使用GPA，检查内存泄漏
+    // 注意：这里我们只是确保deinit不会崩溃
+}
+
+test "parser parse empty HTML" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const html_content = "";
+    const doc = try dom.Document.init(allocator);
+    const doc_ptr = try allocator.create(dom.Document);
+    defer {
+        freeAllNodes(allocator, &doc_ptr.node);
+        doc_ptr.node.first_child = null;
+        doc_ptr.node.last_child = null;
+        allocator.destroy(doc_ptr);
+    }
+    doc_ptr.* = doc;
+
+    var parser = html.Parser.init(html_content, doc_ptr, allocator);
+    defer parser.deinit();
+    try parser.parse();
+
+    // 空HTML应该不会崩溃
+    const html_elem = doc_ptr.getDocumentElement();
+    try std.testing.expect(html_elem == null);
+}
+
+test "parser parse whitespace only HTML" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const html_content = "   \n\t  ";
+    const doc = try dom.Document.init(allocator);
+    const doc_ptr = try allocator.create(dom.Document);
+    defer {
+        freeAllNodes(allocator, &doc_ptr.node);
+        doc_ptr.node.first_child = null;
+        doc_ptr.node.last_child = null;
+        allocator.destroy(doc_ptr);
+    }
+    doc_ptr.* = doc;
+
+    var parser = html.Parser.init(html_content, doc_ptr, allocator);
+    defer parser.deinit();
+    try parser.parse();
+
+    // 只有空白字符的HTML应该不会崩溃
+    // 注意：parser可能会隐式创建html和body元素，所以这里只检查不会崩溃
+    // 实际行为取决于parser的实现
+    _ = doc_ptr.getDocumentElement();
+}

@@ -495,3 +495,371 @@ test "document getElementsByClassName" {
     allocator.destroy(div1_node);
     allocator.destroy(html_node);
 }
+
+test "document getDocumentElement" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const doc = try dom.Document.init(allocator);
+    const doc_ptr = try allocator.create(dom.Document);
+    defer {
+        doc_ptr.deinit();
+        allocator.destroy(doc_ptr);
+    }
+    doc_ptr.* = doc;
+
+    // 测试没有html元素时返回null
+    const html_elem1 = doc_ptr.getDocumentElement();
+    try std.testing.expect(html_elem1 == null);
+
+    // 添加html元素
+    const html_elem_data = try dom.ElementData.init(allocator, "html");
+    const html_node = try allocator.create(dom.Node);
+    html_node.* = .{
+        .node_type = .element,
+        .data = .{ .element = html_elem_data },
+    };
+
+    try doc_ptr.node.appendChild(html_node, allocator);
+
+    // 测试有html元素时返回正确节点
+    const html_elem2 = doc_ptr.getDocumentElement();
+    try std.testing.expect(html_elem2 != null);
+    try std.testing.expect(html_elem2 == html_node);
+
+    // 清理
+    doc_ptr.node.removeChild(html_node);
+    if (html_node.asElement()) |elem| {
+        elem.deinit(allocator);
+    }
+    allocator.destroy(html_node);
+}
+
+test "document getHead" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const doc = try dom.Document.init(allocator);
+    const doc_ptr = try allocator.create(dom.Document);
+    defer {
+        doc_ptr.deinit();
+        allocator.destroy(doc_ptr);
+    }
+    doc_ptr.* = doc;
+
+    // 测试没有html元素时返回null
+    const head1 = doc_ptr.getHead();
+    try std.testing.expect(head1 == null);
+
+    // 添加html和head元素
+    const html_elem_data = try dom.ElementData.init(allocator, "html");
+    const html_node = try allocator.create(dom.Node);
+    html_node.* = .{
+        .node_type = .element,
+        .data = .{ .element = html_elem_data },
+    };
+
+    const head_elem_data = try dom.ElementData.init(allocator, "head");
+    const head_node = try allocator.create(dom.Node);
+    head_node.* = .{
+        .node_type = .element,
+        .data = .{ .element = head_elem_data },
+    };
+
+    try doc_ptr.node.appendChild(html_node, allocator);
+    try html_node.appendChild(head_node, allocator);
+
+    // 测试有head元素时返回正确节点
+    const head2 = doc_ptr.getHead();
+    try std.testing.expect(head2 != null);
+    try std.testing.expect(head2 == head_node);
+
+    // 测试没有head元素时返回null
+    html_node.removeChild(head_node);
+    const head3 = doc_ptr.getHead();
+    try std.testing.expect(head3 == null);
+
+    // 清理
+    if (head_node.asElement()) |elem| {
+        elem.deinit(allocator);
+    }
+    allocator.destroy(head_node);
+    doc_ptr.node.removeChild(html_node);
+    if (html_node.asElement()) |elem| {
+        elem.deinit(allocator);
+    }
+    allocator.destroy(html_node);
+}
+
+test "document getBody" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const doc = try dom.Document.init(allocator);
+    const doc_ptr = try allocator.create(dom.Document);
+    defer {
+        doc_ptr.deinit();
+        allocator.destroy(doc_ptr);
+    }
+    doc_ptr.* = doc;
+
+    // 测试没有html元素时返回null
+    const body1 = doc_ptr.getBody();
+    try std.testing.expect(body1 == null);
+
+    // 添加html和body元素
+    const html_elem_data = try dom.ElementData.init(allocator, "html");
+    const html_node = try allocator.create(dom.Node);
+    html_node.* = .{
+        .node_type = .element,
+        .data = .{ .element = html_elem_data },
+    };
+
+    const body_elem_data = try dom.ElementData.init(allocator, "body");
+    const body_node = try allocator.create(dom.Node);
+    body_node.* = .{
+        .node_type = .element,
+        .data = .{ .element = body_elem_data },
+    };
+
+    try doc_ptr.node.appendChild(html_node, allocator);
+    try html_node.appendChild(body_node, allocator);
+
+    // 测试有body元素时返回正确节点
+    const body2 = doc_ptr.getBody();
+    try std.testing.expect(body2 != null);
+    try std.testing.expect(body2 == body_node);
+
+    // 测试没有body元素时返回null
+    html_node.removeChild(body_node);
+    const body3 = doc_ptr.getBody();
+    try std.testing.expect(body3 == null);
+
+    // 清理
+    if (body_node.asElement()) |elem| {
+        elem.deinit(allocator);
+    }
+    allocator.destroy(body_node);
+    doc_ptr.node.removeChild(html_node);
+    if (html_node.asElement()) |elem| {
+        elem.deinit(allocator);
+    }
+    allocator.destroy(html_node);
+}
+
+test "document getElementsByTagName" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const doc = try dom.Document.init(allocator);
+    const doc_ptr = try allocator.create(dom.Document);
+    defer {
+        doc_ptr.deinit();
+        allocator.destroy(doc_ptr);
+    }
+    doc_ptr.* = doc;
+
+    // 测试没有匹配元素时返回空数组
+    const empty_divs = try doc_ptr.getElementsByTagName("div", allocator);
+    defer allocator.free(empty_divs);
+    try std.testing.expect(empty_divs.len == 0);
+
+    // 添加html和多个div元素
+    const html_elem_data = try dom.ElementData.init(allocator, "html");
+    const html_node = try allocator.create(dom.Node);
+    html_node.* = .{
+        .node_type = .element,
+        .data = .{ .element = html_elem_data },
+    };
+
+    const div1_elem_data = try dom.ElementData.init(allocator, "div");
+    const div1_node = try allocator.create(dom.Node);
+    div1_node.* = .{
+        .node_type = .element,
+        .data = .{ .element = div1_elem_data },
+    };
+
+    const div2_elem_data = try dom.ElementData.init(allocator, "div");
+    const div2_node = try allocator.create(dom.Node);
+    div2_node.* = .{
+        .node_type = .element,
+        .data = .{ .element = div2_elem_data },
+    };
+
+    const span_elem_data = try dom.ElementData.init(allocator, "span");
+    const span_node = try allocator.create(dom.Node);
+    span_node.* = .{
+        .node_type = .element,
+        .data = .{ .element = span_elem_data },
+    };
+
+    try doc_ptr.node.appendChild(html_node, allocator);
+    try html_node.appendChild(div1_node, allocator);
+    try html_node.appendChild(div2_node, allocator);
+    try html_node.appendChild(span_node, allocator);
+
+    // 测试找到多个匹配元素
+    const divs = try doc_ptr.getElementsByTagName("div", allocator);
+    defer allocator.free(divs);
+    try std.testing.expect(divs.len == 2);
+    try std.testing.expect(divs[0] == div1_node);
+    try std.testing.expect(divs[1] == div2_node);
+
+    // 测试查找span元素
+    const spans = try doc_ptr.getElementsByTagName("span", allocator);
+    defer allocator.free(spans);
+    try std.testing.expect(spans.len == 1);
+    try std.testing.expect(spans[0] == span_node);
+
+    // 清理
+    html_node.removeChild(span_node);
+    html_node.removeChild(div2_node);
+    html_node.removeChild(div1_node);
+    doc_ptr.node.removeChild(html_node);
+    if (span_node.asElement()) |elem| {
+        elem.deinit(allocator);
+    }
+    if (div2_node.asElement()) |elem| {
+        elem.deinit(allocator);
+    }
+    if (div1_node.asElement()) |elem| {
+        elem.deinit(allocator);
+    }
+    if (html_node.asElement()) |elem| {
+        elem.deinit(allocator);
+    }
+    allocator.destroy(span_node);
+    allocator.destroy(div2_node);
+    allocator.destroy(div1_node);
+    allocator.destroy(html_node);
+}
+
+test "elementData getClasses edge cases" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    var elem = try dom.ElementData.init(allocator, "div");
+    defer elem.deinit(allocator);
+
+    // 测试多个连续空格
+    try elem.setAttribute("class", "container    main  active", allocator);
+    const classes1 = try elem.getClasses(allocator);
+    defer allocator.free(classes1);
+    try std.testing.expect(classes1.len == 3);
+    try std.testing.expect(std.mem.eql(u8, classes1[0], "container"));
+    try std.testing.expect(std.mem.eql(u8, classes1[1], "main"));
+    try std.testing.expect(std.mem.eql(u8, classes1[2], "active"));
+
+    // 测试只有空格的class属性（setAttribute现在会正确释放旧值）
+    try elem.setAttribute("class", "   ", allocator);
+    const classes2 = try elem.getClasses(allocator);
+    defer allocator.free(classes2);
+    try std.testing.expect(classes2.len == 0);
+
+    // 测试前后有空格的class属性
+    try elem.setAttribute("class", "  container main  ", allocator);
+    const classes3 = try elem.getClasses(allocator);
+    defer allocator.free(classes3);
+    try std.testing.expect(classes3.len == 2);
+    try std.testing.expect(std.mem.eql(u8, classes3[0], "container"));
+    try std.testing.expect(std.mem.eql(u8, classes3[1], "main"));
+}
+
+test "node removeChild edge cases" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    var parent_elem = try dom.ElementData.init(allocator, "div");
+    defer parent_elem.deinit(allocator);
+    const parent = try allocator.create(dom.Node);
+    defer allocator.destroy(parent);
+    parent.* = .{
+        .node_type = .element,
+        .data = .{ .element = parent_elem },
+    };
+
+    var child_elem = try dom.ElementData.init(allocator, "p");
+    defer child_elem.deinit(allocator);
+    const child = try allocator.create(dom.Node);
+    defer allocator.destroy(child);
+    child.* = .{
+        .node_type = .element,
+        .data = .{ .element = child_elem },
+    };
+
+    // 测试移除不存在的子节点（应该不会崩溃）
+    parent.removeChild(child);
+    try std.testing.expect(parent.first_child == null);
+
+    // 测试移除不是直接子节点的节点
+    var grandchild_elem = try dom.ElementData.init(allocator, "span");
+    defer grandchild_elem.deinit(allocator);
+    const grandchild = try allocator.create(dom.Node);
+    defer allocator.destroy(grandchild);
+    grandchild.* = .{
+        .node_type = .element,
+        .data = .{ .element = grandchild_elem },
+    };
+
+    try parent.appendChild(child, allocator);
+    try child.appendChild(grandchild, allocator);
+
+    // 尝试从parent移除grandchild（不是直接子节点）
+    parent.removeChild(grandchild);
+    // grandchild应该仍然存在，因为removeChild会检查parent关系
+    try std.testing.expect(grandchild.parent == child);
+    try std.testing.expect(child.first_child == grandchild);
+}
+
+test "node querySelector edge cases" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 测试在空节点上查找
+    var empty_elem = try dom.ElementData.init(allocator, "div");
+    defer empty_elem.deinit(allocator);
+    const empty_node = try allocator.create(dom.Node);
+    defer allocator.destroy(empty_node);
+    empty_node.* = .{
+        .node_type = .element,
+        .data = .{ .element = empty_elem },
+    };
+
+    const found1 = empty_node.querySelector("p");
+    try std.testing.expect(found1 == null);
+
+    // 测试查找不存在的元素
+    var parent_elem = try dom.ElementData.init(allocator, "div");
+    defer parent_elem.deinit(allocator);
+    const parent = try allocator.create(dom.Node);
+    defer allocator.destroy(parent);
+    parent.* = .{
+        .node_type = .element,
+        .data = .{ .element = parent_elem },
+    };
+
+    var child_elem = try dom.ElementData.init(allocator, "p");
+    defer child_elem.deinit(allocator);
+    const child = try allocator.create(dom.Node);
+    defer allocator.destroy(child);
+    child.* = .{
+        .node_type = .element,
+        .data = .{ .element = child_elem },
+    };
+
+    try parent.appendChild(child, allocator);
+
+    const found2 = parent.querySelector("span");
+    try std.testing.expect(found2 == null);
+
+    const found3 = parent.querySelector("p");
+    try std.testing.expect(found3 != null);
+    try std.testing.expect(found3 == child);
+}
