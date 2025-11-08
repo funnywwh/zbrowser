@@ -73,7 +73,7 @@ test "DeflateCompressor findLongestMatch - basic" {
 
     // 测试数据：包含重复字符串
     const test_data = "ABCABCABC";
-    const match = compressor.findLongestMatch(test_data, 3);
+    const match = try compressor.findLongestMatch(test_data, 3);
 
     // 在位置3（第二个"ABC"的开始），应该找到匹配
     // 匹配长度应该是3，距离应该是3
@@ -90,7 +90,7 @@ test "DeflateCompressor findLongestMatch - no match" {
 
     // 测试数据：没有重复
     const test_data = "ABCDEFGH";
-    const match = compressor.findLongestMatch(test_data, 4);
+    const match = try compressor.findLongestMatch(test_data, 4);
 
     // 在位置4，不应该找到匹配（或匹配长度小于MIN_MATCH）
     // 这是正常的，因为数据没有重复

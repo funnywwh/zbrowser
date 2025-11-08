@@ -5,6 +5,11 @@ const std = @import("std");
 pub const DeflateCompressor = struct {
     allocator: std.mem.Allocator,
 
+    /// 哈希表大小（用于加速LZ77匹配）
+    const HASH_SIZE: usize = 32768;
+    /// 哈希表掩码（用于快速取模）
+    const HASH_MASK: usize = HASH_SIZE - 1;
+
     /// LZ77窗口大小（32KB）
     const WINDOW_SIZE: usize = 32768;
     /// 最小匹配长度
@@ -37,6 +42,11 @@ pub const DeflateCompressor = struct {
         var output = std.ArrayList(u8){};
         errdefer output.deinit(self.allocator);
 
+        // 初始化哈希表（用于加速LZ77匹配）
+        var hash_table = try self.allocator.alloc(?usize, HASH_SIZE);
+        defer self.allocator.free(hash_table);
+        @memset(hash_table, null);
+
         // DEFLATE块头：BFINAL(1) + BTYPE(2) = 3位
         // 使用固定Huffman编码（BTYPE=01）
         // BFINAL=1（最后一个块），BTYPE=01（固定Huffman编码）
@@ -50,8 +60,14 @@ pub const DeflateCompressor = struct {
 
         var i: usize = 0;
         while (i < data.len) {
+            // 更新哈希表（如果当前位置有足够的字节）
+            if (i + MIN_MATCH <= data.len) {
+                const hash = self.calculateHash(data[i..][0..MIN_MATCH]);
+                hash_table[hash] = i;
+            }
+
             // 查找最长匹配
-            const match = self.findLongestMatch(data, i);
+            const match = self.findLongestMatchWithHash(data, i, hash_table);
 
             if (match.length >= MIN_MATCH and match.distance <= MAX_DISTANCE) {
                 // 找到匹配，写入长度/距离对
@@ -73,6 +89,14 @@ pub const DeflateCompressor = struct {
         }
 
         return try output.toOwnedSlice(self.allocator);
+    }
+
+    /// 计算3字节序列的哈希值
+    fn calculateHash(self: DeflateCompressor, bytes: []const u8) usize {
+        _ = self;
+        // 简单的哈希函数：使用3字节的值
+        const hash = (@as(usize, bytes[0]) << 16) | (@as(usize, bytes[1]) << 8) | @as(usize, bytes[2]);
+        return hash & HASH_MASK;
     }
 
     /// 写入字面量（使用固定Huffman编码）
@@ -356,41 +380,78 @@ pub const DeflateCompressor = struct {
         }
     }
 
-    /// 查找最长匹配（简化实现）
-    /// TODO: 优化：使用哈希表加速匹配查找
-    pub fn findLongestMatch(self: DeflateCompressor, data: []const u8, pos: usize) struct { length: usize, distance: usize } {
-        _ = self;
+    /// 查找最长匹配（使用哈希表优化）
+    fn findLongestMatchWithHash(self: DeflateCompressor, data: []const u8, pos: usize, hash_table: []?usize) struct { length: usize, distance: usize } {
         var best_length: usize = 0;
         var best_distance: usize = 0;
 
-        // 搜索窗口：从当前位置向前搜索，最多WINDOW_SIZE字节
-        const search_start = if (pos > WINDOW_SIZE) pos - WINDOW_SIZE else 0;
-        var search_pos = search_start;
+        // 如果当前位置没有足够的字节，返回无匹配
+        if (pos + MIN_MATCH > data.len) {
+            return .{ .length = 0, .distance = 0 };
+        }
 
-        // 限制搜索范围以提高性能（简化实现）
-        const max_search = @min(pos - search_start, 1024); // 最多搜索1024个位置
+        // 计算当前位置的哈希值
+        const hash = self.calculateHash(data[pos..][0..MIN_MATCH]);
 
-        var searched: usize = 0;
-        while (searched < max_search and search_pos < pos) {
-            var match_len: usize = 0;
-            while (pos + match_len < data.len and
-                search_pos + match_len < pos and
-                data[search_pos + match_len] == data[pos + match_len] and
-                match_len < MAX_MATCH)
-            {
-                match_len += 1;
+        // 从哈希表中获取可能的匹配位置
+        if (hash_table[hash]) |candidate_pos| {
+            // 检查候选位置是否在搜索窗口内
+            const search_start = if (pos > WINDOW_SIZE) pos - WINDOW_SIZE else 0;
+            if (candidate_pos >= search_start and candidate_pos < pos) {
+                // 检查匹配长度
+                var match_len: usize = 0;
+                while (pos + match_len < data.len and
+                    candidate_pos + match_len < pos and
+                    data[candidate_pos + match_len] == data[pos + match_len] and
+                    match_len < MAX_MATCH)
+                {
+                    match_len += 1;
+                }
+
+                if (match_len >= MIN_MATCH) {
+                    best_length = match_len;
+                    best_distance = pos - candidate_pos;
+                }
             }
+        }
 
-            if (match_len > best_length) {
-                best_length = match_len;
-                best_distance = pos - search_pos;
+        // 如果哈希表没有找到匹配，回退到线性搜索（限制范围）
+        if (best_length == 0) {
+            const search_start = if (pos > WINDOW_SIZE) pos - WINDOW_SIZE else 0;
+            const max_search = @min(pos - search_start, 256); // 限制搜索范围
+            var search_pos = pos - @min(max_search, pos - search_start);
+
+            while (search_pos < pos) {
+                var match_len: usize = 0;
+                while (pos + match_len < data.len and
+                    search_pos + match_len < pos and
+                    data[search_pos + match_len] == data[pos + match_len] and
+                    match_len < MAX_MATCH)
+                {
+                    match_len += 1;
+                }
+
+                if (match_len > best_length) {
+                    best_length = match_len;
+                    best_distance = pos - search_pos;
+                }
+
+                search_pos += 1;
             }
-
-            search_pos += 1;
-            searched += 1;
         }
 
         return .{ .length = best_length, .distance = best_distance };
+    }
+
+    /// 查找最长匹配（简化实现，用于测试）
+    pub fn findLongestMatch(self: DeflateCompressor, data: []const u8, pos: usize) !struct { length: usize, distance: usize } {
+        // 为了保持测试兼容性，创建一个空的哈希表
+        const hash_table = try self.allocator.alloc(?usize, HASH_SIZE);
+        defer self.allocator.free(hash_table);
+        @memset(hash_table, null);
+
+        const result = self.findLongestMatchWithHash(data, pos, hash_table);
+        return .{ .length = result.length, .distance = result.distance };
     }
 
     /// 写入位到输出流
