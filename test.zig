@@ -33,6 +33,7 @@ const layout_block_test = @import("tests/layout/block_test.zig");
 const layout_inline_test = @import("tests/layout/inline_test.zig");
 const layout_position_test = @import("tests/layout/position_test.zig");
 const layout_float_test = @import("tests/layout/float_test.zig");
+const layout_flexbox_test = @import("tests/layout/flexbox_test.zig");
 const layout_engine_test = @import("tests/layout/engine_test.zig");
 
 /// 测试统计信息
@@ -73,6 +74,7 @@ test "all test modules imported" {
     _ = layout_inline_test;
     _ = layout_position_test;
     _ = layout_float_test;
+    _ = layout_flexbox_test;
     _ = layout_engine_test;
 
     std.debug.print("All test modules successfully imported via root test file\n", .{});

@@ -15,9 +15,16 @@ ZBrowser是一个完全用Zig语言实现的headless浏览器渲染引擎，严�
 - ✅ CSS样式层叠计算（优先级、继承、默认样式）
 - ✅ 基础工具模块（内存管理、字符串处理、数学工具）
 - ✅ 布局引擎基础（盒模型、布局上下文、BFC、IFC）
+- ✅ 块级布局（Block布局算法）
+- ✅ 行内布局（Inline布局算法）
+- ✅ 定位布局（static、relative、absolute、fixed、sticky）
+- ✅ 浮动布局（float: left/right，碰撞检测，清除浮动）
+- ✅ Flexbox布局基础框架
+- ✅ 布局引擎主入口（构建布局树、执行布局）
 
 ### 计划中
-- 🔲 布局算法（Block、Inline、Flexbox、Grid布局算法）
+- 🔲 Flexbox布局完整实现（flex-grow/shrink/basis、对齐算法）
+- 🔲 Grid布局算法
 - 🔲 渲染引擎（文本、图形、图片）
 - 🔲 PNG编码器
 - 🔲 JavaScript引擎（解析、执行、DOM API）
@@ -49,7 +56,13 @@ zbrowser/
 │   ├── js/                   # JavaScript引擎（待实现）
 │   ├── layout/               # 布局引擎（进行中）
 │   │   ├── box.zig          # 盒模型数据结构
-│   │   └── context.zig      # 布局上下文（BFC、IFC）
+│   │   ├── context.zig      # 布局上下文（BFC、IFC）
+│   │   ├── block.zig        # 块级布局算法
+│   │   ├── inline.zig       # 行内布局算法
+│   │   ├── position.zig    # 定位布局算法
+│   │   ├── float.zig       # 浮动布局算法
+│   │   ├── flexbox.zig     # Flexbox布局算法
+│   │   └── engine.zig      # 布局引擎主入口
 │   ├── render/               # 渲染引擎（待实现）
 │   ├── image/                # 图像处理（待实现）
 │   ├── utils/                # 工具模块
@@ -149,10 +162,15 @@ pub fn main() !void {
    - 选择器匹配（类型、类、ID、属性、伪类、组合器）
    - 样式层叠计算（优先级、继承、默认样式）
 
-3. **阶段3: 布局引擎** 🔲
-   - 盒模型
-   - Block/Inline布局
-   - Flexbox和Grid布局
+3. **阶段3: 布局引擎** 🟡（进行中）
+   - ✅ 盒模型（BoxModel、LayoutBox）
+   - ✅ 布局上下文（BFC、IFC）
+   - ✅ Block布局算法
+   - ✅ Inline布局算法
+   - ✅ 定位布局（static、relative、absolute、fixed、sticky）
+   - ✅ 浮动布局（float: left/right）
+   - 🟡 Flexbox布局（基础框架完成，完整实现进行中）
+   - 🔲 Grid布局算法
 
 4. **阶段4: 渲染引擎** 🔲
    - 绘制引擎
@@ -185,11 +203,16 @@ pub fn main() !void {
 - **样式层叠**: 实现CSS优先级计算和样式继承
 - **样式计算**: 计算每个元素的最终样式，支持默认样式
 
-### 布局引擎（计划中）
+### 布局引擎（进行中）
 
-- **盒模型**: 支持content-box和border-box
-- **布局算法**: Block格式化上下文、Flexbox、Grid
-- **定位**: 支持static、relative、absolute、fixed、sticky
+- ✅ **盒模型**: 支持content-box和border-box（BoxModel、LayoutBox）
+- ✅ **布局上下文**: Block格式化上下文（BFC）、Inline格式化上下文（IFC）
+- ✅ **块级布局**: Block布局算法（宽度计算、垂直堆叠）
+- ✅ **行内布局**: Inline布局算法（行框创建、元素放置、换行）
+- ✅ **定位布局**: 支持static、relative、absolute、fixed、sticky定位
+- ✅ **浮动布局**: 支持float: left/right，碰撞检测，清除浮动
+- 🟡 **Flexbox布局**: 基础框架完成，完整实现进行中
+- 🔲 **Grid布局**: 待实现
 
 ### 渲染引擎（计划中）
 
@@ -241,7 +264,7 @@ pub fn main() !void {
   - Math Utils测试（8个测试用例）
   - Allocator Utils测试（6个测试用例）
 
-- **总计**：160 个测试
+- **总计**：220+ 个测试
 
 #### 测试完成状态
 
@@ -254,7 +277,7 @@ pub fn main() !void {
 
 #### 测试结果
 
-- ✅ 所有测试通过：160/160 passed
+- ✅ 所有测试通过：220+/220+ passed
 - ✅ 0个内存泄漏
 - ✅ 代码编译无错误
 - ✅ 所有内存管理正确（无双重释放、无泄漏）
@@ -315,25 +338,42 @@ zig build test
 
 ## 状态
 
-**当前版本**: 0.3.0-alpha  
-**开发阶段**: 阶段1-2完成，阶段3进行中（布局引擎基础完成）
+**当前版本**: 0.4.0-alpha  
+**开发阶段**: 阶段1-2完成，阶段3进行中（布局引擎核心功能完成）
 
-### 最新更新（v0.3.0-alpha）
+### 最新更新（v0.4.0-alpha）
 
-- ✅ **完成布局引擎基础实现**
+- ✅ **完成布局引擎核心功能实现**
   - 盒模型数据结构（Rect、Size、Point、Edges、BoxModel、LayoutBox）
   - 布局上下文（FormattingContext、BFC、IFC）
-  - 行框（LineBox）数据结构
+  - 块级布局算法（Block布局，宽度计算，垂直堆叠）
+  - 行内布局算法（Inline布局，行框创建，元素放置，换行）
+  - 定位布局算法（static、relative、absolute、fixed、sticky）
+  - 浮动布局算法（float: left/right，碰撞检测，清除浮动）
+  - Flexbox布局基础框架
+  - 布局引擎主入口（构建布局树、执行布局）
   - 支持content-box和border-box盒模型
-  - 完整的初始化和清理机制
+  - 完整的初始化和清理机制（deinit、deinitAndDestroyChildren）
 - ✅ **布局引擎测试覆盖**
-  - 盒模型测试：10个测试用例（Rect、Size、Point、Edges、BoxModel、LayoutBox）
-  - 布局上下文测试：10个测试用例（FormattingContext、BFC、IFC、LineBox）
+  - 盒模型测试：10个测试用例
+  - 布局上下文测试：10个测试用例
+  - 块级布局测试：多个测试用例
+  - 行内布局测试：多个测试用例
+  - 定位布局测试：8个测试用例（包括边界测试）
+  - 浮动布局测试：8个测试用例（包括边界测试）
+  - Flexbox布局测试：6个测试用例（包括边界测试）
+  - 布局引擎测试：10个测试用例
   - 所有测试通过，0内存泄漏
+- ✅ **修复关键问题**
+  - 修复defer执行顺序问题（先deinit，再destroy）
+  - 修复内存泄漏问题（正确释放子节点内存）
+  - 修复DOM节点清理问题（使用freeAllNodes清理有子节点的节点）
+  - 修复浮动布局碰撞检测问题（使用is_layouted标志判断已布局元素）
 - ✅ **遵循TDD开发流程**
   - 先写测试，再写实现
   - 100%测试覆盖率
   - 严格的内存管理
+  - 所有简化实现都添加了TODO注释
 
 ### 历史更新（v0.2.0-alpha）
 
@@ -360,7 +400,15 @@ zig build test
   - HTML Tokenizer模块：30个测试（包括边界情况和错误处理测试）
   - CSS模块：52个测试
   - Utils模块：27个测试
-  - Layout模块：20个测试（盒模型10个，布局上下文10个）
+  - Layout模块：60+个测试
+    - 盒模型测试：10个测试用例
+    - 布局上下文测试：10个测试用例
+    - 块级布局测试：多个测试用例
+    - 行内布局测试：多个测试用例
+    - 定位布局测试：8个测试用例
+    - 浮动布局测试：8个测试用例
+    - Flexbox布局测试：6个测试用例
+    - 布局引擎测试：10个测试用例
   - 所有测试通过，0内存泄漏
 
 ### 历史更新（v0.1.0-alpha）

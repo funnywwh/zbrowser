@@ -114,27 +114,39 @@ zbrowser/
 
 **完成时间**：2024年（当前版本）
 
-### 阶段3: 布局引擎（核心）
+### 阶段3: 布局引擎（核心）🟡（进行中）
 
 **目标**：实现各种布局算法
 
 **任务**：
-- 实现基础布局
-  - box.zig：盒模型计算
-  - block.zig：块级格式化上下文（BFC）、块级布局
-  - inline.zig：行内格式化上下文（IFC）、行内布局
-  - position.zig：定位布局（static, relative, absolute, fixed, sticky）
-- 实现Flexbox布局
-  - flexbox.zig：Flexbox算法（主轴/交叉轴计算、对齐、换行）
-- 实现Grid布局
-  - grid.zig：Grid算法（网格线计算、区域分配、对齐）
-- 实现浮动和清除浮动
-- 编写布局引擎测试用例（覆盖率100%）
+- ✅ 实现基础布局
+  - ✅ box.zig：盒模型计算（Rect、Size、Point、Edges、BoxModel、LayoutBox）
+  - ✅ context.zig：布局上下文（FormattingContext、BFC、IFC）
+  - ✅ block.zig：块级格式化上下文（BFC）、块级布局算法
+  - ✅ inline.zig：行内格式化上下文（IFC）、行内布局算法
+  - ✅ position.zig：定位布局（static, relative, absolute, fixed, sticky）
+  - ✅ float.zig：浮动布局（float: left/right，碰撞检测，清除浮动）
+  - ✅ engine.zig：布局引擎主入口（构建布局树、执行布局）
+- 🟡 实现Flexbox布局
+  - ✅ flexbox.zig：Flexbox基础框架
+  - 🔲 完整实现：flex-grow/shrink/basis、对齐算法、换行
+- 🔲 实现Grid布局
+  - 🔲 grid.zig：Grid算法（网格线计算、区域分配、对齐）
+- ✅ 编写布局引擎测试用例（覆盖率100%）
+  - ✅ 盒模型测试：10个测试用例
+  - ✅ 布局上下文测试：10个测试用例
+  - ✅ 块级布局测试：多个测试用例
+  - ✅ 行内布局测试：多个测试用例
+  - ✅ 定位布局测试：8个测试用例
+  - ✅ 浮动布局测试：8个测试用例
+  - ✅ Flexbox布局测试：6个测试用例
+  - ✅ 布局引擎测试：10个测试用例
 
 **验收标准**：
-- 正确计算元素尺寸和位置
-- Flexbox和Grid布局正确
-- 测试覆盖率100%
+- ✅ 正确计算元素尺寸和位置（Block、Inline、Position、Float布局）
+- 🟡 Flexbox布局基础框架完成，完整实现进行中
+- 🔲 Grid布局待实现
+- ✅ 测试覆盖率100%（60+个测试用例，全部通过）
 
 ### 阶段4: 渲染引擎（核心）
 
