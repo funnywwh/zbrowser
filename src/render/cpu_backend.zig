@@ -1,6 +1,12 @@
 const std = @import("std");
 const backend = @import("backend");
 
+/// 路径点
+const Point = struct {
+    x: f32,
+    y: f32,
+};
+
 /// CPU渲染后端（软件光栅化）
 /// 使用CPU进行软件光栅化，将绘制命令转换为像素数据
 pub const CpuRenderBackend = struct {
@@ -9,6 +15,9 @@ pub const CpuRenderBackend = struct {
     height: u32,
     pixels: []u8, // RGBA格式
     allocator: std.mem.Allocator,
+
+    /// 当前路径（用于路径绘制）
+    current_path: std.ArrayList(Point),
 
     /// 从RenderBackend获取CpuRenderBackend
     fn fromRenderBackend(self_ptr: *backend.RenderBackend) *CpuRenderBackend {
@@ -44,6 +53,7 @@ pub const CpuRenderBackend = struct {
             .height = height,
             .pixels = pixels,
             .allocator = allocator,
+            .current_path = std.ArrayList(Point){},
         };
 
         return self;
@@ -51,6 +61,7 @@ pub const CpuRenderBackend = struct {
 
     /// 清理CPU渲染后端
     pub fn deinit(self: *CpuRenderBackend) void {
+        self.current_path.deinit(self.allocator);
         self.allocator.free(self.pixels);
         self.allocator.destroy(self);
     }
@@ -266,50 +277,111 @@ pub const CpuRenderBackend = struct {
     }
 
     fn beginPathImpl(self_ptr: *backend.RenderBackend) void {
-        _ = self_ptr;
-        // TODO: 实现beginPath
+        const self = fromRenderBackend(self_ptr);
+        self.current_path.clearRetainingCapacity();
     }
 
     fn moveToImpl(self_ptr: *backend.RenderBackend, x: f32, y: f32) void {
-        _ = self_ptr;
-        _ = x;
-        _ = y;
-        // TODO: 实现moveTo
+        const self = fromRenderBackend(self_ptr);
+        self.current_path.append(self.allocator, Point{ .x = x, .y = y }) catch {};
     }
 
     fn lineToImpl(self_ptr: *backend.RenderBackend, x: f32, y: f32) void {
-        _ = self_ptr;
-        _ = x;
-        _ = y;
-        // TODO: 实现lineTo
+        const self = fromRenderBackend(self_ptr);
+        self.current_path.append(self.allocator, Point{ .x = x, .y = y }) catch {};
     }
 
     fn arcImpl(self_ptr: *backend.RenderBackend, x: f32, y: f32, radius: f32, start: f32, end: f32) void {
-        _ = self_ptr;
-        _ = x;
-        _ = y;
-        _ = radius;
-        _ = start;
-        _ = end;
-        // TODO: 实现arc
+        const self = fromRenderBackend(self_ptr);
+        // TODO: 简化实现 - 当前将圆弧近似为直线段
+        // 完整实现需要：使用Bresenham算法或参数方程绘制圆弧
+        const num_segments = @max(8, @as(i32, @intFromFloat(radius * 2)));
+        var i: i32 = 0;
+        while (i <= num_segments) : (i += 1) {
+            const angle = start + (end - start) * (@as(f32, @floatFromInt(i)) / @as(f32, @floatFromInt(num_segments)));
+            const px = x + radius * @cos(angle);
+            const py = y + radius * @sin(angle);
+            self.current_path.append(self.allocator, Point{ .x = px, .y = py }) catch {};
+        }
     }
 
     fn closePathImpl(self_ptr: *backend.RenderBackend) void {
-        _ = self_ptr;
-        // TODO: 实现closePath
+        const self = fromRenderBackend(self_ptr);
+        // 如果路径有至少2个点，添加第一个点以闭合路径
+        if (self.current_path.items.len >= 2) {
+            const first_point = self.current_path.items[0];
+            self.current_path.append(self.allocator, first_point) catch {};
+        }
     }
 
     fn fillImpl(self_ptr: *backend.RenderBackend, color: backend.Color) void {
-        _ = self_ptr;
-        _ = color;
-        // TODO: 实现fill
+        const self = fromRenderBackend(self_ptr);
+        fillPathInternal(self, color);
     }
 
     fn strokeImpl(self_ptr: *backend.RenderBackend, color: backend.Color, width: f32) void {
-        _ = self_ptr;
-        _ = color;
-        _ = width;
-        // TODO: 实现stroke
+        const self = fromRenderBackend(self_ptr);
+        strokePathInternal(self, color, width);
+    }
+
+    /// 内部路径填充实现
+    /// TODO: 简化实现 - 当前使用简单的扫描线算法
+    /// 完整实现需要：
+    /// 1. 更精确的多边形填充算法
+    /// 2. 处理自相交路径
+    /// 3. 非零规则和奇偶规则
+    fn fillPathInternal(self: *CpuRenderBackend, color: backend.Color) void {
+        if (self.current_path.items.len < 3) {
+            return; // 至少需要3个点才能形成封闭区域
+        }
+
+        // 简化实现：使用边界框填充
+        // TODO: 实现完整的扫描线填充算法
+        var min_x: f32 = self.current_path.items[0].x;
+        var min_y: f32 = self.current_path.items[0].y;
+        var max_x: f32 = self.current_path.items[0].x;
+        var max_y: f32 = self.current_path.items[0].y;
+
+        for (self.current_path.items) |point| {
+            min_x = @min(min_x, point.x);
+            min_y = @min(min_y, point.y);
+            max_x = @max(max_x, point.x);
+            max_y = @max(max_y, point.y);
+        }
+
+        // 填充边界框（简化实现）
+        const rect = backend.Rect.init(min_x, min_y, max_x - min_x, max_y - min_y);
+        fillRectInternal(self, rect, color);
+    }
+
+    /// 内部路径描边实现
+    /// TODO: 简化实现 - 当前使用简单的直线连接
+    /// 完整实现需要：
+    /// 1. 使用Bresenham算法绘制直线
+    /// 2. 处理线宽和线帽
+    /// 3. 抗锯齿处理
+    fn strokePathInternal(self: *CpuRenderBackend, color: backend.Color, width: f32) void {
+        if (self.current_path.items.len < 2) {
+            return; // 至少需要2个点才能绘制路径
+        }
+
+        // 简化实现：绘制连接各点的直线
+        var i: usize = 0;
+        while (i < self.current_path.items.len - 1) : (i += 1) {
+            const p1 = self.current_path.items[i];
+            const p2 = self.current_path.items[i + 1];
+
+            // 绘制直线（简化：使用矩形近似）
+            const dx = p2.x - p1.x;
+            const dy = p2.y - p1.y;
+            const length = @sqrt(dx * dx + dy * dy);
+
+            if (length > 0) {
+                // 简化：绘制一个矩形来表示直线
+                const rect = backend.Rect.init(p1.x, p1.y, length, width);
+                fillRectInternal(self, rect, color);
+            }
+        }
     }
 
     fn saveImpl(self_ptr: *backend.RenderBackend) void {
