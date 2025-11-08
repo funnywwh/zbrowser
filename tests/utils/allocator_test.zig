@@ -44,7 +44,6 @@ test "BrowserAllocator multiple allocations" {
     const backing = std.heap.page_allocator;
 
     var browser_alloc = allocator.BrowserAllocator.init(backing);
-    defer browser_alloc.deinit();
 
     const arena = browser_alloc.arenaAllocator();
     const gpa_alloc = browser_alloc.gpaAllocator();
@@ -57,9 +56,12 @@ test "BrowserAllocator multiple allocations" {
 
     // GPA分配
     const ptr3 = try gpa_alloc.alloc(u8, 50);
-    defer gpa_alloc.free(ptr3);
     const ptr4 = try gpa_alloc.alloc(u8, 50);
-    defer gpa_alloc.free(ptr4);
+    
+    // 在 deinit 之前释放内存
+    gpa_alloc.free(ptr4);
+    gpa_alloc.free(ptr3);
+    browser_alloc.deinit();
 }
 
 test "BrowserAllocator arena allocation with strings" {
@@ -81,14 +83,16 @@ test "BrowserAllocator gpa allocation with strings" {
     const backing = std.heap.page_allocator;
 
     var browser_alloc = allocator.BrowserAllocator.init(backing);
-    defer browser_alloc.deinit();
 
     const gpa_alloc = browser_alloc.gpaAllocator();
     const str1 = try gpa_alloc.dupe(u8, "hello");
-    defer gpa_alloc.free(str1);
     const str2 = try gpa_alloc.dupe(u8, "world");
-    defer gpa_alloc.free(str2);
 
     std.debug.assert(std.mem.eql(u8, str1, "hello"));
     std.debug.assert(std.mem.eql(u8, str2, "world"));
+    
+    // 在 deinit 之前释放内存
+    gpa_alloc.free(str2);
+    gpa_alloc.free(str1);
+    browser_alloc.deinit();
 }
