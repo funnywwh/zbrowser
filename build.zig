@@ -233,6 +233,8 @@ pub fn build(b: *std.Build) void {
             .{ .name = "box", .module = layout_box_module },
             .{ .name = "block", .module = layout_block_module },
             .{ .name = "inline", .module = layout_inline_module },
+            .{ .name = "flexbox", .module = layout_flexbox_module },
+            .{ .name = "grid", .module = layout_grid_module },
             .{ .name = "cascade", .module = css_cascade_module },
             .{ .name = "parser", .module = css_parser_module },
         },

@@ -281,3 +281,89 @@ test "LayoutEngine layout - large viewport" {
     // 检查布局结果
     try testing.expect(layout_tree.is_layouted);
 }
+
+test "LayoutEngine layout - flex container" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 创建DOM节点
+    const root_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, root_node);
+
+    // 创建布局引擎
+    var layout_engine = engine.LayoutEngine.init(allocator);
+
+    // 构建布局树
+    const layout_tree = try layout_engine.buildLayoutTree(root_node, &[_]css.Stylesheet{});
+    defer allocator.destroy(layout_tree);
+    defer layout_tree.deinitAndDestroyChildren();
+
+    // 设置为flex容器
+    layout_tree.display = .flex;
+    layout_tree.box_model.content.width = 800;
+    layout_tree.box_model.content.height = 600;
+
+    // 添加子元素
+    const child1_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, child1_node);
+    const child1_box = try layout_engine.buildLayoutTree(child1_node, &[_]css.Stylesheet{});
+    child1_box.box_model.content.width = 100;
+    child1_box.box_model.content.height = 50;
+    try layout_tree.children.append(allocator, child1_box);
+    child1_box.parent = layout_tree;
+
+    // 执行布局
+    const viewport = box.Size{ .width = 800, .height = 600 };
+    try layout_engine.layout(layout_tree, viewport);
+
+    // 检查布局结果
+    try testing.expect(layout_tree.is_layouted);
+    try testing.expect(child1_box.is_layouted);
+    // Flexbox布局应该水平排列
+    try testing.expectEqual(@as(f32, 0), child1_box.box_model.content.x);
+    try testing.expectEqual(@as(f32, 0), child1_box.box_model.content.y);
+}
+
+test "LayoutEngine layout - grid container" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 创建DOM节点
+    const root_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, root_node);
+
+    // 创建布局引擎
+    var layout_engine = engine.LayoutEngine.init(allocator);
+
+    // 构建布局树
+    const layout_tree = try layout_engine.buildLayoutTree(root_node, &[_]css.Stylesheet{});
+    defer allocator.destroy(layout_tree);
+    defer layout_tree.deinitAndDestroyChildren();
+
+    // 设置为grid容器
+    layout_tree.display = .grid;
+    layout_tree.box_model.content.width = 800;
+    layout_tree.box_model.content.height = 600;
+
+    // 添加子元素
+    const child1_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, child1_node);
+    const child1_box = try layout_engine.buildLayoutTree(child1_node, &[_]css.Stylesheet{});
+    child1_box.box_model.content.width = 100;
+    child1_box.box_model.content.height = 50;
+    try layout_tree.children.append(allocator, child1_box);
+    child1_box.parent = layout_tree;
+
+    // 执行布局
+    const viewport = box.Size{ .width = 800, .height = 600 };
+    try layout_engine.layout(layout_tree, viewport);
+
+    // 检查布局结果
+    try testing.expect(layout_tree.is_layouted);
+    try testing.expect(child1_box.is_layouted);
+    // Grid布局应该按网格放置
+    try testing.expectEqual(@as(f32, 0), child1_box.box_model.content.x);
+    try testing.expectEqual(@as(f32, 0), child1_box.box_model.content.y);
+}

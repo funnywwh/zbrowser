@@ -3,6 +3,8 @@ const dom = @import("dom");
 const box = @import("box");
 const block = @import("block");
 const inline_layout = @import("inline");
+const flexbox = @import("flexbox");
+const grid = @import("grid");
 const cascade = @import("cascade");
 const css_parser = @import("parser");
 
@@ -29,7 +31,7 @@ pub const LayoutEngine = struct {
         // 创建布局框
         const layout_box = try self.allocator.create(box.LayoutBox);
         errdefer self.allocator.destroy(layout_box);
-        
+
         // 直接初始化字段，而不是使用结构体赋值
         // 这样可以确保ArrayList字段被正确初始化
         layout_box.node = node;
@@ -79,6 +81,14 @@ pub const LayoutEngine = struct {
                 _ = try inline_layout.layoutInline(layout_tree, viewport);
                 // 注意：layoutInline返回IFC指针，但这里暂时不处理
             },
+            .flex, .inline_flex => {
+                // Flexbox布局
+                flexbox.layoutFlexbox(layout_tree, viewport);
+            },
+            .grid, .inline_grid => {
+                // Grid布局
+                grid.layoutGrid(layout_tree, viewport);
+            },
             else => {
                 // 默认使用block布局
                 try block.layoutBlock(layout_tree, viewport);
@@ -89,13 +99,17 @@ pub const LayoutEngine = struct {
         layout_tree.is_layouted = true;
 
         // 递归布局子节点
-        for (layout_tree.children.items) |child| {
-            // 子节点的containing_block是父节点的内容区域
-            const containing_block = box.Size{
-                .width = layout_tree.box_model.content.width,
-                .height = layout_tree.box_model.content.height,
-            };
-            try self.layout(child, containing_block);
+        // 注意：对于flex和grid布局，子节点的布局已经在各自的布局函数中处理
+        // 这里只对block和inline布局进行递归
+        if (layout_tree.display == .block or layout_tree.display == .inline_element) {
+            for (layout_tree.children.items) |child| {
+                // 子节点的containing_block是父节点的内容区域
+                const containing_block = box.Size{
+                    .width = layout_tree.box_model.content.width,
+                    .height = layout_tree.box_model.content.height,
+                };
+                try self.layout(child, containing_block);
+            }
         }
     }
 };
