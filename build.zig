@@ -169,6 +169,15 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    const layout_block_module = b.createModule(.{
+        .root_source_file = b.path("src/layout/block.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "box", .module = layout_box_module },
+        },
+    });
+
     // 创建根测试模块（统一入口）
     // test.zig 作为根测试文件，统一导入所有子测试模块
     // 所有测试都通过 test.zig 运行，不需要单独的测试配置
@@ -202,6 +211,7 @@ pub fn build(b: *std.Build) void {
             // Layout模块
             .{ .name = "box", .module = layout_box_module },
             .{ .name = "context", .module = layout_context_module },
+            .{ .name = "block", .module = layout_block_module },
         },
     });
 

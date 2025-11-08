@@ -29,6 +29,7 @@ const allocator_test = @import("tests/utils/allocator_test.zig");
 // Layout模块测试
 const layout_box_test = @import("tests/layout/box_test.zig");
 const layout_context_test = @import("tests/layout/context_test.zig");
+const layout_block_test = @import("tests/layout/block_test.zig");
 
 /// 测试统计信息
 pub const TestStats = struct {
@@ -64,6 +65,7 @@ test "all test modules imported" {
     _ = allocator_test;
     _ = layout_box_test;
     _ = layout_context_test;
+    _ = layout_block_test;
 
     std.debug.print("All test modules successfully imported via root test file\n", .{});
 }
