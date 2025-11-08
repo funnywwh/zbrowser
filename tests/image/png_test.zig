@@ -136,7 +136,7 @@ test "PNG encode - IHDR chunk exists" {
 
     const width: u32 = 10;
     const height: u32 = 10;
-    var pixels = try allocator.alloc(u8, width * height * 4);
+    const pixels = try allocator.alloc(u8, width * height * 4);
     defer allocator.free(pixels);
     @memset(pixels, 255);
 
