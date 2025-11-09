@@ -74,7 +74,20 @@ pub fn getPropertyKeyword(computed_style: *const cascade.ComputedStyle, name: []
 /// 从ComputedStyle获取长度值
 pub fn getPropertyLength(computed_style: *const cascade.ComputedStyle, name: []const u8, containing_size: f32) ?f32 {
     if (computed_style.getProperty(name)) |decl| {
-        return parseLength(decl.value, containing_size);
+        // 只返回长度值，如果是其他类型（如关键字），返回null
+        return switch (decl.value) {
+            .length => |l| {
+                if (std.mem.eql(u8, l.unit, "px")) {
+                    return @as(f32, @floatCast(l.value));
+                }
+                // TODO: 支持其他单位
+                return null;
+            },
+            .percentage => |p| {
+                return containing_size * @as(f32, @floatCast(p / 100.0));
+            },
+            else => null, // 关键字值或其他类型，返回null
+        };
     }
     return null;
 }
@@ -383,6 +396,11 @@ pub fn getRowGap(computed_style: *const cascade.ComputedStyle, containing_size: 
         return gap;
     }
     // 检查gap简写属性
+    // gap可能是长度值（单个值）或关键字值（多值属性，如 "10px 20px"）
+    if (getPropertyLength(computed_style, "gap", containing_size)) |gap| {
+        // 单个长度值，同时用于row-gap和column-gap
+        return gap;
+    }
     if (getPropertyKeyword(computed_style, "gap")) |gap_value| {
         // 解析gap简写属性：可能是单个值或两个值（row-gap column-gap）
         // 使用固定大小的数组，最多支持2个值
@@ -422,6 +440,11 @@ pub fn getColumnGap(computed_style: *const cascade.ComputedStyle, containing_siz
         return gap;
     }
     // 检查gap简写属性
+    // gap可能是长度值（单个值）或关键字值（多值属性，如 "10px 20px"）
+    if (getPropertyLength(computed_style, "gap", containing_size)) |gap| {
+        // 单个长度值，同时用于row-gap和column-gap
+        return gap;
+    }
     if (getPropertyKeyword(computed_style, "gap")) |gap_value| {
         // 解析gap简写属性：可能是单个值或两个值（row-gap column-gap）
         // 使用固定大小的数组，最多支持2个值

@@ -4,6 +4,7 @@
 
 ### 新增功能
 - **gap简写属性支持两个值**：现在 `gap` 简写属性支持两个值（`gap: 10px 20px`），第一个值是 `row-gap`，第二个值是 `column-gap`。如果只有一个值，则同时用于 `row-gap` 和 `column-gap`。
+- **gap属性边界测试**：添加了gap属性的边界测试用例，包括单个值、零值、无gap属性等情况，确保各种边界条件都能正确处理。
 
 ### 修复
 - **内联样式解析支持多值属性**：修复了内联样式解析器无法处理多值属性（如 `grid-template-columns: 200px 200px`）的问题。现在多值属性会被正确解析为关键字值，Grid布局能够正确读取 `grid-template-columns` 和 `grid-template-rows` 属性。
@@ -11,6 +12,7 @@
 
 ### 改进
 - **内存泄漏修复**：修复了CSS层叠引擎中内联样式覆盖现有属性时的内存泄漏问题。现在当内联样式覆盖现有属性时，旧的key和value会被正确释放。
+- **getPropertyLength修复**：修复了`getPropertyLength`函数对关键字值返回0而不是null的问题。现在当属性值是关键字类型（如多值属性）时，`getPropertyLength`会正确返回`null`，允许`getPropertyKeyword`正确读取关键字值。
 
 ### 技术细节
 - 修改了 `src/css/cascade.zig` 中的 `parseInlineStyle` 函数，添加了对多值属性的检查

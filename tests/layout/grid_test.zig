@@ -376,3 +376,206 @@ test "layoutGrid with gap shorthand - two values" {
     try testing.expectEqual(@as(f32, 220), item4_box.box_model.content.x);
     try testing.expectEqual(@as(f32, 110), item4_box.box_model.content.y);
 }
+
+test "layoutGrid with gap shorthand boundary - single value" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 创建测试节点
+    const container_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, container_node);
+
+    // 设置inline style属性，使用gap简写属性（单个值：同时用于row-gap和column-gap）
+    if (container_node.asElement()) |elem| {
+        try elem.setAttribute("style", "display: grid; grid-template-columns: 200px 200px; grid-template-rows: 100px 100px; gap: 15px;", allocator);
+    }
+
+    const item1_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, item1_node);
+
+    const item2_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, item2_node);
+
+    const item3_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, item3_node);
+
+    const item4_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, item4_node);
+
+    // 创建布局框
+    var container_box = box.LayoutBox.init(container_node, allocator);
+    container_box.display = .grid;
+    container_box.box_model.content.x = 0;
+    container_box.box_model.content.y = 0;
+    container_box.box_model.content.width = 430; // 2*200 + 15 (gap)
+    container_box.box_model.content.height = 215; // 2*100 + 15 (gap)
+    defer container_box.deinit();
+
+    var item1_box = box.LayoutBox.init(item1_node, allocator);
+    defer item1_box.deinit();
+
+    var item2_box = box.LayoutBox.init(item2_node, allocator);
+    defer item2_box.deinit();
+
+    var item3_box = box.LayoutBox.init(item3_node, allocator);
+    defer item3_box.deinit();
+
+    var item4_box = box.LayoutBox.init(item4_node, allocator);
+    defer item4_box.deinit();
+
+    // 添加子元素
+    try container_box.children.append(allocator, &item1_box);
+    try container_box.children.append(allocator, &item2_box);
+    try container_box.children.append(allocator, &item3_box);
+    try container_box.children.append(allocator, &item4_box);
+    item1_box.parent = &container_box;
+    item2_box.parent = &container_box;
+    item3_box.parent = &container_box;
+    item4_box.parent = &container_box;
+
+    // 执行Grid布局
+    const containing_block = box.Size{ .width = 430, .height = 215 };
+    grid.layoutGrid(&container_box, containing_block, &[_]css.Stylesheet{});
+
+    // 检查布局结果
+    try testing.expect(container_box.is_layouted);
+    try testing.expect(item1_box.is_layouted);
+    try testing.expect(item2_box.is_layouted);
+    try testing.expect(item3_box.is_layouted);
+    try testing.expect(item4_box.is_layouted);
+
+    // 检查位置：item1应该在(0, 0)
+    try testing.expectEqual(@as(f32, 0), item1_box.box_model.content.x);
+    try testing.expectEqual(@as(f32, 0), item1_box.box_model.content.y);
+
+    // item2应该在(200 + 15, 0) = (215, 0) - gap简写属性的单个值同时用于row-gap和column-gap
+    try testing.expectEqual(@as(f32, 215), item2_box.box_model.content.x);
+    try testing.expectEqual(@as(f32, 0), item2_box.box_model.content.y);
+
+    // item3应该在(0, 100 + 15) = (0, 115)
+    try testing.expectEqual(@as(f32, 0), item3_box.box_model.content.x);
+    try testing.expectEqual(@as(f32, 115), item3_box.box_model.content.y);
+
+    // item4应该在(215, 115)
+    try testing.expectEqual(@as(f32, 215), item4_box.box_model.content.x);
+    try testing.expectEqual(@as(f32, 115), item4_box.box_model.content.y);
+}
+
+test "layoutGrid with gap boundary - zero gap" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 创建测试节点
+    const container_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, container_node);
+
+    // 设置inline style属性，gap为0
+    if (container_node.asElement()) |elem| {
+        try elem.setAttribute("style", "display: grid; grid-template-columns: 200px 200px; grid-template-rows: 100px 100px; row-gap: 0px; column-gap: 0px;", allocator);
+    }
+
+    const item1_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, item1_node);
+
+    const item2_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, item2_node);
+
+    // 创建布局框
+    var container_box = box.LayoutBox.init(container_node, allocator);
+    container_box.display = .grid;
+    container_box.box_model.content.x = 0;
+    container_box.box_model.content.y = 0;
+    container_box.box_model.content.width = 400; // 2*200 + 0 (gap)
+    container_box.box_model.content.height = 200; // 2*100 + 0 (gap)
+    defer container_box.deinit();
+
+    var item1_box = box.LayoutBox.init(item1_node, allocator);
+    defer item1_box.deinit();
+
+    var item2_box = box.LayoutBox.init(item2_node, allocator);
+    defer item2_box.deinit();
+
+    // 添加子元素
+    try container_box.children.append(allocator, &item1_box);
+    try container_box.children.append(allocator, &item2_box);
+    item1_box.parent = &container_box;
+    item2_box.parent = &container_box;
+
+    // 执行Grid布局
+    const containing_block = box.Size{ .width = 400, .height = 200 };
+    grid.layoutGrid(&container_box, containing_block, &[_]css.Stylesheet{});
+
+    // 检查布局结果
+    try testing.expect(container_box.is_layouted);
+    try testing.expect(item1_box.is_layouted);
+    try testing.expect(item2_box.is_layouted);
+
+    // 检查位置：item1应该在(0, 0)
+    try testing.expectEqual(@as(f32, 0), item1_box.box_model.content.x);
+    try testing.expectEqual(@as(f32, 0), item1_box.box_model.content.y);
+
+    // item2应该在(200 + 0, 0) = (200, 0) - gap为0，所以没有间距
+    try testing.expectEqual(@as(f32, 200), item2_box.box_model.content.x);
+    try testing.expectEqual(@as(f32, 0), item2_box.box_model.content.y);
+}
+
+test "layoutGrid with gap boundary - no gap property" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 创建测试节点
+    const container_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, container_node);
+
+    // 设置inline style属性，不设置gap属性（应该使用默认值0）
+    if (container_node.asElement()) |elem| {
+        try elem.setAttribute("style", "display: grid; grid-template-columns: 200px 200px; grid-template-rows: 100px 100px;", allocator);
+    }
+
+    const item1_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, item1_node);
+
+    const item2_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, item2_node);
+
+    // 创建布局框
+    var container_box = box.LayoutBox.init(container_node, allocator);
+    container_box.display = .grid;
+    container_box.box_model.content.x = 0;
+    container_box.box_model.content.y = 0;
+    container_box.box_model.content.width = 400; // 2*200 + 0 (默认gap)
+    container_box.box_model.content.height = 200; // 2*100 + 0 (默认gap)
+    defer container_box.deinit();
+
+    var item1_box = box.LayoutBox.init(item1_node, allocator);
+    defer item1_box.deinit();
+
+    var item2_box = box.LayoutBox.init(item2_node, allocator);
+    defer item2_box.deinit();
+
+    // 添加子元素
+    try container_box.children.append(allocator, &item1_box);
+    try container_box.children.append(allocator, &item2_box);
+    item1_box.parent = &container_box;
+    item2_box.parent = &container_box;
+
+    // 执行Grid布局
+    const containing_block = box.Size{ .width = 400, .height = 200 };
+    grid.layoutGrid(&container_box, containing_block, &[_]css.Stylesheet{});
+
+    // 检查布局结果
+    try testing.expect(container_box.is_layouted);
+    try testing.expect(item1_box.is_layouted);
+    try testing.expect(item2_box.is_layouted);
+
+    // 检查位置：item1应该在(0, 0)
+    try testing.expectEqual(@as(f32, 0), item1_box.box_model.content.x);
+    try testing.expectEqual(@as(f32, 0), item1_box.box_model.content.y);
+
+    // item2应该在(200 + 0, 0) = (200, 0) - 默认gap为0
+    try testing.expectEqual(@as(f32, 200), item2_box.box_model.content.x);
+    try testing.expectEqual(@as(f32, 0), item2_box.box_model.content.y);
+}
