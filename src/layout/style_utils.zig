@@ -398,3 +398,116 @@ pub fn getColumnGap(computed_style: *const cascade.ComputedStyle, containing_siz
     }
     return 0.0; // 默认值
 }
+
+/// Grid对齐类型
+pub const GridJustifyItems = enum {
+    start,
+    end,
+    center,
+    stretch,
+};
+
+pub const GridAlignItems = enum {
+    start,
+    end,
+    center,
+    stretch,
+};
+
+pub const GridJustifyContent = enum {
+    start,
+    end,
+    center,
+    stretch,
+    space_around,
+    space_between,
+    space_evenly,
+};
+
+pub const GridAlignContent = enum {
+    start,
+    end,
+    center,
+    stretch,
+    space_around,
+    space_between,
+    space_evenly,
+};
+
+/// 解析justify-items属性
+pub fn parseGridJustifyItems(value: []const u8) GridJustifyItems {
+    if (std.mem.eql(u8, value, "start")) return .start;
+    if (std.mem.eql(u8, value, "end")) return .end;
+    if (std.mem.eql(u8, value, "center")) return .center;
+    if (std.mem.eql(u8, value, "stretch")) return .stretch;
+    // 默认值
+    return .stretch;
+}
+
+/// 解析align-items属性
+pub fn parseGridAlignItems(value: []const u8) GridAlignItems {
+    if (std.mem.eql(u8, value, "start")) return .start;
+    if (std.mem.eql(u8, value, "end")) return .end;
+    if (std.mem.eql(u8, value, "center")) return .center;
+    if (std.mem.eql(u8, value, "stretch")) return .stretch;
+    // 默认值
+    return .stretch;
+}
+
+/// 解析justify-content属性
+pub fn parseGridJustifyContent(value: []const u8) GridJustifyContent {
+    if (std.mem.eql(u8, value, "start")) return .start;
+    if (std.mem.eql(u8, value, "end")) return .end;
+    if (std.mem.eql(u8, value, "center")) return .center;
+    if (std.mem.eql(u8, value, "stretch")) return .stretch;
+    if (std.mem.eql(u8, value, "space-around")) return .space_around;
+    if (std.mem.eql(u8, value, "space-between")) return .space_between;
+    if (std.mem.eql(u8, value, "space-evenly")) return .space_evenly;
+    // 默认值
+    return .start;
+}
+
+/// 解析align-content属性
+pub fn parseGridAlignContent(value: []const u8) GridAlignContent {
+    if (std.mem.eql(u8, value, "start")) return .start;
+    if (std.mem.eql(u8, value, "end")) return .end;
+    if (std.mem.eql(u8, value, "center")) return .center;
+    if (std.mem.eql(u8, value, "stretch")) return .stretch;
+    if (std.mem.eql(u8, value, "space-around")) return .space_around;
+    if (std.mem.eql(u8, value, "space-between")) return .space_between;
+    if (std.mem.eql(u8, value, "space-evenly")) return .space_evenly;
+    // 默认值
+    return .start;
+}
+
+/// 从ComputedStyle获取justify-items属性
+pub fn getGridJustifyItems(computed_style: *const cascade.ComputedStyle) GridJustifyItems {
+    if (getPropertyKeyword(computed_style, "justify-items")) |value| {
+        return parseGridJustifyItems(value);
+    }
+    return .stretch; // 默认值
+}
+
+/// 从ComputedStyle获取align-items属性
+pub fn getGridAlignItems(computed_style: *const cascade.ComputedStyle) GridAlignItems {
+    if (getPropertyKeyword(computed_style, "align-items")) |value| {
+        return parseGridAlignItems(value);
+    }
+    return .stretch; // 默认值
+}
+
+/// 从ComputedStyle获取justify-content属性
+pub fn getGridJustifyContent(computed_style: *const cascade.ComputedStyle) GridJustifyContent {
+    if (getPropertyKeyword(computed_style, "justify-content")) |value| {
+        return parseGridJustifyContent(value);
+    }
+    return .start; // 默认值
+}
+
+/// 从ComputedStyle获取align-content属性
+pub fn getGridAlignContent(computed_style: *const cascade.ComputedStyle) GridAlignContent {
+    if (getPropertyKeyword(computed_style, "align-content")) |value| {
+        return parseGridAlignContent(value);
+    }
+    return .start; // 默认值
+}
