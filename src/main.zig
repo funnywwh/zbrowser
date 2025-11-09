@@ -118,107 +118,52 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
+    // 解析命令行参数
+    const args = try std.process.argsAlloc(allocator);
+    defer std.process.argsFree(allocator, args);
+
+    // 检查参数数量
+    if (args.len < 2) {
+        const stderr = std.fs.File.stderr();
+        const usage_msg = try std.fmt.allocPrint(allocator, "用法: {s} <html文件路径> [输出PNG路径]\n示例: {s} test_page.html output.png\n", .{ args[0], args[0] });
+        defer allocator.free(usage_msg);
+        try stderr.writeAll(usage_msg);
+        std.process.exit(1);
+    }
+
+    const html_file_path = args[1];
+    const output_path = if (args.len >= 3) args[2] else "output.png";
+
+    std.log.info("读取HTML文件: {s}", .{html_file_path});
+    std.log.info("输出PNG文件: {s}", .{output_path});
+
+    // 读取HTML文件
+    const html_file = try std.fs.cwd().openFile(html_file_path, .{});
+    defer html_file.close();
+
+    const html_content = try html_file.readToEndAlloc(allocator, 10 * 1024 * 1024); // 最大10MB
+    defer allocator.free(html_content);
+
+    std.log.info("HTML文件读取成功，大小: {d} 字节", .{html_content.len});
+
     var browser = try Browser.init(allocator);
     defer browser.deinit();
 
-    // 定义HTML body内容（用于输出到文件）
-    const html_body_content =
-        \\  <div class="diagonal-layout">
-        \\    <p class="size-12" style="position: absolute; left: 50px; top: 50px;">12px: Hello World! 你好世界！</p>
-        \\    <p class="size-16" style="position: absolute; left: 100px; top: 120px;">16px: Hello World! 你好世界！</p>
-        \\    <p class="size-24" style="position: absolute; left: 150px; top: 220px;">24px: Hello World! 你好世界！</p>
-        \\    <p class="size-32" style="position: absolute; left: 200px; top: 360px;">32px: Hello World! 你好世界！</p>
-        \\    <p class="size-48" style="position: absolute; left: 250px; top: 550px;">48px: Hello World! 你好世界！</p>
-        \\    <p class="size-64" style="position: absolute; left: 300px; top: 800px;">64px: Hello World! 你好世界！</p>
-        \\    <p class="size-96" style="position: absolute; left: 350px; top: 1150px;">96px: Hello World! 你好世界！</p>
-        \\    <p class="size-128" style="position: absolute; left: 400px; top: 1600px;">128px: Hello World! 你好世界！</p>
-        \\  </div>
-        \\  <div class="chinese-demo" style="position: absolute; left: 600px; top: 100px;">
-        \\    <p style="position: absolute; left: 0px; top: 0px;">简体中文：这是一个测试页面，展示中文字符的渲染效果。</p>
-        \\    <p style="position: absolute; left: 0px; top: 50px;">繁體中文：這是一個測試頁面，展示繁體中文字符的渲染效果。</p>
-        \\    <p style="position: absolute; left: 0px; top: 100px;">日文：これはテストページです。日本語の文字を表示します。</p>
-        \\    <p style="position: absolute; left: 0px; top: 150px;">韩文：이것은 테스트 페이지입니다. 한국어 문자를 표시합니다.</p>
-        \\    <p style="position: absolute; left: 0px; top: 200px;">数字和符号：0123456789 !@#$%^&*()</p>
-        \\  </div>
-    ;
-    
-    // 定义完整的HTML内容 - 演示字体无极放大和中文支持（沿对角线排列）
-    const html_content =
-        \\<!DOCTYPE html>
-        \\<html>
-        \\<head>
-        \\  <title>字体无极放大与中文支持演示</title>
-        \\</head>
-        \\<body>
-    ++ html_body_content ++
-        \\</body>
-        \\</html>
-    ;
-
-    // 定义CSS样式
-    const css_content =
-        \\body {
-        \\  font-family: Arial, sans-serif;
-        \\  margin: 0;
-        \\  padding: 0;
-        \\  background-color: #ffffff;
-        \\  color: #000000;
-        \\}
-        \\.diagonal-layout {
-        \\  position: static;
-        \\}
-        \\.diagonal-layout p {
-        \\  margin: 0;
-        \\  padding: 0;
-        \\  white-space: nowrap;
-        \\}
-        \\.size-12 { font-size: 12px; }
-        \\.size-16 { font-size: 16px; }
-        \\.size-24 { font-size: 24px; }
-        \\.size-32 { font-size: 32px; }
-        \\.size-48 { font-size: 48px; }
-        \\.size-64 { font-size: 64px; }
-        \\.size-96 { font-size: 96px; }
-        \\.size-128 { font-size: 128px; }
-        \\.chinese-demo {
-        \\  /* position: static; removed - use inline style instead */
-        \\}
-        \\.chinese-demo p {
-        \\  margin: 0;
-        \\  padding: 0;
-        \\  font-size: 18px;
-        \\  white-space: nowrap;
-        \\}
-    ;
-
-    // 输出HTML内容到文件（用于在浏览器中验证）
-    const html_output_file = try std.fs.cwd().createFile("parsed_html.html", .{});
-    defer html_output_file.close();
-    const html_with_css = try std.fmt.allocPrint(allocator, 
-        \\<!DOCTYPE html>
-        \\<html>
-        \\<head>
-        \\  <title>字体无极放大与中文支持演示</title>
-        \\  <style>
-        \\{s}
-        \\  </style>
-        \\</head>
-        \\<body>
-        \\{s}
-        \\</body>
-        \\</html>
-    , .{ css_content, html_body_content });
-    defer allocator.free(html_with_css);
-    try html_output_file.writeAll(html_with_css);
-    std.log.debug("HTML content written to: parsed_html.html", .{});
-
     // 加载HTML
     try browser.loadHTML(html_content);
-    std.log.debug("HTML parsed successfully!", .{});
+    std.log.info("HTML解析成功!", .{});
+
+    // 从HTML中提取CSS（从<style>标签）
+    const css_content = try extractCSSFromHTML(allocator, html_content);
+    defer if (css_content) |css| allocator.free(css);
 
     // 添加CSS样式表
-    try browser.addStylesheet(css_content);
-    std.log.debug("CSS stylesheet added successfully!", .{});
+    if (css_content) |css| {
+        try browser.addStylesheet(css);
+        std.log.info("CSS样式表添加成功!", .{});
+    } else {
+        std.log.warn("未找到<style>标签，使用默认样式", .{});
+    }
 
     // 检查body元素是否存在
     if (browser.document.getBody()) |_| {
@@ -259,13 +204,51 @@ pub fn main() !void {
     const calculated_width = @as(u32, @intFromFloat(max_x + margin));
     const calculated_height = @as(u32, @intFromFloat(max_y + margin));
     
-    std.log.debug("Calculated page size: {d}x{d} (max_x={d:.1}, max_y={d:.1})", .{ calculated_width, calculated_height, max_x, max_y });
+    std.log.info("计算页面尺寸: {d}x{d} (max_x={d:.1}, max_y={d:.1})", .{ calculated_width, calculated_height, max_x, max_y });
     
     // 使用计算出的尺寸进行实际渲染
-    const output_path = "output.png";
-    std.log.debug("Rendering page to PNG ({d}x{d})...", .{ calculated_width, calculated_height });
+    std.log.info("渲染页面到PNG ({d}x{d})...", .{ calculated_width, calculated_height });
     try browser.renderToPNG(calculated_width, calculated_height, output_path);
-    std.log.debug("Page rendered successfully to: {s}", .{output_path});
+    std.log.info("页面渲染成功，已保存到: {s}", .{output_path});
+}
+
+/// 从HTML内容中提取CSS（从<style>标签）
+/// 返回提取的CSS内容，如果没有找到则返回null
+fn extractCSSFromHTML(allocator: std.mem.Allocator, html_content: []const u8) !?[]u8 {
+    const style_start_tag = "<style";
+    const style_end_tag = "</style>";
+    
+    var start_pos: ?usize = null;
+    var end_pos: ?usize = null;
+    
+    // 查找第一个<style>标签的开始位置
+    if (std.mem.indexOf(u8, html_content, style_start_tag)) |pos| {
+        // 找到开始标签，查找对应的结束标签
+        const after_start = html_content[pos + style_start_tag.len..];
+        
+        // 查找>符号（可能是<style>或<style ...>）
+        const tag_end = std.mem.indexOf(u8, after_start, ">") orelse return null;
+        const style_content_start = pos + style_start_tag.len + tag_end + 1;
+        
+        // 查找</style>标签
+        if (std.mem.indexOf(u8, html_content[style_content_start..], style_end_tag)) |end_offset| {
+            start_pos = style_content_start;
+            end_pos = style_content_start + end_offset;
+        }
+    }
+    
+    if (start_pos) |start| {
+        if (end_pos) |end| {
+            const css_content = html_content[start..end];
+            // 去除前后空白字符
+            const trimmed = std.mem.trim(u8, css_content, " \t\n\r");
+            if (trimmed.len > 0) {
+                return try allocator.dupe(u8, trimmed);
+            }
+        }
+    }
+    
+    return null;
 }
 
 /// 计算布局树中所有文本节点的最大边界

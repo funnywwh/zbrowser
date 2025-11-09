@@ -580,5 +580,227 @@ test "layoutGrid with gap boundary - no gap property" {
     try testing.expectEqual(@as(f32, 0), item2_box.box_model.content.y);
 }
 
-// TODO: 添加space对齐测试用例（space-between, space-around, space-evenly）
-// 这些测试用例需要等space对齐功能实现后再添加
+test "layoutGrid with justify-content space-between" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 创建测试节点
+    const container_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, container_node);
+
+    // 设置inline style属性
+    if (container_node.asElement()) |elem| {
+        try elem.setAttribute("style", "display: grid; grid-template-columns: 100px 100px; grid-template-rows: 50px; justify-content: space-between;", allocator);
+    }
+
+    const item1_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, item1_node);
+
+    const item2_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, item2_node);
+
+    // 创建布局框
+    var container_box = box.LayoutBox.init(container_node, allocator);
+    container_box.display = .grid;
+    container_box.box_model.content.x = 0;
+    container_box.box_model.content.y = 0;
+    container_box.box_model.content.width = 500; // 容器宽度500，grid宽度200，剩余300
+    container_box.box_model.content.height = 50;
+    defer container_box.deinit();
+
+    var item1_box = box.LayoutBox.init(item1_node, allocator);
+    defer item1_box.deinit();
+
+    var item2_box = box.LayoutBox.init(item2_node, allocator);
+    defer item2_box.deinit();
+
+    // 添加子元素
+    try container_box.children.append(allocator, &item1_box);
+    try container_box.children.append(allocator, &item2_box);
+    item1_box.parent = &container_box;
+    item2_box.parent = &container_box;
+
+    // 执行Grid布局
+    const containing_block = box.Size{ .width = 500, .height = 50 };
+    grid.layoutGrid(&container_box, containing_block, &[_]css.Stylesheet{});
+
+    // 检查布局结果
+    try testing.expect(container_box.is_layouted);
+    try testing.expect(item1_box.is_layouted);
+    try testing.expect(item2_box.is_layouted);
+
+    // space-between: 第一个item在开始位置(0)，第二个item在结束位置(500-100=400)
+    // 剩余空间300分布在两个items之间
+    try testing.expectEqual(@as(f32, 0), item1_box.box_model.content.x);
+    try testing.expectEqual(@as(f32, 400), item2_box.box_model.content.x);
+}
+
+test "layoutGrid with justify-content space-around" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 创建测试节点
+    const container_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, container_node);
+
+    // 设置inline style属性
+    if (container_node.asElement()) |elem| {
+        try elem.setAttribute("style", "display: grid; grid-template-columns: 100px 100px; grid-template-rows: 50px; justify-content: space-around;", allocator);
+    }
+
+    const item1_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, item1_node);
+
+    const item2_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, item2_node);
+
+    // 创建布局框
+    var container_box = box.LayoutBox.init(container_node, allocator);
+    container_box.display = .grid;
+    container_box.box_model.content.x = 0;
+    container_box.box_model.content.y = 0;
+    container_box.box_model.content.width = 500; // 容器宽度500，grid宽度200，剩余300
+    container_box.box_model.content.height = 50;
+    defer container_box.deinit();
+
+    var item1_box = box.LayoutBox.init(item1_node, allocator);
+    defer item1_box.deinit();
+
+    var item2_box = box.LayoutBox.init(item2_node, allocator);
+    defer item2_box.deinit();
+
+    // 添加子元素
+    try container_box.children.append(allocator, &item1_box);
+    try container_box.children.append(allocator, &item2_box);
+    item1_box.parent = &container_box;
+    item2_box.parent = &container_box;
+
+    // 执行Grid布局
+    const containing_block = box.Size{ .width = 500, .height = 50 };
+    grid.layoutGrid(&container_box, containing_block, &[_]css.Stylesheet{});
+
+    // 检查布局结果
+    try testing.expect(container_box.is_layouted);
+    try testing.expect(item1_box.is_layouted);
+    try testing.expect(item2_box.is_layouted);
+
+    // space-around: 每个item两侧都有相等的空间
+    // 剩余空间300，2个items，每个item两侧空间 = 300 / (2*2) = 75
+    // item1应该在75位置，item2应该在75+100+75=250位置
+    try testing.expectEqual(@as(f32, 75), item1_box.box_model.content.x);
+    try testing.expectEqual(@as(f32, 250), item2_box.box_model.content.x);
+}
+
+test "layoutGrid with justify-content space-evenly" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 创建测试节点
+    const container_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, container_node);
+
+    // 设置inline style属性
+    if (container_node.asElement()) |elem| {
+        try elem.setAttribute("style", "display: grid; grid-template-columns: 100px 100px; grid-template-rows: 50px; justify-content: space-evenly;", allocator);
+    }
+
+    const item1_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, item1_node);
+
+    const item2_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, item2_node);
+
+    // 创建布局框
+    var container_box = box.LayoutBox.init(container_node, allocator);
+    container_box.display = .grid;
+    container_box.box_model.content.x = 0;
+    container_box.box_model.content.y = 0;
+    container_box.box_model.content.width = 500; // 容器宽度500，grid宽度200，剩余300
+    container_box.box_model.content.height = 50;
+    defer container_box.deinit();
+
+    var item1_box = box.LayoutBox.init(item1_node, allocator);
+    defer item1_box.deinit();
+
+    var item2_box = box.LayoutBox.init(item2_node, allocator);
+    defer item2_box.deinit();
+
+    // 添加子元素
+    try container_box.children.append(allocator, &item1_box);
+    try container_box.children.append(allocator, &item2_box);
+    item1_box.parent = &container_box;
+    item2_box.parent = &container_box;
+
+    // 执行Grid布局
+    const containing_block = box.Size{ .width = 500, .height = 50 };
+    grid.layoutGrid(&container_box, containing_block, &[_]css.Stylesheet{});
+
+    // 检查布局结果
+    try testing.expect(container_box.is_layouted);
+    try testing.expect(item1_box.is_layouted);
+    try testing.expect(item2_box.is_layouted);
+
+    // space-evenly: 所有空间（包括两端）均匀分布
+    // 剩余空间300，3个间隔（开始-item1、item1-item2、item2-结束），每个间隔 = 300 / 3 = 100
+    // item1应该在100位置，item2应该在100+100+100=300位置
+    try testing.expectEqual(@as(f32, 100), item1_box.box_model.content.x);
+    try testing.expectEqual(@as(f32, 300), item2_box.box_model.content.x);
+}
+
+test "layoutGrid with align-content space-between" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 创建测试节点
+    const container_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, container_node);
+
+    // 设置inline style属性
+    if (container_node.asElement()) |elem| {
+        try elem.setAttribute("style", "display: grid; grid-template-columns: 100px; grid-template-rows: 50px 50px; align-content: space-between;", allocator);
+    }
+
+    const item1_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, item1_node);
+
+    const item2_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, item2_node);
+
+    // 创建布局框
+    var container_box = box.LayoutBox.init(container_node, allocator);
+    container_box.display = .grid;
+    container_box.box_model.content.x = 0;
+    container_box.box_model.content.y = 0;
+    container_box.box_model.content.width = 100;
+    container_box.box_model.content.height = 300; // 容器高度300，grid高度100，剩余200
+    defer container_box.deinit();
+
+    var item1_box = box.LayoutBox.init(item1_node, allocator);
+    defer item1_box.deinit();
+
+    var item2_box = box.LayoutBox.init(item2_node, allocator);
+    defer item2_box.deinit();
+
+    // 添加子元素
+    try container_box.children.append(allocator, &item1_box);
+    try container_box.children.append(allocator, &item2_box);
+    item1_box.parent = &container_box;
+    item2_box.parent = &container_box;
+
+    // 执行Grid布局
+    const containing_block = box.Size{ .width = 100, .height = 300 };
+    grid.layoutGrid(&container_box, containing_block, &[_]css.Stylesheet{});
+
+    // 检查布局结果
+    try testing.expect(container_box.is_layouted);
+    try testing.expect(item1_box.is_layouted);
+    try testing.expect(item2_box.is_layouted);
+
+    // space-between: 第一个item在开始位置(0)，第二个item在结束位置(300-50=250)
+    try testing.expectEqual(@as(f32, 0), item1_box.box_model.content.y);
+    try testing.expectEqual(@as(f32, 250), item2_box.box_model.content.y);
+}

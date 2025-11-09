@@ -44,11 +44,11 @@ pub fn layoutGrid(layout_box: *box.LayoutBox, containing_block: box.Size, styles
         return;
     };
     defer grid_template_columns.deinit(layout_box.allocator);
-
+    
     // 获取gap属性
     const row_gap = style_utils.getRowGap(&computed_style, containing_block.height);
     const column_gap = style_utils.getColumnGap(&computed_style, containing_block.width);
-
+    
     // 获取对齐属性
     const justify_items = style_utils.getGridJustifyItems(&computed_style);
     const align_items = style_utils.getGridAlignItems(&computed_style);
@@ -177,7 +177,7 @@ pub fn layoutGrid(layout_box: *box.LayoutBox, containing_block: box.Size, styles
         // 计算网格cell的位置和尺寸
         const cell_x = container_x + column_positions.items[col] + grid_offset.x;
         const cell_y = container_y + row_positions.items[row] + grid_offset.y;
-
+        
         // 计算cell尺寸
         // column_positions存储每列的起始位置（包括gap的累积位置）
         // 宽度 = 下一列的起始位置 - 当前列的起始位置 - gap（如果有下一列）
@@ -253,24 +253,42 @@ fn applyGridContentAlignment(
     _: std.mem.Allocator, // allocator暂时未使用
 ) std.mem.Allocator.Error!GridOffset {
     var offset = GridOffset{ .x = 0, .y = 0 };
-
+    
     // 计算grid的总宽度和总高度（在调整之前，使用原始值）
     // grid_width = 最后一列的起始位置 + 最后一列的宽度
-    const last_col_start_orig = if (column_positions.items.len > 0) column_positions.items[column_positions.items.len - 1] else 0;
-    const prev_col_start_orig = if (column_positions.items.len > 1) column_positions.items[column_positions.items.len - 2] else 0;
-    const last_col_width_orig = if (column_positions.items.len > 1) last_col_start_orig - prev_col_start_orig - column_gap else last_col_start_orig;
-    const grid_width = last_col_start_orig + last_col_width_orig;
+    // 注意：column_positions存储的是起始位置，所以最后一列的结束位置需要计算
+    const grid_width = if (column_positions.items.len > 0) blk: {
+        if (column_positions.items.len == 1) {
+            // 只有一列：需要从grid_template_columns获取宽度（这里简化处理，使用container_width）
+            break :blk column_positions.items[0];
+        } else {
+            // 多列：最后一列的结束位置 = 最后一列的起始位置 + 最后一列的宽度
+            const last_col_start = column_positions.items[column_positions.items.len - 1];
+            const prev_col_start = column_positions.items[column_positions.items.len - 2];
+            const last_col_width = last_col_start - prev_col_start - column_gap;
+            break :blk last_col_start + last_col_width;
+        }
+    } else 0;
 
     // grid_height = 最后一行的起始位置 + 最后一行的宽度
-    const last_row_start_orig = if (row_positions.items.len > 0) row_positions.items[row_positions.items.len - 1] else 0;
-    const prev_row_start_orig = if (row_positions.items.len > 1) row_positions.items[row_positions.items.len - 2] else 0;
-    const last_row_height_orig = if (row_positions.items.len > 1) last_row_start_orig - prev_row_start_orig - row_gap else last_row_start_orig;
-    const grid_height = last_row_start_orig + last_row_height_orig;
-
+    // 注意：row_positions存储的是起始位置，所以最后一行的结束位置需要计算
+    const grid_height = if (row_positions.items.len > 0) blk: {
+        if (row_positions.items.len == 1) {
+            // 只有一行：需要从grid_template_rows获取高度（这里简化处理，使用container_height）
+            break :blk row_positions.items[0];
+        } else {
+            // 多行：最后一行的结束位置 = 最后一行的起始位置 + 最后一行的宽度
+            const last_row_start = row_positions.items[row_positions.items.len - 1];
+            const prev_row_start = row_positions.items[row_positions.items.len - 2];
+            const last_row_height = last_row_start - prev_row_start - row_gap;
+            break :blk last_row_start + last_row_height;
+        }
+    } else 0;
+    
     // 计算剩余空间
     const free_width = container_width - grid_width;
     const free_height = container_height - grid_height;
-
+    
     // 应用justify-content
     switch (justify_content) {
         .start => offset.x = 0,
@@ -285,18 +303,165 @@ fn applyGridContentAlignment(
                 }
             }
         },
-        .space_between, .space_around, .space_evenly => {
-            // TODO: 简化实现 - space对齐功能需要更复杂的实现
-            // 完整实现需要：
-            // 1. 正确计算grid的总宽度（包括所有列和gap）
-            // 2. 正确计算剩余空间
-            // 3. 根据对齐方式调整column_positions
-            // 4. 确保item位置计算正确
-            // 参考：CSS Grid Layout Module Level 1 - 11.2. Aligning the Grid
+        .space_between => {
+            // space-between: 第一个track在开始位置，最后一个track在结束位置，中间的tracks之间均匀分布
+            if (column_positions.items.len > 1) {
+                const tracks_count = column_positions.items.len;
+                // 保存原始positions（在修改之前）
+                var orig_positions = [_]f32{0} ** 10;
+                if (tracks_count <= orig_positions.len) {
+                    for (0..tracks_count) |i| {
+                        orig_positions[i] = column_positions.items[i];
+                    }
+                }
+                
+                // 计算每个track的宽度（使用原始positions）
+                var track_widths = [_]f32{0} ** 10; // 假设最多10个tracks
+                if (tracks_count <= track_widths.len) {
+                    for (0..tracks_count) |i| {
+                        if (i < tracks_count - 1) {
+                            // 有下一列：宽度 = 下一列起始位置 - 当前列起始位置 - gap
+                            track_widths[i] = orig_positions[i + 1] - orig_positions[i] - column_gap;
+                        } else {
+                            // 最后一列：需要从原始grid_width计算
+                            track_widths[i] = grid_width - orig_positions[i];
+                        }
+                    }
+                    
+                    // 计算总宽度（包括gap）
+                    var total_tracks_width: f32 = 0;
+                    for (0..tracks_count) |i| {
+                        total_tracks_width += track_widths[i];
+                    }
+                    const total_gaps_width = column_gap * @as(f32, @floatFromInt(tracks_count - 1));
+                    const total_grid_width = total_tracks_width + total_gaps_width;
+                    
+                    // 计算剩余空间和gap间距
+                    const remaining_space = container_width - total_grid_width;
+                    const gaps_count = tracks_count - 1;
+                    const gap_size = if (gaps_count > 0) remaining_space / @as(f32, @floatFromInt(gaps_count)) else 0;
+                    
+                    // 重新计算positions（column_positions存储起始位置）
+                    // space-between: 第一个track在0，最后一个track在container_width - last_track_width
+                    column_positions.items[0] = 0;
+                    if (tracks_count > 1) {
+                        // 最后一个track的起始位置 = container_width - 最后一列的宽度
+                        column_positions.items[tracks_count - 1] = container_width - track_widths[tracks_count - 1];
+                        
+                        // 中间的tracks均匀分布
+                        if (tracks_count > 2) {
+                            var current_pos: f32 = track_widths[0] + column_gap + gap_size;
+                            for (1..tracks_count - 1) |i| {
+                                column_positions.items[i] = current_pos;
+                                current_pos += track_widths[i] + column_gap + gap_size;
+                            }
+                        }
+                    }
+                }
+            }
+            offset.x = 0;
+        },
+        .space_around => {
+            // space-around: 每个track两侧都有相等的空间
+            if (column_positions.items.len > 0) {
+                const tracks_count = column_positions.items.len;
+                // 保存原始positions（在修改之前）
+                var orig_positions = [_]f32{0} ** 10;
+                if (tracks_count <= orig_positions.len) {
+                    for (0..tracks_count) |i| {
+                        orig_positions[i] = column_positions.items[i];
+                    }
+                }
+                
+                // 计算每个track的宽度（使用原始positions）
+                var track_widths = [_]f32{0} ** 10; // 假设最多10个tracks
+                if (tracks_count <= track_widths.len) {
+                    for (0..tracks_count) |i| {
+                        if (i < tracks_count - 1) {
+                            // 有下一列：宽度 = 下一列起始位置 - 当前列起始位置 - gap
+                            track_widths[i] = orig_positions[i + 1] - orig_positions[i] - column_gap;
+                        } else {
+                            // 最后一列：需要从原始grid_width计算
+                            track_widths[i] = grid_width - orig_positions[i];
+                        }
+                    }
+                    
+                    // 计算总宽度（包括gap）
+                    var total_tracks_width: f32 = 0;
+                    for (0..tracks_count) |i| {
+                        total_tracks_width += track_widths[i];
+                    }
+                    const total_gaps_width = column_gap * @as(f32, @floatFromInt(tracks_count - 1));
+                    const total_grid_width = total_tracks_width + total_gaps_width;
+                    
+                    // 计算剩余空间和每侧空间
+                    const remaining_space = container_width - total_grid_width;
+                    const space_per_side = remaining_space / @as(f32, @floatFromInt(tracks_count * 2));
+                    
+                    // 重新计算positions（column_positions存储起始位置）
+                    var current_pos = space_per_side;
+                    for (0..tracks_count) |i| {
+                        column_positions.items[i] = current_pos;
+                        if (i < tracks_count - 1) {
+                            current_pos += track_widths[i] + column_gap + space_per_side * 2;
+                        }
+                    }
+                }
+            }
+            offset.x = 0;
+        },
+        .space_evenly => {
+            // space-evenly: 所有空间（包括两端）均匀分布
+            if (column_positions.items.len > 0) {
+                const tracks_count = column_positions.items.len;
+                // 保存原始positions（在修改之前）
+                var orig_positions = [_]f32{0} ** 10;
+                if (tracks_count <= orig_positions.len) {
+                    for (0..tracks_count) |i| {
+                        orig_positions[i] = column_positions.items[i];
+                    }
+                }
+                
+                // 计算每个track的宽度（使用原始positions）
+                var track_widths = [_]f32{0} ** 10; // 假设最多10个tracks
+                if (tracks_count <= track_widths.len) {
+                    for (0..tracks_count) |i| {
+                        if (i < tracks_count - 1) {
+                            // 有下一列：宽度 = 下一列起始位置 - 当前列起始位置 - gap
+                            track_widths[i] = orig_positions[i + 1] - orig_positions[i] - column_gap;
+                        } else {
+                            // 最后一列：需要从原始grid_width计算
+                            track_widths[i] = grid_width - orig_positions[i];
+                        }
+                    }
+                    
+                    // 计算总宽度（包括gap）
+                    var total_tracks_width: f32 = 0;
+                    for (0..tracks_count) |i| {
+                        total_tracks_width += track_widths[i];
+                    }
+                    const total_gaps_width = column_gap * @as(f32, @floatFromInt(tracks_count - 1));
+                    const total_grid_width = total_tracks_width + total_gaps_width;
+                    
+                    // 计算剩余空间和每个gap的间距
+                    const remaining_space = container_width - total_grid_width;
+                    const gaps_count = tracks_count + 1; // 包括两端
+                    const space_per_gap = remaining_space / @as(f32, @floatFromInt(gaps_count));
+                    
+                    // 重新计算positions（column_positions存储起始位置）
+                    var current_pos = space_per_gap;
+                    for (0..tracks_count) |i| {
+                        column_positions.items[i] = current_pos;
+                        if (i < tracks_count - 1) {
+                            current_pos += track_widths[i] + column_gap + space_per_gap;
+                        }
+                    }
+                }
+            }
             offset.x = 0;
         },
     }
-
+    
     // 应用align-content
     switch (align_content) {
         .start => offset.y = 0,
@@ -311,18 +476,165 @@ fn applyGridContentAlignment(
                 }
             }
         },
-        .space_between, .space_around, .space_evenly => {
-            // TODO: 简化实现 - space对齐功能需要更复杂的实现
-            // 完整实现需要：
-            // 1. 正确计算grid的总高度（包括所有行和gap）
-            // 2. 正确计算剩余空间
-            // 3. 根据对齐方式调整row_positions
-            // 4. 确保item位置计算正确
-            // 参考：CSS Grid Layout Module Level 1 - 11.2. Aligning the Grid
+        .space_between => {
+            // space-between: 第一个track在开始位置，最后一个track在结束位置，中间的tracks之间均匀分布
+            if (row_positions.items.len > 1) {
+                const tracks_count = row_positions.items.len;
+                // 保存原始positions（在修改之前）
+                var orig_positions = [_]f32{0} ** 10;
+                if (tracks_count <= orig_positions.len) {
+                    for (0..tracks_count) |i| {
+                        orig_positions[i] = row_positions.items[i];
+                    }
+                }
+                
+                // 计算每个track的高度（使用原始positions）
+                var track_heights = [_]f32{0} ** 10; // 假设最多10个tracks
+                if (tracks_count <= track_heights.len) {
+                    for (0..tracks_count) |i| {
+                        if (i < tracks_count - 1) {
+                            // 有下一行：高度 = 下一行起始位置 - 当前行起始位置 - gap
+                            track_heights[i] = orig_positions[i + 1] - orig_positions[i] - row_gap;
+                        } else {
+                            // 最后一行：需要从原始grid_height计算
+                            track_heights[i] = grid_height - orig_positions[i];
+                        }
+                    }
+                    
+                    // 计算总高度（包括gap）
+                    var total_tracks_height: f32 = 0;
+                    for (0..tracks_count) |i| {
+                        total_tracks_height += track_heights[i];
+                    }
+                    const total_gaps_height = row_gap * @as(f32, @floatFromInt(tracks_count - 1));
+                    const total_grid_height = total_tracks_height + total_gaps_height;
+                    
+                    // 计算剩余空间和gap间距
+                    const remaining_space = container_height - total_grid_height;
+                    const gaps_count = tracks_count - 1;
+                    const gap_size = if (gaps_count > 0) remaining_space / @as(f32, @floatFromInt(gaps_count)) else 0;
+                    
+                    // 重新计算positions（row_positions存储起始位置）
+                    // space-between: 第一个track在0，最后一个track在container_height - last_track_height
+                    row_positions.items[0] = 0;
+                    if (tracks_count > 1) {
+                        // 最后一个track的起始位置 = container_height - 最后一列的高度
+                        row_positions.items[tracks_count - 1] = container_height - track_heights[tracks_count - 1];
+                        
+                        // 中间的tracks均匀分布
+                        if (tracks_count > 2) {
+                            var current_pos: f32 = track_heights[0] + row_gap + gap_size;
+                            for (1..tracks_count - 1) |i| {
+                                row_positions.items[i] = current_pos;
+                                current_pos += track_heights[i] + row_gap + gap_size;
+                            }
+                        }
+                    }
+                }
+            }
+            offset.y = 0;
+        },
+        .space_around => {
+            // space-around: 每个track两侧都有相等的空间
+            if (row_positions.items.len > 0) {
+                const tracks_count = row_positions.items.len;
+                // 保存原始positions（在修改之前）
+                var orig_positions = [_]f32{0} ** 10;
+                if (tracks_count <= orig_positions.len) {
+                    for (0..tracks_count) |i| {
+                        orig_positions[i] = row_positions.items[i];
+                    }
+                }
+                
+                // 计算每个track的高度（使用原始positions）
+                var track_heights = [_]f32{0} ** 10; // 假设最多10个tracks
+                if (tracks_count <= track_heights.len) {
+                    for (0..tracks_count) |i| {
+                        if (i < tracks_count - 1) {
+                            // 有下一行：高度 = 下一行起始位置 - 当前行起始位置 - gap
+                            track_heights[i] = orig_positions[i + 1] - orig_positions[i] - row_gap;
+                        } else {
+                            // 最后一行：需要从原始grid_height计算
+                            track_heights[i] = grid_height - orig_positions[i];
+                        }
+                    }
+                    
+                    // 计算总高度（包括gap）
+                    var total_tracks_height: f32 = 0;
+                    for (0..tracks_count) |i| {
+                        total_tracks_height += track_heights[i];
+                    }
+                    const total_gaps_height = row_gap * @as(f32, @floatFromInt(tracks_count - 1));
+                    const total_grid_height = total_tracks_height + total_gaps_height;
+                    
+                    // 计算剩余空间和每侧空间
+                    const remaining_space = container_height - total_grid_height;
+                    const space_per_side = remaining_space / @as(f32, @floatFromInt(tracks_count * 2));
+                    
+                    // 重新计算positions（row_positions存储起始位置）
+                    var current_pos = space_per_side;
+                    for (0..tracks_count) |i| {
+                        row_positions.items[i] = current_pos;
+                        if (i < tracks_count - 1) {
+                            current_pos += track_heights[i] + row_gap + space_per_side * 2;
+                        }
+                    }
+                }
+            }
+            offset.y = 0;
+        },
+        .space_evenly => {
+            // space-evenly: 所有空间（包括两端）均匀分布
+            if (row_positions.items.len > 0) {
+                const tracks_count = row_positions.items.len;
+                // 保存原始positions（在修改之前）
+                var orig_positions = [_]f32{0} ** 10;
+                if (tracks_count <= orig_positions.len) {
+                    for (0..tracks_count) |i| {
+                        orig_positions[i] = row_positions.items[i];
+                    }
+                }
+                
+                // 计算每个track的高度（使用原始positions）
+                var track_heights = [_]f32{0} ** 10; // 假设最多10个tracks
+                if (tracks_count <= track_heights.len) {
+                    for (0..tracks_count) |i| {
+                        if (i < tracks_count - 1) {
+                            // 有下一行：高度 = 下一行起始位置 - 当前行起始位置 - gap
+                            track_heights[i] = orig_positions[i + 1] - orig_positions[i] - row_gap;
+                        } else {
+                            // 最后一行：需要从原始grid_height计算
+                            track_heights[i] = grid_height - orig_positions[i];
+                        }
+                    }
+                    
+                    // 计算总高度（包括gap）
+                    var total_tracks_height: f32 = 0;
+                    for (0..tracks_count) |i| {
+                        total_tracks_height += track_heights[i];
+                    }
+                    const total_gaps_height = row_gap * @as(f32, @floatFromInt(tracks_count - 1));
+                    const total_grid_height = total_tracks_height + total_gaps_height;
+                    
+                    // 计算剩余空间和每个gap的间距
+                    const remaining_space = container_height - total_grid_height;
+                    const gaps_count = tracks_count + 1; // 包括两端
+                    const space_per_gap = remaining_space / @as(f32, @floatFromInt(gaps_count));
+                    
+                    // 重新计算positions（row_positions存储起始位置）
+                    var current_pos = space_per_gap;
+                    for (0..tracks_count) |i| {
+                        row_positions.items[i] = current_pos;
+                        if (i < tracks_count - 1) {
+                            current_pos += track_heights[i] + row_gap + space_per_gap;
+                        }
+                    }
+                }
+            }
             offset.y = 0;
         },
     }
-
+    
     return offset;
 }
 
@@ -337,7 +649,7 @@ fn applyGridItemAlignment(
     align_items: style_utils.GridAlignItems,
 ) GridOffset {
     var offset = GridOffset{ .x = 0, .y = 0 };
-
+    
     // 应用justify-items
     switch (justify_items) {
         .start => offset.x = 0,
@@ -348,7 +660,7 @@ fn applyGridItemAlignment(
             offset.x = 0;
         },
     }
-
+    
     // 应用align-items
     switch (align_items) {
         .start => offset.y = 0,
@@ -359,7 +671,7 @@ fn applyGridItemAlignment(
             offset.y = 0;
         },
     }
-
+    
     return offset;
 }
 
