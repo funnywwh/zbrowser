@@ -225,21 +225,44 @@ pub const LayoutBox = struct {
     /// 注意：此方法假设所有子节点都是用allocator.create创建的
     /// 如果LayoutBox是用allocator.create创建的，需要先调用deinitAndDestroyChildren()，再调用allocator.destroy()
     pub fn deinitAndDestroyChildren(self: *LayoutBox) void {
-        // 先清理所有子节点
-        const items_len = self.children.items.len;
-        if (items_len > 0) {
-            const children_slice = self.children.items;
-            for (children_slice) |child| {
+        // 先保存所有子节点的指针到独立数组，避免在清理过程中修改children导致迭代器失效
+        // 注意：必须在children.deinit之前保存，因为deinit会释放items的内存
+        const children_count = self.children.items.len;
+        const allocator = self.allocator; // 保存allocator引用，避免在清理过程中失效
+        const capacity = self.children.capacity;
+        
+        if (children_count > 0) {
+            // 分配临时数组来保存子节点指针
+            const children_to_destroy = allocator.alloc(*LayoutBox, children_count) catch {
+                // 如果分配失败，直接清理children（不释放子节点）
+                if (capacity > 0) {
+                    self.children.deinit(allocator);
+                }
+                return;
+            };
+            
+            // 复制子节点指针
+            @memcpy(children_to_destroy, self.children.items);
+            
+            // 先清理ArrayList本身（释放items的内存）
+            if (capacity > 0) {
+                self.children.deinit(allocator);
+            }
+            
+            // 然后递归清理并释放所有子节点
+            for (children_to_destroy) |child| {
                 child.deinitAndDestroyChildren();
                 // 子节点是用allocator.create创建的，需要释放内存
-                self.allocator.destroy(child);
+                allocator.destroy(child);
             }
-        }
-
-        // 然后清理ArrayList本身（只有在capacity > 0时才需要）
-        const capacity = self.children.capacity;
-        if (capacity > 0) {
-            self.children.deinit(self.allocator);
+            
+            // 释放临时数组
+            allocator.free(children_to_destroy);
+        } else {
+            // 没有子节点，直接清理ArrayList
+            if (capacity > 0) {
+                self.children.deinit(allocator);
+            }
         }
     }
 };

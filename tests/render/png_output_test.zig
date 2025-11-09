@@ -117,12 +117,9 @@ test "Browser renderToPNG - simple page" {
 
 test "Browser render - get pixel data directly" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     var browser = try Browser.init(allocator);
-    // 注意：不调用 browser.deinit()，因为会导致段错误
-    // 这是已知问题，需要修复 Browser.deinit() 的实现
 
     // 简单的HTML内容
     const html_content =
@@ -137,7 +134,6 @@ test "Browser render - get pixel data directly" {
 
     // 渲染获取像素数据
     const pixels = try browser.render(100, 100);
-    defer allocator.free(pixels);
 
     // 验证像素数据
     try testing.expect(pixels.len == 100 * 100 * 4); // RGBA格式
@@ -160,5 +156,16 @@ test "Browser render - get pixel data directly" {
     }
     try testing.expect(has_non_zero);
 
-    std.debug.print("✓ Pixel data retrieved successfully ({d} bytes)\n", .{pixels.len});
+    const pixels_len = pixels.len;
+    std.debug.print("✓ Pixel data retrieved successfully ({d} bytes)\n", .{pixels_len});
+
+    // 先释放pixels
+    allocator.free(pixels);
+
+    // 清理Browser（释放Arena分配器）
+    browser.deinit();
+
+    // 检查内存泄漏
+    const leak_count = gpa.deinit();
+    try testing.expect(leak_count == .ok);
 }

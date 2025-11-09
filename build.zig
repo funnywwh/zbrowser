@@ -446,6 +446,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "font", .module = font_module },
             .{ .name = "ttf", .module = font_ttf_module },
             .{ .name = "glyph", .module = font_glyph_module },
+            .{ .name = "backend", .module = render_backend_module },
         },
     });
 
