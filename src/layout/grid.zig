@@ -161,6 +161,8 @@ pub fn layoutGrid(layout_box: *box.LayoutBox, containing_block: box.Size, styles
         layout_box.box_model.content.height,
         justify_content,
         align_content,
+        column_gap,
+        row_gap,
         layout_box.allocator,
     ) catch {
         layoutGridDefault(layout_box, containing_block);
@@ -246,19 +248,24 @@ fn applyGridContentAlignment(
     container_height: f32,
     justify_content: style_utils.GridJustifyContent,
     align_content: style_utils.GridAlignContent,
+    column_gap: f32,
+    row_gap: f32,
     _: std.mem.Allocator, // allocator暂时未使用
 ) std.mem.Allocator.Error!GridOffset {
     var offset = GridOffset{ .x = 0, .y = 0 };
 
-    // 计算grid的总宽度和总高度
-    const grid_width = if (column_positions.items.len > 0)
-        column_positions.items[column_positions.items.len - 1]
-    else
-        0;
-    const grid_height = if (row_positions.items.len > 0)
-        row_positions.items[row_positions.items.len - 1]
-    else
-        0;
+    // 计算grid的总宽度和总高度（在调整之前，使用原始值）
+    // grid_width = 最后一列的起始位置 + 最后一列的宽度
+    const last_col_start_orig = if (column_positions.items.len > 0) column_positions.items[column_positions.items.len - 1] else 0;
+    const prev_col_start_orig = if (column_positions.items.len > 1) column_positions.items[column_positions.items.len - 2] else 0;
+    const last_col_width_orig = if (column_positions.items.len > 1) last_col_start_orig - prev_col_start_orig - column_gap else last_col_start_orig;
+    const grid_width = last_col_start_orig + last_col_width_orig;
+
+    // grid_height = 最后一行的起始位置 + 最后一行的宽度
+    const last_row_start_orig = if (row_positions.items.len > 0) row_positions.items[row_positions.items.len - 1] else 0;
+    const prev_row_start_orig = if (row_positions.items.len > 1) row_positions.items[row_positions.items.len - 2] else 0;
+    const last_row_height_orig = if (row_positions.items.len > 1) last_row_start_orig - prev_row_start_orig - row_gap else last_row_start_orig;
+    const grid_height = last_row_start_orig + last_row_height_orig;
 
     // 计算剩余空间
     const free_width = container_width - grid_width;
@@ -278,8 +285,14 @@ fn applyGridContentAlignment(
                 }
             }
         },
-        .space_around, .space_between, .space_evenly => {
-            // TODO: 实现space对齐（需要调整列之间的间距）
+        .space_between, .space_around, .space_evenly => {
+            // TODO: 简化实现 - space对齐功能需要更复杂的实现
+            // 完整实现需要：
+            // 1. 正确计算grid的总宽度（包括所有列和gap）
+            // 2. 正确计算剩余空间
+            // 3. 根据对齐方式调整column_positions
+            // 4. 确保item位置计算正确
+            // 参考：CSS Grid Layout Module Level 1 - 11.2. Aligning the Grid
             offset.x = 0;
         },
     }
@@ -298,8 +311,14 @@ fn applyGridContentAlignment(
                 }
             }
         },
-        .space_around, .space_between, .space_evenly => {
-            // TODO: 实现space对齐（需要调整行之间的间距）
+        .space_between, .space_around, .space_evenly => {
+            // TODO: 简化实现 - space对齐功能需要更复杂的实现
+            // 完整实现需要：
+            // 1. 正确计算grid的总高度（包括所有行和gap）
+            // 2. 正确计算剩余空间
+            // 3. 根据对齐方式调整row_positions
+            // 4. 确保item位置计算正确
+            // 参考：CSS Grid Layout Module Level 1 - 11.2. Aligning the Grid
             offset.y = 0;
         },
     }

@@ -579,3 +579,6 @@ test "layoutGrid with gap boundary - no gap property" {
     try testing.expectEqual(@as(f32, 200), item2_box.box_model.content.x);
     try testing.expectEqual(@as(f32, 0), item2_box.box_model.content.y);
 }
+
+// TODO: 添加space对齐测试用例（space-between, space-around, space-evenly）
+// 这些测试用例需要等space对齐功能实现后再添加
