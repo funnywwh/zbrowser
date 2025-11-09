@@ -172,43 +172,12 @@ pub fn main() !void {
         std.log.warn("Body element not found", .{});
     }
 
-    // 先进行一次布局计算，获取所有文本的实际位置和宽度
-    // 使用一个较大的初始尺寸进行布局
-    const initial_width: u32 = 5000;
-    const initial_height: u32 = 2500;
-    const initial_viewport = box.Size{ .width = @as(f32, @floatFromInt(initial_width)), .height = @as(f32, @floatFromInt(initial_height)) };
+    // 使用固定尺寸（1920x9000）
+    const render_width: u32 = 1920;
+    const render_height: u32 = 9000;
     
-    // 获取DOM根节点
-    const html_node = browser.document.getDocumentElement() orelse return error.NoDocumentElement;
-    
-    // 构建布局树
-    var layout_engine_instance = layout_engine.LayoutEngine.init(allocator);
-    const layout_tree = try layout_engine_instance.buildLayoutTree(html_node, browser.stylesheets.items);
-    defer layout_tree.deinitAndDestroyChildren();
-    defer allocator.destroy(layout_tree);
-    
-    // 执行布局计算
-    try layout_engine_instance.layout(layout_tree, initial_viewport, browser.stylesheets.items);
-    
-    // 创建临时的CPU渲染后端用于计算文本宽度
-    const temp_backend = try cpu_backend.CpuRenderBackend.init(allocator, initial_width, initial_height);
-    defer temp_backend.deinit();
-    
-    // 遍历布局树，计算所有文本的实际结束位置
-    var max_x: f32 = 0;
-    var max_y: f32 = 0;
-    try calculateMaxBounds(layout_tree, temp_backend, browser.stylesheets.items, &max_x, &max_y);
-    
-    // 根据实际边界计算页面尺寸（加上一些边距）
-    const margin: f32 = 50;
-    const calculated_width = @as(u32, @intFromFloat(max_x + margin));
-    const calculated_height = @as(u32, @intFromFloat(max_y + margin));
-    
-    std.log.info("计算页面尺寸: {d}x{d} (max_x={d:.1}, max_y={d:.1})", .{ calculated_width, calculated_height, max_x, max_y });
-    
-    // 使用计算出的尺寸进行实际渲染
-    std.log.info("渲染页面到PNG ({d}x{d})...", .{ calculated_width, calculated_height });
-    try browser.renderToPNG(calculated_width, calculated_height, output_path);
+    std.log.info("渲染页面到PNG ({d}x{d})...", .{ render_width, render_height });
+    try browser.renderToPNG(render_width, render_height, output_path);
     std.log.info("页面渲染成功，已保存到: {s}", .{output_path});
 }
 
@@ -249,86 +218,4 @@ fn extractCSSFromHTML(allocator: std.mem.Allocator, html_content: []const u8) !?
     }
     
     return null;
-}
-
-/// 计算布局树中所有文本节点的最大边界
-fn calculateMaxBounds(
-    layout_box: *box.LayoutBox,
-    temp_backend: *cpu_backend.CpuRenderBackend,
-    stylesheets: []const css_parser.Stylesheet,
-    max_x: *f32,
-    max_y: *f32,
-) !void {
-    // 如果是文本节点，计算文本宽度
-    if (layout_box.node.node_type == .text) {
-        const text_content = layout_box.node.data.text;
-        
-        // 跳过空白文本
-        if (text_content.len == 0) return;
-        var is_whitespace_only = true;
-        for (text_content) |c| {
-            if (c != ' ' and c != '\n' and c != '\r' and c != '\t') {
-                is_whitespace_only = false;
-                break;
-            }
-        }
-        if (is_whitespace_only) return;
-        
-        // 计算文本的样式和字体
-        var cascade_engine = cascade.Cascade.init(temp_backend.allocator);
-        var computed_style = try cascade_engine.computeStyle(layout_box.node, stylesheets);
-        defer computed_style.deinit();
-        
-        // 如果文本节点没有font-size，尝试从父元素获取
-        var text_computed_style: *cascade.ComputedStyle = &computed_style;
-        var parent_computed_style: cascade.ComputedStyle = undefined;
-        var use_parent_style = false;
-        if (layout_box.parent) |parent| {
-            var parent_cascade_engine = cascade.Cascade.init(temp_backend.allocator);
-            parent_computed_style = try parent_cascade_engine.computeStyle(parent.node, stylesheets);
-            if (computed_style.getProperty("font-size") == null) {
-                use_parent_style = true;
-                text_computed_style = &parent_computed_style;
-            } else {
-                parent_computed_style.deinit();
-            }
-        }
-        defer if (use_parent_style) parent_computed_style.deinit();
-        
-        // 获取字体
-        var font = backend.Font{
-            .family = "Arial",
-            .size = 16,
-            .weight = .normal,
-            .style = .normal,
-        };
-        const containing_width: f32 = 800;
-        if (style_utils.getPropertyLength(text_computed_style, "font-size", containing_width)) |size| {
-            font.size = size;
-        }
-        
-        // 计算文本的实际宽度
-        const text_end_x = temp_backend.calculateTextWidth(text_content, layout_box.box_model.content.x, font) catch |err| {
-            std.log.debug("[calculateMaxBounds] Failed to calculate text width: {}", .{err});
-            // 如果计算失败，使用估算值
-            const char_width = font.size * 0.7;
-            const text_width = char_width * @as(f32, @floatFromInt(text_content.len));
-            const text_end_x = layout_box.box_model.content.x + text_width;
-            max_x.* = @max(max_x.*, text_end_x);
-            return;
-        };
-        
-        // 更新最大x坐标
-        max_x.* = @max(max_x.*, text_end_x);
-        
-        // 计算文本高度（考虑字体大小和行高）
-        const text_height = font.size * 1.5; // 行高约为字体大小的1.5倍
-        const text_bottom = layout_box.box_model.content.y + text_height;
-        max_y.* = @max(max_y.*, text_bottom);
-    }
-    
-    // 递归处理子节点（只处理子节点，不计算容器本身的宽度）
-    for (layout_box.children.items) |child| {
-        try calculateMaxBounds(child, temp_backend, stylesheets, max_x, max_y);
-    }
 }
