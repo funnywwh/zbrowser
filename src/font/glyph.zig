@@ -102,9 +102,9 @@ pub const GlyphRenderer = struct {
         self.fillOutline(pixel_points.items, pixels, width, height, color);
     }
 
-    /// 使用扫描线算法填充轮廓
+    /// 使用扫描线算法填充轮廓（带抗锯齿）
     fn fillOutline(
-        _: *Self,
+        self: *Self,
         points: []const Point,
         pixels: []u8,
         width: u32,
@@ -123,8 +123,8 @@ pub const GlyphRenderer = struct {
             max_y = @max(max_y, p.y);
         }
 
-        const start_scanline = @max(0, @as(i32, @intFromFloat(min_y)));
-        const end_scanline = @min(@as(i32, @intCast(height)), @as(i32, @intFromFloat(max_y)) + 1);
+        const start_scanline = @max(0, @as(i32, @intFromFloat(min_y)) - 1);
+        const end_scanline = @min(@as(i32, @intCast(height)), @as(i32, @intFromFloat(max_y)) + 2);
 
         // 对每条扫描线，计算与轮廓的交点
         var scanline = start_scanline;
@@ -153,27 +153,100 @@ pub const GlyphRenderer = struct {
             // 对交点排序
             std.mem.sort(f32, intersections.items, {}, comptime std.sort.asc(f32));
 
-            // 填充交点之间的区域
+            // 填充交点之间的区域（带抗锯齿）
             var j: usize = 0;
             while (j + 1 < intersections.items.len) : (j += 2) {
                 const x1 = intersections.items[j];
                 const x2 = intersections.items[j + 1];
 
-                const start_x = @max(0, @as(i32, @intFromFloat(x1)));
-                const end_x = @min(@as(i32, @intCast(width)), @as(i32, @intFromFloat(x2)) + 1);
+                const start_x = @max(0, @as(i32, @intFromFloat(x1)) - 1);
+                const end_x = @min(@as(i32, @intCast(width)), @as(i32, @intFromFloat(x2)) + 2);
 
                 var px = start_x;
                 while (px < end_x) : (px += 1) {
-                    const index = (@as(usize, @intCast(scanline)) * width + @as(usize, @intCast(px))) * 4;
-                    if (index + 3 < pixels.len) {
-                        pixels[index] = color.r;
-                        pixels[index + 1] = color.g;
-                        pixels[index + 2] = color.b;
-                        pixels[index + 3] = color.a;
+                    const pixel_x = @as(f32, @floatFromInt(px)) + 0.5;
+                    const coverage = self.calculateCoverage(pixel_x, y, x1, x2);
+                    
+                    if (coverage > 0.0) {
+                        const index = (@as(usize, @intCast(scanline)) * width + @as(usize, @intCast(px))) * 4;
+                        if (index + 3 < pixels.len) {
+                            // 使用alpha混合
+                            const alpha = @as(f32, @floatFromInt(color.a)) / 255.0;
+                            const final_alpha = coverage * alpha;
+                            const final_alpha_u8 = @as(u8, @intFromFloat(final_alpha * 255.0));
+                            
+                            // 如果像素已有内容，进行alpha混合
+                            if (pixels[index + 3] > 0) {
+                                const existing_alpha = @as(f32, @floatFromInt(pixels[index + 3])) / 255.0;
+                                const combined_alpha = existing_alpha + final_alpha * (1.0 - existing_alpha);
+                                
+                                if (combined_alpha > 0.0) {
+                                    const t = final_alpha / combined_alpha;
+                                    pixels[index] = @as(u8, @intFromFloat(@as(f32, @floatFromInt(pixels[index])) * (1.0 - t) + @as(f32, @floatFromInt(color.r)) * t));
+                                    pixels[index + 1] = @as(u8, @intFromFloat(@as(f32, @floatFromInt(pixels[index + 1])) * (1.0 - t) + @as(f32, @floatFromInt(color.g)) * t));
+                                    pixels[index + 2] = @as(u8, @intFromFloat(@as(f32, @floatFromInt(pixels[index + 2])) * (1.0 - t) + @as(f32, @floatFromInt(color.b)) * t));
+                                    pixels[index + 3] = @as(u8, @intFromFloat(combined_alpha * 255.0));
+                                }
+                            } else {
+                                // 直接设置像素
+                                pixels[index] = color.r;
+                                pixels[index + 1] = color.g;
+                                pixels[index + 2] = color.b;
+                                pixels[index + 3] = final_alpha_u8;
+                            }
+                        }
                     }
                 }
             }
         }
+    }
+
+    /// 计算像素的覆盖度（用于抗锯齿）
+    /// 基于像素与轮廓边缘的距离计算平滑的alpha值
+    fn calculateCoverage(_: *Self, pixel_x: f32, _: f32, x1: f32, x2: f32) f32 {
+        const pixel_left = pixel_x - 0.5;
+        const pixel_right = pixel_x + 0.5;
+        
+        // 计算像素与轮廓的重叠部分
+        const overlap_start = @max(pixel_left, x1);
+        const overlap_end = @min(pixel_right, x2);
+        const overlap = @max(0.0, overlap_end - overlap_start);
+        
+        // 如果完全重叠，覆盖度为1.0
+        if (overlap >= 0.99) {
+            return 1.0;
+        }
+        
+        // 如果部分重叠，使用基于距离的平滑过渡
+        const center_x = pixel_x;
+        var coverage: f32 = overlap; // 基础覆盖度
+        
+        // 计算到边缘的距离
+        const dist_to_left = center_x - x1;
+        const dist_to_right = x2 - center_x;
+        const min_dist = @min(@abs(dist_to_left), @abs(dist_to_right));
+        
+        // 如果像素在轮廓内但接近边缘，使用平滑过渡
+        if (center_x >= x1 and center_x < x2) {
+            if (min_dist < 0.75) {
+                // 在边缘0.75像素范围内，使用smoothstep平滑过渡
+                const t = min_dist / 0.75;
+                const smooth = t * t * (3.0 - 2.0 * t); // smoothstep函数
+                coverage = 0.3 + smooth * 0.7; // 在边缘处为0.3，距离0.75像素时为1.0
+            }
+        } else {
+            // 像素在轮廓外，但可能部分覆盖
+            if (min_dist < 0.5) {
+                // 部分覆盖，使用平滑过渡
+                const t = min_dist / 0.5;
+                const smooth = (1.0 - t) * (1.0 - t) * (3.0 - 2.0 * (1.0 - t)); // 反向smoothstep
+                coverage = overlap * smooth;
+            } else {
+                coverage = overlap;
+            }
+        }
+        
+        return @max(0.0, @min(1.0, coverage));
     }
 
     const Point = struct {
