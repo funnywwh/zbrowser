@@ -436,7 +436,16 @@ pub const CpuRenderBackend = struct {
             if (glyph_index_opt) |glyph_index| {
                 const h_metrics = try font_face.getHorizontalMetrics(glyph_index);
                 const advance_width = @as(f32, @floatFromInt(h_metrics.advance_width));
-                current_x += advance_width * scale;
+                // 对于CJK字符，如果advance_width明显大于字体大小，则缩小到字体大小的0.95倍
+                const is_cjk = (codepoint >= 0x4E00 and codepoint <= 0x9FFF) or // 中文
+                               (codepoint >= 0x3040 and codepoint <= 0x309F) or // 日文平假名
+                               (codepoint >= 0x30A0 and codepoint <= 0x30FF) or // 日文片假名
+                               (codepoint >= 0xAC00 and codepoint <= 0xD7AF);    // 韩文
+                const adjusted_advance = if (is_cjk and advance_width * scale > font_size * 1.1)
+                    font_size * 0.95
+                else
+                    advance_width * scale;
+                current_x += adjusted_advance;
             } else {
                 const placeholder_width = font_size * 0.6;
                 current_x += placeholder_width;
@@ -482,7 +491,16 @@ pub const CpuRenderBackend = struct {
             if (glyph_index_opt) |glyph_index| {
                 const h_metrics = try font_face.getHorizontalMetrics(glyph_index);
                 const advance_width = @as(f32, @floatFromInt(h_metrics.advance_width));
-                current_x += advance_width * scale;
+                // 对于CJK字符，如果advance_width明显大于字体大小，则缩小到字体大小的0.95倍
+                const is_cjk = (codepoint >= 0x4E00 and codepoint <= 0x9FFF) or // 中文
+                               (codepoint >= 0x3040 and codepoint <= 0x309F) or // 日文平假名
+                               (codepoint >= 0x30A0 and codepoint <= 0x30FF) or // 日文片假名
+                               (codepoint >= 0xAC00 and codepoint <= 0xD7AF);    // 韩文
+                const adjusted_advance = if (is_cjk and advance_width * scale > font_size * 1.1)
+                    font_size * 0.95
+                else
+                    advance_width * scale;
+                current_x += adjusted_advance;
             } else {
                 // 主字体不支持，尝试备用字体
                 if (fallback_font) |fallback| {
@@ -492,7 +510,16 @@ pub const CpuRenderBackend = struct {
                         const fallback_scale = font_size / @as(f32, @floatFromInt(fallback_metrics.units_per_em));
                         const h_metrics = try fallback.getHorizontalMetrics(fallback_glyph_index);
                         const advance_width = @as(f32, @floatFromInt(h_metrics.advance_width));
-                        current_x += advance_width * fallback_scale;
+                        // 对于CJK字符，如果advance_width明显大于字体大小，则缩小到字体大小的0.95倍
+                        const is_cjk = (codepoint >= 0x4E00 and codepoint <= 0x9FFF) or // 中文
+                                       (codepoint >= 0x3040 and codepoint <= 0x309F) or // 日文平假名
+                                       (codepoint >= 0x30A0 and codepoint <= 0x30FF) or // 日文片假名
+                                       (codepoint >= 0xAC00 and codepoint <= 0xD7AF);    // 韩文
+                        const adjusted_advance = if (is_cjk and advance_width * fallback_scale > font_size * 1.1)
+                            font_size * 0.95
+                        else
+                            advance_width * fallback_scale;
+                        current_x += adjusted_advance;
                         continue;
                     }
                 }
@@ -947,7 +974,16 @@ pub const CpuRenderBackend = struct {
                         );
 
                         const advance_width = @as(f32, @floatFromInt(h_metrics.advance_width));
-                        current_x += advance_width * scale_to_use;
+                        // 对于CJK字符，如果advance_width明显大于字体大小，则缩小到字体大小的0.95倍
+                        const is_cjk = (codepoint >= 0x4E00 and codepoint <= 0x9FFF) or // 中文
+                                       (codepoint >= 0x3040 and codepoint <= 0x309F) or // 日文平假名
+                                       (codepoint >= 0x30A0 and codepoint <= 0x30FF) or // 日文片假名
+                                       (codepoint >= 0xAC00 and codepoint <= 0xD7AF);    // 韩文
+                        const adjusted_advance = if (is_cjk and advance_width * scale_to_use > font_size * 1.1)
+                            font_size * 0.95
+                        else
+                            advance_width * scale_to_use;
+                        current_x += adjusted_advance;
                         continue;
                     }
                 }
@@ -1055,8 +1091,20 @@ pub const CpuRenderBackend = struct {
                 );
 
                 // 移动到下一个字符位置（考虑字符宽度）
+                // 对于中文字符，advance_width可能过大，需要适当缩小
                 const advance_width = @as(f32, @floatFromInt(h_metrics.advance_width));
-                current_x += advance_width * scale;
+                // 检测是否为CJK字符（中文、日文、韩文）
+                const is_cjk = (codepoint >= 0x4E00 and codepoint <= 0x9FFF) or // 中文
+                               (codepoint >= 0x3040 and codepoint <= 0x309F) or // 日文平假名
+                               (codepoint >= 0x30A0 and codepoint <= 0x30FF) or // 日文片假名
+                               (codepoint >= 0xAC00 and codepoint <= 0xD7AF);    // 韩文
+                // 对于CJK字符，如果advance_width明显大于字体大小，则缩小到字体大小的0.95倍
+                // 这样可以减少字符间距，让文本更紧凑
+                const adjusted_advance = if (is_cjk and advance_width * scale > font_size * 1.1)
+                    font_size * 0.95
+                else
+                    advance_width * scale;
+                current_x += adjusted_advance;
             } else {
                 // 如果找不到字形，返回错误，让调用者回退到其他字体
                 // 调试：检查"韩"字（U+97E9）是否找不到字形
