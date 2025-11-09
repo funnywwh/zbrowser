@@ -16,11 +16,25 @@ pub fn calculateBlockWidth(layout_box: *box.LayoutBox, containing_block: box.Siz
 /// 块级布局算法
 /// 根据CSS规范实现块级格式化上下文的布局
 pub fn layoutBlock(layout_box: *box.LayoutBox, containing_block: box.Size) !void {
-    // 1. 计算宽度
-    const width = calculateBlockWidth(layout_box, containing_block);
+    // 1. 计算宽度（考虑margin）
+    // 如果当前元素有margin，可用宽度应该减去margin
+    const available_width = containing_block.width - layout_box.box_model.margin.left - layout_box.box_model.margin.right;
+    const width = calculateBlockWidth(layout_box, box.Size{ .width = available_width, .height = containing_block.height });
     layout_box.box_model.content.width = width;
 
-    // 2. 计算子元素布局
+    // 2. 应用margin到位置（如果父元素存在）
+    // 在块级布局中，元素的margin应该影响元素相对于父元素的位置
+    // 如果父元素存在，当前元素的位置 = 父元素内容区域位置 + 父元素padding + 当前元素margin
+    // 但是，由于布局是递归的，当前元素的位置应该在父元素的block.zig中计算
+    // 这里只处理根元素的位置（根元素的位置不需要margin）
+    if (layout_box.parent == null) {
+        // 根元素的位置是(0, 0)，不需要处理margin
+        layout_box.box_model.content.x = 0;
+        layout_box.box_model.content.y = 0;
+    }
+
+    // 3. 计算子元素布局
+    // 注意：这里y从padding.top开始，因为子元素的位置是相对于父元素的内容区域的
     var y: f32 = layout_box.box_model.padding.top;
 
     // 遍历所有子元素
@@ -45,7 +59,10 @@ pub fn layoutBlock(layout_box: *box.LayoutBox, containing_block: box.Size) !void
         };
         try layoutBlock(child, child_containing_block);
 
-        // 计算子元素位置（考虑margin）
+        // 计算子元素位置（考虑margin和padding）
+        // 子元素的位置 = 父元素内容区域位置 + 父元素padding + 子元素margin
+        // 注意：父元素的margin应该影响父元素的位置，而不是子元素的位置
+        // 所以，子元素的位置是相对于父元素的内容区域的，不需要考虑父元素的margin
         child.box_model.content.x = layout_box.box_model.content.x + layout_box.box_model.padding.left + child.box_model.margin.left;
         child.box_model.content.y = layout_box.box_model.content.y + y + child.box_model.margin.top;
 
@@ -62,6 +79,7 @@ pub fn layoutBlock(layout_box: *box.LayoutBox, containing_block: box.Size) !void
         }
 
         // 更新y坐标（考虑子元素的高度和margin）
+        // y坐标 = 父元素padding-top + 所有前面子元素的高度和margin
         const child_total_height = child.box_model.totalSize().height + child.box_model.margin.top + child.box_model.margin.bottom;
         y += child_total_height;
     }

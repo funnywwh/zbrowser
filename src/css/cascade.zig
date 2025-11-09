@@ -210,6 +210,27 @@ pub const Cascade = struct {
         };
     }
 
+    /// 从十六进制字符串解析颜色值
+    /// 支持#rgb和#rrggbb格式
+    fn parseColorFromHash(self: Cascade, hash: []const u8) !parser.Value.Color {
+        _ = self;
+        // 解析#rgb或#rrggbb格式
+        if (hash.len == 3) {
+            // #rgb格式
+            const r = try std.fmt.parseInt(u8, &[_]u8{ hash[0], hash[0] }, 16);
+            const g = try std.fmt.parseInt(u8, &[_]u8{ hash[1], hash[1] }, 16);
+            const b = try std.fmt.parseInt(u8, &[_]u8{ hash[2], hash[2] }, 16);
+            return parser.Value.Color{ .r = r, .g = g, .b = b };
+        } else if (hash.len == 6) {
+            // #rrggbb格式
+            const r = try std.fmt.parseInt(u8, hash[0..2], 16);
+            const g = try std.fmt.parseInt(u8, hash[2..4], 16);
+            const b = try std.fmt.parseInt(u8, hash[4..6], 16);
+            return parser.Value.Color{ .r = r, .g = g, .b = b };
+        }
+        return error.InvalidColor;
+    }
+
     /// 解析内联样式（style属性）
     /// 格式：property: value; property: value; ...
     /// 简化实现：手动解析，不依赖CSS解析器的内部方法
@@ -239,10 +260,30 @@ pub const Cascade = struct {
             // 复制属性名
             const name = try self.allocator.dupe(u8, property_name);
 
-            // 解析值（简化：只支持关键字和长度值）
+            // 解析值（支持关键字、长度值、颜色值）
             var value: parser.Value = undefined;
-            // 检查是否包含空格（多值属性，如 grid-template-columns: 200px 200px）
-            if (std.mem.indexOfScalar(u8, value_str, ' ') != null) {
+            // 检查是否是颜色值（以#开头）
+            if (value_str.len > 0 and value_str[0] == '#') {
+                // 解析颜色值（#rgb或#rrggbb格式）
+                const color_hash = value_str[1..]; // 去掉#号
+                const color = self.parseColorFromHash(color_hash) catch {
+                    // 如果解析失败，作为关键字处理
+                    const keyword = try self.allocator.dupe(u8, value_str);
+                    value = parser.Value{ .keyword = keyword };
+                    std.log.debug("[Cascade] parseInlineStyle: failed to parse color, parsed as keyword property '{s}' = '{s}'", .{ property_name, keyword });
+                    const decl = parser.Declaration{
+                        .name = name,
+                        .value = value,
+                        .important = false,
+                        .allocator = self.allocator,
+                    };
+                    try declarations.append(self.allocator, decl);
+                    continue;
+                };
+                value = parser.Value{ .color = color };
+                std.log.debug("[Cascade] parseInlineStyle: parsed color property '{s}' = #{x:0>2}{x:0>2}{x:0>2}", .{ property_name, color.r, color.g, color.b });
+            } else if (std.mem.indexOfScalar(u8, value_str, ' ') != null) {
+                // 检查是否包含空格（多值属性，如 grid-template-columns: 200px 200px）
                 // 多值属性，作为关键字存储
                 const keyword = try self.allocator.dupe(u8, value_str);
                 value = parser.Value{ .keyword = keyword };

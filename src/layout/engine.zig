@@ -138,6 +138,13 @@ pub const LayoutEngine = struct {
                     .height = layout_tree.box_model.content.height,
                 };
                 try self.layout(child, containing_block, stylesheets);
+                
+                // 在块级布局中，父元素的margin应该影响父元素的位置
+                // 关键问题：父元素（layout_tree）的位置需要包含margin
+                // 但是，由于布局是递归的，父元素的位置应该在父元素的父元素的block.zig中计算
+                // 这里不需要处理，因为child的位置已经在block.zig中计算了
+                // 但是，我们需要确保父元素的位置包含了父元素的margin
+                // 这应该在父元素的父元素的block.zig中处理
             }
             
             // 然后处理absolute和fixed定位的子元素

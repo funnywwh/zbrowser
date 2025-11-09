@@ -152,9 +152,235 @@ pub fn applyStyleToLayoutBox(layout_box: *box.LayoutBox, computed_style: *const 
         std.log.debug("[StyleUtils] applyStyleToLayoutBox: position_left={d:.1}", .{left});
     }
 
-    // TODO: 解析padding、border、margin
+    // 解析margin
+    parseMargin(layout_box, computed_style, containing_size);
+
+    // 解析padding
+    parsePadding(layout_box, computed_style, containing_size);
+
+    // TODO: 解析border
     // TODO: 解析width、height
     // TODO: 解析box-sizing
+}
+
+/// 解析margin属性
+/// 支持格式：
+/// - margin: 10px (所有边)
+/// - margin: 10px 0 (上下 左右)
+/// - margin: 10px 0 5px 0 (上 右 下 左)
+/// - margin-top, margin-right, margin-bottom, margin-left (单独属性)
+fn parseMargin(layout_box: *box.LayoutBox, computed_style: *const cascade.ComputedStyle, containing_size: box.Size) void {
+    // 先检查单独的margin属性
+    if (getPropertyLength(computed_style, "margin-top", containing_size.height)) |top| {
+        layout_box.box_model.margin.top = top;
+    }
+    if (getPropertyLength(computed_style, "margin-right", containing_size.width)) |right| {
+        layout_box.box_model.margin.right = right;
+    }
+    if (getPropertyLength(computed_style, "margin-bottom", containing_size.height)) |bottom| {
+        layout_box.box_model.margin.bottom = bottom;
+    }
+    if (getPropertyLength(computed_style, "margin-left", containing_size.width)) |left| {
+        layout_box.box_model.margin.left = left;
+    }
+
+    // 检查margin简写属性（会覆盖单独属性）
+    // 先尝试从length获取（如果margin是单个值，可能被解析为length）
+    if (getPropertyLength(computed_style, "margin", containing_size.width)) |margin_length| {
+        // 单个长度值，所有边都是这个值
+        layout_box.box_model.margin.top = margin_length;
+        layout_box.box_model.margin.right = margin_length;
+        layout_box.box_model.margin.bottom = margin_length;
+        layout_box.box_model.margin.left = margin_length;
+        std.log.debug("[StyleUtils] parseMargin: found margin as length = {d:.1}px", .{margin_length});
+    } else if (getPropertyKeyword(computed_style, "margin")) |margin_value| {
+        std.log.debug("[StyleUtils] parseMargin: found margin shorthand = '{s}'", .{margin_value});
+        parseMarginShorthand(layout_box, margin_value, containing_size);
+        std.log.debug("[StyleUtils] parseMargin: applied margin = top={d:.1}, right={d:.1}, bottom={d:.1}, left={d:.1}", .{
+            layout_box.box_model.margin.top,
+            layout_box.box_model.margin.right,
+            layout_box.box_model.margin.bottom,
+            layout_box.box_model.margin.left,
+        });
+    }
+}
+
+/// 解析margin简写属性
+/// 格式：margin: <top> <right> <bottom> <left>
+/// 或：margin: <vertical> <horizontal>
+/// 或：margin: <all>
+fn parseMarginShorthand(layout_box: *box.LayoutBox, margin_value: []const u8, _: box.Size) void {
+    // 按空格分割值
+    var parts = std.mem.splitSequence(u8, margin_value, " ");
+    var values: [4]?f32 = .{ null, null, null, null };
+    var count: usize = 0;
+
+    while (parts.next()) |part| {
+        if (count >= 4) break; // 最多4个值
+
+        const trimmed = std.mem.trim(u8, part, " \t\n\r");
+        if (trimmed.len == 0) continue;
+
+        // 解析长度值（简化：只支持px）
+        if (std.mem.endsWith(u8, trimmed, "px")) {
+            const num_str = trimmed[0 .. trimmed.len - 2];
+            if (std.fmt.parseFloat(f32, num_str)) |num| {
+                values[count] = num;
+                count += 1;
+            } else |_| {}
+        } else if (std.mem.eql(u8, trimmed, "0")) {
+            // 支持 "0" 作为 0px
+            values[count] = 0;
+            count += 1;
+        }
+    }
+
+    // 根据值的数量应用margin
+    if (count == 1) {
+        // 单个值：所有边都是这个值
+        const value = values[0] orelse return;
+        layout_box.box_model.margin.top = value;
+        layout_box.box_model.margin.right = value;
+        layout_box.box_model.margin.bottom = value;
+        layout_box.box_model.margin.left = value;
+    } else if (count == 2) {
+        // 两个值：上下 左右
+        const vertical = values[0] orelse return;
+        const horizontal = values[1] orelse return;
+        layout_box.box_model.margin.top = vertical;
+        layout_box.box_model.margin.right = horizontal;
+        layout_box.box_model.margin.bottom = vertical;
+        layout_box.box_model.margin.left = horizontal;
+    } else if (count == 3) {
+        // 三个值：上 左右 下
+        const top = values[0] orelse return;
+        const horizontal = values[1] orelse return;
+        const bottom = values[2] orelse return;
+        layout_box.box_model.margin.top = top;
+        layout_box.box_model.margin.right = horizontal;
+        layout_box.box_model.margin.bottom = bottom;
+        layout_box.box_model.margin.left = horizontal;
+    } else if (count == 4) {
+        // 四个值：上 右 下 左
+        const top = values[0] orelse return;
+        const right = values[1] orelse return;
+        const bottom = values[2] orelse return;
+        const left = values[3] orelse return;
+        layout_box.box_model.margin.top = top;
+        layout_box.box_model.margin.right = right;
+        layout_box.box_model.margin.bottom = bottom;
+        layout_box.box_model.margin.left = left;
+    }
+}
+
+/// 解析padding属性
+/// 支持格式：
+/// - padding: 10px (所有边)
+/// - padding: 10px 0 (上下 左右)
+/// - padding: 10px 0 5px 0 (上 右 下 左)
+/// - padding-top, padding-right, padding-bottom, padding-left (单独属性)
+fn parsePadding(layout_box: *box.LayoutBox, computed_style: *const cascade.ComputedStyle, containing_size: box.Size) void {
+    // 先检查单独的padding属性
+    if (getPropertyLength(computed_style, "padding-top", containing_size.height)) |top| {
+        layout_box.box_model.padding.top = top;
+    }
+    if (getPropertyLength(computed_style, "padding-right", containing_size.width)) |right| {
+        layout_box.box_model.padding.right = right;
+    }
+    if (getPropertyLength(computed_style, "padding-bottom", containing_size.height)) |bottom| {
+        layout_box.box_model.padding.bottom = bottom;
+    }
+    if (getPropertyLength(computed_style, "padding-left", containing_size.width)) |left| {
+        layout_box.box_model.padding.left = left;
+    }
+
+    // 检查padding简写属性（会覆盖单独属性）
+    // 先尝试从length获取（如果padding是单个值，可能被解析为length）
+    if (getPropertyLength(computed_style, "padding", containing_size.width)) |padding_length| {
+        // 单个长度值，所有边都是这个值
+        layout_box.box_model.padding.top = padding_length;
+        layout_box.box_model.padding.right = padding_length;
+        layout_box.box_model.padding.bottom = padding_length;
+        layout_box.box_model.padding.left = padding_length;
+        std.log.debug("[StyleUtils] parsePadding: found padding as length = {d:.1}px", .{padding_length});
+    } else if (getPropertyKeyword(computed_style, "padding")) |padding_value| {
+        std.log.debug("[StyleUtils] parsePadding: found padding shorthand = '{s}'", .{padding_value});
+        parsePaddingShorthand(layout_box, padding_value, containing_size);
+        std.log.debug("[StyleUtils] parsePadding: applied padding = top={d:.1}, right={d:.1}, bottom={d:.1}, left={d:.1}", .{
+            layout_box.box_model.padding.top,
+            layout_box.box_model.padding.right,
+            layout_box.box_model.padding.bottom,
+            layout_box.box_model.padding.left,
+        });
+    }
+}
+
+/// 解析padding简写属性
+/// 格式：padding: <top> <right> <bottom> <left>
+/// 或：padding: <vertical> <horizontal>
+/// 或：padding: <all>
+fn parsePaddingShorthand(layout_box: *box.LayoutBox, padding_value: []const u8, _: box.Size) void {
+    // 按空格分割值
+    var parts = std.mem.splitSequence(u8, padding_value, " ");
+    var values: [4]?f32 = .{ null, null, null, null };
+    var count: usize = 0;
+
+    while (parts.next()) |part| {
+        if (count >= 4) break; // 最多4个值
+
+        const trimmed = std.mem.trim(u8, part, " \t\n\r");
+        if (trimmed.len == 0) continue;
+
+        // 解析长度值（简化：只支持px）
+        if (std.mem.endsWith(u8, trimmed, "px")) {
+            const num_str = trimmed[0 .. trimmed.len - 2];
+            if (std.fmt.parseFloat(f32, num_str)) |num| {
+                values[count] = num;
+                count += 1;
+            } else |_| {}
+        } else if (std.mem.eql(u8, trimmed, "0")) {
+            // 支持 "0" 作为 0px
+            values[count] = 0;
+            count += 1;
+        }
+    }
+
+    // 根据值的数量应用padding
+    if (count == 1) {
+        // 单个值：所有边都是这个值
+        const value = values[0] orelse return;
+        layout_box.box_model.padding.top = value;
+        layout_box.box_model.padding.right = value;
+        layout_box.box_model.padding.bottom = value;
+        layout_box.box_model.padding.left = value;
+    } else if (count == 2) {
+        // 两个值：上下 左右
+        const vertical = values[0] orelse return;
+        const horizontal = values[1] orelse return;
+        layout_box.box_model.padding.top = vertical;
+        layout_box.box_model.padding.right = horizontal;
+        layout_box.box_model.padding.bottom = vertical;
+        layout_box.box_model.padding.left = horizontal;
+    } else if (count == 3) {
+        // 三个值：上 左右 下
+        const top = values[0] orelse return;
+        const horizontal = values[1] orelse return;
+        const bottom = values[2] orelse return;
+        layout_box.box_model.padding.top = top;
+        layout_box.box_model.padding.right = horizontal;
+        layout_box.box_model.padding.bottom = bottom;
+        layout_box.box_model.padding.left = horizontal;
+    } else if (count == 4) {
+        // 四个值：上 右 下 左
+        const top = values[0] orelse return;
+        const right = values[1] orelse return;
+        const bottom = values[2] orelse return;
+        const left = values[3] orelse return;
+        layout_box.box_model.padding.top = top;
+        layout_box.box_model.padding.right = right;
+        layout_box.box_model.padding.bottom = bottom;
+        layout_box.box_model.padding.left = left;
+    }
 }
 
 /// Flexbox属性解析

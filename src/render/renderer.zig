@@ -103,16 +103,16 @@ pub const Renderer = struct {
             try self.renderBackground(layout_box, &computed_style, border_rect);
         }
 
-        // 2. 绘制边框
-        try self.renderBorder(layout_box, &computed_style, border_rect);
-
-        // 3. 递归渲染子节点（先渲染子节点，确保文本在背景之上）
+        // 2. 递归渲染子节点（先渲染子节点，确保文本在背景之上）
         for (layout_box.children.items) |child| {
             try self.renderLayoutBox(child);
         }
 
-        // 4. 绘制内容（文本）- 在子节点之后绘制，确保文本在最上层
+        // 3. 绘制内容（文本）- 在子节点之后绘制，确保文本在最上层
         try self.renderContent(layout_box, &computed_style, content_rect);
+
+        // 4. 绘制边框（最后绘制，确保边框在最上层）
+        try self.renderBorder(layout_box, &computed_style, border_rect);
     }
 
     /// 渲染背景
@@ -138,11 +138,22 @@ pub const Renderer = struct {
         const border_color = self.getBorderColor(computed_style);
         const border_width = self.getBorderWidth(computed_style);
 
+        std.log.debug("[Renderer] renderBorder: border_color={?}, border_width={d:.1}, rect=({d:.1}, {d:.1}, {d:.1}x{d:.1})", .{
+            border_color, border_width, rect.x, rect.y, rect.width, rect.height,
+        });
+
         if (border_color) |color| {
             if (border_width > 0) {
                 // 绘制边框
+                std.log.debug("[Renderer] renderBorder: calling strokeRect with color=#{x:0>2}{x:0>2}{x:0>2}, width={d:.1}", .{
+                    color.r, color.g, color.b, border_width,
+                });
                 self.render_backend.strokeRect(rect, color, border_width);
+            } else {
+                std.log.debug("[Renderer] renderBorder: border_width is 0, skipping", .{});
             }
+        } else {
+            std.log.debug("[Renderer] renderBorder: border_color is null, skipping", .{});
         }
     }
 
@@ -238,11 +249,45 @@ pub const Renderer = struct {
     fn getBorderColor(self: *Renderer, computed_style: *const cascade.ComputedStyle) ?backend.Color {
         // 从computed_style中解析border-color属性
         if (style_utils.getPropertyColor(computed_style, "border-color")) |color| {
+            std.log.debug("[Renderer] getBorderColor: found border-color property", .{});
             return backend.Color.rgb(color.r, color.g, color.b);
+        }
+        // 如果没有设置border-color，尝试从border简写属性中提取颜色
+        // 先检查computed_style中是否有border属性
+        if (computed_style.getProperty("border")) |decl| {
+            std.log.debug("[Renderer] getBorderColor: found border property in computed_style, value type = {s}", .{@tagName(decl.value)});
+            if (decl.value == .keyword) {
+                const border_value = decl.value.keyword;
+                std.log.debug("[Renderer] getBorderColor: found border shorthand property = '{s}'", .{border_value});
+                if (self.parseBorderShorthand(border_value)) |border_info| {
+                    if (border_info.color) |color| {
+                        std.log.debug("[Renderer] getBorderColor: parsed color from border shorthand = #{x:0>2}{x:0>2}{x:0>2}", .{ color.r, color.g, color.b });
+                        return backend.Color.rgb(color.r, color.g, color.b);
+                    } else {
+                        std.log.debug("[Renderer] getBorderColor: border shorthand has no color", .{});
+                    }
+                } else {
+                    std.log.debug("[Renderer] getBorderColor: failed to parse border shorthand", .{});
+                }
+            }
+        }
+        // 也尝试使用style_utils.getPropertyKeyword（兼容性检查）
+        if (style_utils.getPropertyKeyword(computed_style, "border")) |border_value| {
+            std.log.debug("[Renderer] getBorderColor: found border shorthand property via style_utils = '{s}'", .{border_value});
+            if (self.parseBorderShorthand(border_value)) |border_info| {
+                if (border_info.color) |color| {
+                    std.log.debug("[Renderer] getBorderColor: parsed color from border shorthand = #{x:0>2}{x:0>2}{x:0>2}", .{ color.r, color.g, color.b });
+                    return backend.Color.rgb(color.r, color.g, color.b);
+                }
+            }
+        } else {
+            std.log.debug("[Renderer] getBorderColor: no border property found", .{});
         }
         // 如果没有设置border-color，检查是否有border-width
         // 如果有border-width但没有color，返回默认黑色
-        if (self.getBorderWidth(computed_style) > 0) {
+        const border_width = self.getBorderWidth(computed_style);
+        if (border_width > 0) {
+            std.log.debug("[Renderer] getBorderColor: border-width > 0, using default black", .{});
             return backend.Color.rgb(0, 0, 0); // 默认黑色边框
         }
         return null; // 无边框
@@ -250,19 +295,107 @@ pub const Renderer = struct {
 
     /// 获取边框宽度
     fn getBorderWidth(self: *Renderer, computed_style: *const cascade.ComputedStyle) f32 {
-        _ = self;
         // 从computed_style中解析border-width属性
         // 简化：使用包含块宽度作为参考（实际应该使用元素的宽度）
         const containing_width: f32 = 800; // 简化：使用固定值
         if (style_utils.getPropertyLength(computed_style, "border-width", containing_width)) |width| {
+            std.log.debug("[Renderer] getBorderWidth: found border-width property = {d:.1}", .{width});
             return width;
+        }
+        // 如果没有设置border-width，尝试从border简写属性中提取宽度
+        if (style_utils.getPropertyKeyword(computed_style, "border")) |border_value| {
+            std.log.debug("[Renderer] getBorderWidth: found border shorthand property = '{s}'", .{border_value});
+            if (self.parseBorderShorthand(border_value)) |border_info| {
+                if (border_info.width) |width| {
+                    std.log.debug("[Renderer] getBorderWidth: parsed width from border shorthand = {d:.1}", .{width});
+                    return width;
+                } else {
+                    std.log.debug("[Renderer] getBorderWidth: border shorthand has no width", .{});
+                }
+            } else {
+                std.log.debug("[Renderer] getBorderWidth: failed to parse border shorthand", .{});
+            }
+        } else {
+            std.log.debug("[Renderer] getBorderWidth: no border property found", .{});
         }
         // 如果没有设置border-width，检查border-top-width等单独属性
         // 简化：只检查border-top-width
         if (style_utils.getPropertyLength(computed_style, "border-top-width", containing_width)) |width| {
+            std.log.debug("[Renderer] getBorderWidth: found border-top-width property = {d:.1}", .{width});
             return width;
         }
+        std.log.debug("[Renderer] getBorderWidth: no border width found, returning 0", .{});
         return 0;
+    }
+
+    /// 解析border简写属性
+    /// 格式：border: <width> <style> <color>
+    /// 例如：border: 2px solid #2196f3
+    fn parseBorderShorthand(self: *Renderer, border_value: []const u8) ?struct { width: ?f32, style: ?[]const u8, color: ?css_parser.Value.Color } {
+        _ = self;
+        // 按空格分割值
+        var parts = std.mem.splitSequence(u8, border_value, " ");
+        var width: ?f32 = null;
+        var style: ?[]const u8 = null;
+        var color: ?css_parser.Value.Color = null;
+        
+        while (parts.next()) |part| {
+            const trimmed = std.mem.trim(u8, part, " \t\n\r");
+            if (trimmed.len == 0) continue;
+            
+            // 检查是否是长度值（如 "2px"）
+            if (std.mem.indexOfScalar(u8, trimmed, 'p') != null and std.mem.indexOfScalar(u8, trimmed, 'x') != null) {
+                const px_pos = std.mem.indexOfScalar(u8, trimmed, 'p') orelse continue;
+                if (px_pos + 1 < trimmed.len and trimmed[px_pos + 1] == 'x') {
+                    const num_str = std.mem.trim(u8, trimmed[0..px_pos], " \t\n\r");
+                    if (std.fmt.parseFloat(f64, num_str)) |num| {
+                        width = @as(f32, @floatCast(num));
+                        continue;
+                    } else |_| {}
+                }
+            }
+            
+            // 检查是否是颜色值（以#开头）
+            if (trimmed.len > 0 and trimmed[0] == '#') {
+                const color_hash = trimmed[1..]; // 去掉#号
+                if (parseColorFromHashStatic(color_hash) catch null) |c| {
+                    color = c;
+                    continue;
+                }
+            }
+            
+            // 检查是否是边框样式关键字（solid, dashed, dotted等）
+            if (std.mem.eql(u8, trimmed, "solid") or
+                std.mem.eql(u8, trimmed, "dashed") or
+                std.mem.eql(u8, trimmed, "dotted") or
+                std.mem.eql(u8, trimmed, "double") or
+                std.mem.eql(u8, trimmed, "none"))
+            {
+                style = trimmed;
+                continue;
+            }
+        }
+        
+        return .{ .width = width, .style = style, .color = color };
+    }
+
+    /// 从十六进制字符串解析颜色值（静态辅助函数）
+    fn parseColorFromHashStatic(hash: []const u8) !css_parser.Value.Color {
+        // 解析#rgb或#rrggbb格式
+        if (hash.len == 3) {
+            // #rgb格式
+            const r = try std.fmt.parseInt(u8, &[_]u8{ hash[0], hash[0] }, 16);
+            const g = try std.fmt.parseInt(u8, &[_]u8{ hash[1], hash[1] }, 16);
+            const b = try std.fmt.parseInt(u8, &[_]u8{ hash[2], hash[2] }, 16);
+            return css_parser.Value.Color{ .r = r, .g = g, .b = b };
+        } else if (hash.len == 6) {
+            // #rrggbb格式
+            const r = try std.fmt.parseInt(u8, hash[0..2], 16);
+            const g = try std.fmt.parseInt(u8, hash[2..4], 16);
+            const b = try std.fmt.parseInt(u8, hash[4..6], 16);
+            return css_parser.Value.Color{ .r = r, .g = g, .b = b };
+        }
+        return error.InvalidColor;
     }
 
     /// 获取文本颜色

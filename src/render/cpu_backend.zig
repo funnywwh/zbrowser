@@ -290,6 +290,7 @@ pub const CpuRenderBackend = struct {
 
         // 绘制上边框
         const top_y_end = @min(end_y, start_y + stroke_width);
+        var pixels_drawn: usize = 0;
         var y = start_y;
         while (y < top_y_end) : (y += 1) {
             var x = start_x;
@@ -299,8 +300,10 @@ pub const CpuRenderBackend = struct {
                 self.pixels[index + 1] = color.g;
                 self.pixels[index + 2] = color.b;
                 self.pixels[index + 3] = color.a;
+                pixels_drawn += 1;
             }
         }
+        log.debug("strokeRectInternal: drew top border, pixels_drawn={d}", .{pixels_drawn});
 
         // 绘制下边框
         const bottom_y_start = @max(start_y, end_y - stroke_width);
@@ -699,10 +702,61 @@ pub const CpuRenderBackend = struct {
         }
         
         if (font_face) |face| {
-            // 字体已加载，使用真正的字形渲染
-            self.renderTextWithFont(face, text, x, y, font.size, color) catch |err| {
-                // 如果渲染失败，回退到占位符
-                log.debug("fillTextInternal: font rendering failed: {}, falling back to placeholder\n", .{err});
+            // 字体已加载，使用真正的字形渲染，支持字体回退
+            // 构建字体回退列表：主字体 + 其他已加载的字体
+            var fallback_fonts = std.ArrayList(*font_module.FontFace){};
+            defer fallback_fonts.deinit(self.allocator);
+            
+            fallback_fonts.append(self.allocator, face) catch {};
+            
+            // 添加其他已加载的字体作为回退
+            if (self.font_manager.getFont("ChineseFont")) |chinese_font| {
+                if (chinese_font != face) {
+                    fallback_fonts.append(self.allocator, chinese_font) catch {};
+                }
+            }
+            if (self.font_manager.getFont("JapaneseFont")) |japanese_font| {
+                if (japanese_font != face) {
+                    fallback_fonts.append(self.allocator, japanese_font) catch {};
+                }
+            }
+            if (self.font_manager.getFont("KoreanFont")) |korean_font| {
+                if (korean_font != face) {
+                    fallback_fonts.append(self.allocator, korean_font) catch {};
+                }
+            }
+            // 尝试预加载支持Unicode符号的字体（如果尚未加载）
+            if (self.font_manager.getFont("SymbolFont")) |symbol_font| {
+                if (symbol_font != face) {
+                    fallback_fonts.append(self.allocator, symbol_font) catch {};
+                }
+            } else {
+                // 尝试加载Segoe UI Symbol
+                _ = self.tryLoadSymbolFont() catch null;
+                if (self.font_manager.getFont("SymbolFont")) |symbol_font| {
+                    if (symbol_font != face) {
+                        fallback_fonts.append(self.allocator, symbol_font) catch {};
+                    }
+                }
+            }
+            if (self.font_manager.getFont("EmojiFont")) |emoji_font| {
+                if (emoji_font != face) {
+                    fallback_fonts.append(self.allocator, emoji_font) catch {};
+                }
+            } else {
+                // 尝试加载Segoe UI Emoji
+                _ = self.tryLoadEmojiFont() catch null;
+                if (self.font_manager.getFont("EmojiFont")) |emoji_font| {
+                    if (emoji_font != face) {
+                        fallback_fonts.append(self.allocator, emoji_font) catch {};
+                    }
+                }
+            }
+            
+            // 使用字体回退机制渲染文本
+            self.renderTextWithFontFallback(fallback_fonts.items, text, x, y, font.size, color) catch |err| {
+                // 如果所有字体都失败，回退到占位符
+                log.debug("fillTextInternal: all fonts failed: {}, falling back to placeholder\n", .{err});
                 self.renderTextPlaceholder(text, x, y, font, color);
             };
         } else {
@@ -821,6 +875,90 @@ pub const CpuRenderBackend = struct {
         }
 
         log.warn("Warning: No Korean font found, Korean text may not display correctly\n", .{});
+        return null;
+    }
+
+    /// 尝试加载符号字体（Segoe UI Symbol）
+    fn tryLoadSymbolFont(self: *CpuRenderBackend) !?*font_module.FontFace {
+        const symbol_font_paths = [_][]const u8{
+            "C:\\Windows\\Fonts\\seguisym.ttf",      // Segoe UI Symbol
+            "C:\\Windows\\Fonts\\SegoeUISymbol.ttf",
+            "C:\\Windows\\Fonts\\seguisym.ttc",
+        };
+        for (symbol_font_paths) |path| {
+            if (self.font_manager.loadFont(path, "SymbolFont")) |face| {
+                log.debug("Successfully loaded symbol font from: {s}\n", .{path});
+                return face;
+            } else |_| {
+                continue;
+            }
+        }
+        return null;
+    }
+
+    /// 尝试加载Emoji字体（Segoe UI Emoji）
+    fn tryLoadEmojiFont(self: *CpuRenderBackend) !?*font_module.FontFace {
+        const emoji_font_paths = [_][]const u8{
+            "C:\\Windows\\Fonts\\seguiemj.ttf",      // Segoe UI Emoji
+            "C:\\Windows\\Fonts\\SegoeUIEmoji.ttf",
+            "C:\\Windows\\Fonts\\seguiemj.ttc",
+        };
+        for (emoji_font_paths) |path| {
+            if (self.font_manager.loadFont(path, "EmojiFont")) |face| {
+                log.debug("Successfully loaded emoji font from: {s}\n", .{path});
+                return face;
+            } else |_| {
+                continue;
+            }
+        }
+        return null;
+    }
+
+    /// 根据字符码点尝试加载合适的回退字体
+    /// 用于支持Unicode符号、数学符号、箭头、Emoji等
+    fn tryLoadFallbackFontForCodepoint(self: *CpuRenderBackend, codepoint: u21) !?*font_module.FontFace {
+        // 检查字符类型，选择合适的字体
+        if (codepoint >= 0x1F300 and codepoint <= 0x1F9FF) {
+            // Emoji范围（U+1F300-U+1F9FF）
+            if (self.tryLoadEmojiFont() catch null) |face| {
+                log.debug("Successfully loaded emoji font for codepoint U+{X:0>4}\n", .{codepoint});
+                return face;
+            }
+        } else if ((codepoint >= 0x2190 and codepoint <= 0x21FF) or // 箭头
+                   (codepoint >= 0x2200 and codepoint <= 0x22FF) or // 数学运算符
+                   (codepoint >= 0x2300 and codepoint <= 0x23FF) or // 技术符号
+                   (codepoint >= 0x2600 and codepoint <= 0x26FF) or // 杂项符号
+                   (codepoint >= 0x2700 and codepoint <= 0x27BF)) { // 装饰符号
+            // Unicode符号范围
+            if (self.tryLoadSymbolFont() catch null) |face| {
+                log.debug("Successfully loaded symbol font for codepoint U+{X:0>4}\n", .{codepoint});
+                return face;
+            }
+        }
+        
+        // 对于其他Unicode字符，尝试加载通用Unicode字体
+        // 注意：Arial Unicode MS可能不在所有Windows系统上，所以作为最后尝试
+        const unicode_font_paths = [_][]const u8{
+            "C:\\Windows\\Fonts\\arialuni.ttf",          // Arial Unicode MS
+            "C:\\Windows\\Fonts\\ArialUni.ttf",
+            "C:\\Windows\\Fonts\\calibri.ttf",           // Calibri（支持一些Unicode字符）
+            "C:\\Windows\\Fonts\\Calibri.ttf",
+            "C:\\Windows\\Fonts\\segoeui.ttf",           // Segoe UI（支持一些Unicode字符）
+            "C:\\Windows\\Fonts\\SegoeUI.ttf",
+        };
+        for (unicode_font_paths) |path| {
+            if (self.font_manager.loadFont(path, "UnicodeFont")) |face| {
+                // 验证这个字体是否真的支持该字符
+                const glyph_index_opt = face.getGlyphIndex(codepoint) catch null;
+                if (glyph_index_opt != null) {
+                    log.debug("Successfully loaded unicode font from: {s} for codepoint U+{X:0>4}\n", .{ path, codepoint });
+                    return face;
+                }
+            } else |_| {
+                continue;
+            }
+        }
+        
         return null;
     }
 
@@ -1017,6 +1155,177 @@ pub const CpuRenderBackend = struct {
 
             const advance_width = @as(f32, @floatFromInt(h_metrics.advance_width));
             current_x += advance_width * scale;
+        }
+    }
+
+    /// 使用字体回退列表渲染文本
+    /// 按字符逐个尝试字体列表，直到找到支持该字符的字体
+    /// 如果所有字体都不支持某个字符，跳过该字符（不绘制）
+    fn renderTextWithFontFallback(
+        self: *CpuRenderBackend,
+        font_faces: []*font_module.FontFace,
+        text: []const u8,
+        x: f32,
+        y: f32,
+        font_size: f32,
+        color: backend.Color,
+    ) !void {
+        if (font_faces.len == 0) {
+            return error.NoFontAvailable;
+        }
+        
+        // 使用第一个字体初始化hinting（简化：只初始化一次）
+        const primary_face = font_faces[0];
+        const fpgm_data = primary_face.getFpgm();
+        const prep_data = primary_face.getPrep();
+        const cvt_data = primary_face.getCvt();
+        _ = self.glyph_renderer.initHinting(fpgm_data, prep_data, cvt_data) catch {};
+        
+        var current_x = x;
+        var is_first_char = true;
+        var i: usize = 0;
+        
+        while (i < text.len) {
+            const decode_result = self.decodeUtf8Codepoint(text[i..]) catch {
+                i += 1;
+                continue;
+            };
+            const codepoint = decode_result.codepoint;
+            i += decode_result.bytes_consumed;
+            
+            // 尝试所有字体，找到支持该字符的字体
+            var found_font: ?*font_module.FontFace = null;
+            var found_glyph_index: ?u16 = null;
+            var found_metrics: ?struct { advance_width: u16, left_side_bearing: i16 } = null;
+            var found_scale: f32 = 0;
+            var found_units_per_em: u16 = 0;
+            
+            for (font_faces) |font_face| {
+                const glyph_index_opt = font_face.getGlyphIndex(codepoint) catch continue;
+                if (glyph_index_opt) |glyph_index| {
+                    const font_metrics = font_face.getFontMetrics() catch continue;
+                    const units_per_em = font_metrics.units_per_em;
+                    const scale = font_size / @as(f32, @floatFromInt(units_per_em));
+                    const h_metrics = font_face.getHorizontalMetrics(glyph_index) catch continue;
+                    
+                    found_font = font_face;
+                    found_glyph_index = glyph_index;
+                    found_metrics = .{
+                        .advance_width = h_metrics.advance_width,
+                        .left_side_bearing = h_metrics.left_side_bearing,
+                    };
+                    found_scale = scale;
+                    found_units_per_em = units_per_em;
+                    break;
+                }
+            }
+            
+            if (found_font) |font_face| {
+                const glyph_index = found_glyph_index.?;
+                const h_metrics = found_metrics.?;
+                const scale = found_scale;
+                const units_per_em = found_units_per_em;
+                
+                // 获取字形数据
+                var glyph = font_face.getGlyph(glyph_index) catch {
+                    // 如果获取字形失败，跳过这个字符
+                    const placeholder_width = font_size * 0.6;
+                    current_x += placeholder_width;
+                    continue;
+                };
+                defer glyph.deinit(self.allocator);
+                
+                // 计算字形的X位置
+                const glyph_x = if (is_first_char)
+                    current_x
+                else
+                    current_x + @as(f32, @floatFromInt(h_metrics.left_side_bearing)) * scale;
+                
+                is_first_char = false;
+                
+                // 渲染字形
+                self.glyph_renderer.renderGlyph(
+                    &glyph,
+                    self.pixels,
+                    self.width,
+                    self.height,
+                    glyph_x,
+                    y,
+                    font_size,
+                    units_per_em,
+                    color,
+                );
+                
+                // 移动到下一个字符位置
+                const advance_width = @as(f32, @floatFromInt(h_metrics.advance_width));
+                const is_cjk = (codepoint >= 0x4E00 and codepoint <= 0x9FFF) or
+                               (codepoint >= 0x3040 and codepoint <= 0x309F) or
+                               (codepoint >= 0x30A0 and codepoint <= 0x30FF) or
+                               (codepoint >= 0xAC00 and codepoint <= 0xD7AF);
+                const adjusted_advance = if (is_cjk and advance_width * scale > font_size * 1.1)
+                    font_size * 0.95
+                else
+                    advance_width * scale;
+                current_x += adjusted_advance;
+            } else {
+                // 所有已加载字体都不支持这个字符，尝试动态加载支持该字符的字体
+                const fallback_font = self.tryLoadFallbackFontForCodepoint(codepoint) catch null;
+                if (fallback_font) |font_face| {
+                    // 尝试从新加载的字体获取字形
+                    const glyph_index_opt = font_face.getGlyphIndex(codepoint) catch null;
+                    if (glyph_index_opt) |glyph_index| {
+                        const font_metrics = font_face.getFontMetrics() catch {
+                            const placeholder_width = font_size * 0.6;
+                            current_x += placeholder_width;
+                            continue;
+                        };
+                        const units_per_em = font_metrics.units_per_em;
+                        const scale = font_size / @as(f32, @floatFromInt(units_per_em));
+                        const h_metrics = font_face.getHorizontalMetrics(glyph_index) catch {
+                            const placeholder_width = font_size * 0.6;
+                            current_x += placeholder_width;
+                            continue;
+                        };
+                        
+                        // 获取字形数据
+                        var glyph = font_face.getGlyph(glyph_index) catch {
+                            const placeholder_width = font_size * 0.6;
+                            current_x += placeholder_width;
+                            continue;
+                        };
+                        defer glyph.deinit(self.allocator);
+                        
+                        // 计算字形的X位置
+                        const glyph_x = if (is_first_char)
+                            current_x
+                        else
+                            current_x + @as(f32, @floatFromInt(h_metrics.left_side_bearing)) * scale;
+                        
+                        is_first_char = false;
+                        
+                        // 渲染字形
+                        self.glyph_renderer.renderGlyph(
+                            &glyph,
+                            self.pixels,
+                            self.width,
+                            self.height,
+                            glyph_x,
+                            y,
+                            font_size,
+                            units_per_em,
+                            color,
+                        );
+                        
+                        // 移动到下一个字符位置
+                        const advance_width = @as(f32, @floatFromInt(h_metrics.advance_width));
+                        current_x += advance_width * scale;
+                        continue;
+                    }
+                }
+                // 如果所有字体都不支持这个字符，跳过（不绘制占位符框）
+                const placeholder_width = font_size * 0.6;
+                current_x += placeholder_width;
+            }
         }
     }
 
