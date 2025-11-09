@@ -5,6 +5,9 @@ zig-cache/
 
 # Zig编译器（太大，不提交到仓库）
 zig-x86_64-linux-0.15.2/
+zig-x86_64-windows-0.15.2/
+zig-x86_64-*.tar.xz
+zig-x86_64-*.zip
 
 # 编辑器
 .vscode/
