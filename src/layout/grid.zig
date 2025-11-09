@@ -25,7 +25,6 @@ const style_utils = @import("style_utils");
 pub fn layoutGrid(layout_box: *box.LayoutBox, containing_block: box.Size, stylesheets: []const css_parser.Stylesheet) void {
     // 计算样式以获取Grid属性
     var cascade_engine = cascade.Cascade.init(layout_box.allocator);
-    defer cascade_engine.deinit();
     var computed_style = cascade_engine.computeStyle(layout_box.node, stylesheets) catch {
         // 如果计算样式失败，使用默认值
         layoutGridDefault(layout_box, containing_block);
@@ -158,14 +157,18 @@ pub fn layoutGrid(layout_box: *box.LayoutBox, containing_block: box.Size, styles
         const y = container_y + row_positions.items[row];
 
         // 计算尺寸
+        // column_positions存储每列的起始位置（不包括gap）
+        // 宽度 = 下一列的起始位置 - 当前列的起始位置 - gap（如果有下一列）
         const width = if (col + 1 < column_positions.items.len)
-            column_positions.items[col + 1] - column_positions.items[col]
+            column_positions.items[col + 1] - column_positions.items[col] - column_gap
         else
             layout_box.box_model.content.width - column_positions.items[col];
+        // row_positions存储每行的起始位置（不包括gap）
+        // 高度 = 下一行的起始位置 - 当前行的起始位置 - gap（如果有下一行）
         const height = if (row + 1 < row_positions.items.len)
-            row_positions.items[row + 1] - row_positions.items[row]
+            row_positions.items[row + 1] - row_positions.items[row] - row_gap
         else
-            (if (row_positions.items.len > 0) row_positions.items[row_positions.items.len - 1] else 100);
+            (if (row_positions.items.len > 0) layout_box.box_model.content.height - row_positions.items[row] else 100);
 
         // 设置子元素位置和尺寸
         child.box_model.content.x = x;

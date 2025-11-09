@@ -149,7 +149,7 @@ pub const Cascade = struct {
                 // 内联样式总是覆盖之前的样式
                 // 注意：使用复制的 name 作为 key，而不是 decl.name（可能已被释放）
                 if (computed.properties.getPtr(name)) |existing| {
-                    existing.deinit();
+                    existing.deinitValueOnly(); // 只释放value，不释放name（name是HashMap的key）
                     existing.* = new_decl;
                     std.log.debug("[Cascade] computeStyle: inline style '{s}' overwrote existing property", .{name});
                 } else {
