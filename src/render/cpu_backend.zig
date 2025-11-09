@@ -3,6 +3,7 @@ const backend = @import("backend");
 const font_module = @import("font");
 const glyph_module = @import("glyph");
 const math = std.math;
+const log = std.log;
 
 /// 路径点
 const Point = struct {
@@ -158,7 +159,7 @@ pub const CpuRenderBackend = struct {
     /// 填充矩形
     fn fillRectImpl(self_ptr: *backend.RenderBackend, rect: backend.Rect, color: backend.Color) void {
         const self = fromRenderBackend(self_ptr);
-        std.debug.print("[CPU Backend] fillRect: x={d:.1}, y={d:.1}, w={d:.1}, h={d:.1}, color=#{x:0>2}{x:0>2}{x:0>2}\n", .{
+        log.debug("fillRect: x={d:.1}, y={d:.1}, w={d:.1}, h={d:.1}, color=#{x:0>2}{x:0>2}{x:0>2}\n", .{
             rect.x,  rect.y,  rect.width, rect.height,
             color.r, color.g, color.b,
         });
@@ -257,7 +258,7 @@ pub const CpuRenderBackend = struct {
 
     fn strokeRectImpl(self_ptr: *backend.RenderBackend, rect: backend.Rect, color: backend.Color, width: f32) void {
         const self = fromRenderBackend(self_ptr);
-        std.debug.print("[CPU Backend] strokeRect: x={d:.1}, y={d:.1}, w={d:.1}, h={d:.1}, width={d:.1}, color=#{x:0>2}{x:0>2}{x:0>2}\n", .{
+        log.debug("strokeRect: x={d:.1}, y={d:.1}, w={d:.1}, h={d:.1}, width={d:.1}, color=#{x:0>2}{x:0>2}{x:0>2}\n", .{
             rect.x,  rect.y,  rect.width, rect.height, width,
             color.r, color.g, color.b,
         });
@@ -346,7 +347,7 @@ pub const CpuRenderBackend = struct {
 
     fn fillTextImpl(self_ptr: *backend.RenderBackend, text: []const u8, x: f32, y: f32, font: backend.Font, color: backend.Color) void {
         const self = fromRenderBackend(self_ptr);
-        std.debug.print("[CPU Backend] fillText: text=\"{s}\", x={d:.1}, y={d:.1}, font_size={d:.1}, color=#{x:0>2}{x:0>2}{x:0>2}\n", .{
+        log.debug("fillText: text=\"{s}\", x={d:.1}, y={d:.1}, font_size={d:.1}, color=#{x:0>2}{x:0>2}{x:0>2}\n", .{
             text,    x,       y,       font.size,
             color.r, color.g, color.b,
         });
@@ -571,7 +572,7 @@ pub const CpuRenderBackend = struct {
                     if (codepoint >= 0xAC00 and codepoint <= 0xD7A3) {
                         has_korean = true;
                         korean_count += 1;
-                        std.debug.print("[CPU Backend] detectCJKLanguage: found Korean character U+{X:0>4}, korean_count={d}\n", .{ codepoint, korean_count });
+                        log.debug("detectCJKLanguage: found Korean character U+{X:0>4}, korean_count={d}\n", .{ codepoint, korean_count });
                     }
                     i += 3;
                     continue;
@@ -601,15 +602,15 @@ pub const CpuRenderBackend = struct {
         // 返回优先级：韩文 > 日文（有假名）> 中文
         // 如果同时有中文汉字和日文假名，优先判断为日文
         if (has_korean) {
-            std.debug.print("[CPU Backend] detectCJKLanguage: detected Korean (has_korean=true, korean_count={d}, has_chinese={}, has_japanese_kana={})\n", .{ korean_count, has_chinese, has_japanese_kana });
+            log.debug("detectCJKLanguage: detected Korean (has_korean=true, korean_count={d}, has_chinese={}, has_japanese_kana={})\n", .{ korean_count, has_chinese, has_japanese_kana });
             return 3;
         }
         if (has_japanese_kana) {
-            std.debug.print("[CPU Backend] detectCJKLanguage: detected Japanese (has_japanese_kana=true, has_chinese={})\n", .{has_chinese});
+            log.debug("detectCJKLanguage: detected Japanese (has_japanese_kana=true, has_chinese={})\n", .{has_chinese});
             return 2;  // 有日文假名，判断为日文
         }
         if (has_chinese) {
-            std.debug.print("[CPU Backend] detectCJKLanguage: detected Chinese (has_chinese=true, has_korean={}, has_japanese_kana={})\n", .{ has_korean, has_japanese_kana });
+            log.debug("detectCJKLanguage: detected Chinese (has_chinese=true, has_korean={}, has_japanese_kana={})\n", .{ has_korean, has_japanese_kana });
             return 1;  // 只有中文汉字，判断为中文
         }
         return 0;
@@ -638,14 +639,14 @@ pub const CpuRenderBackend = struct {
             // 韩文：优先尝试加载韩文字体
             // 注意：如果文本中同时包含中文汉字和韩文字符，使用韩文字体
             // 如果韩文字体不支持某些中文汉字，这些汉字可能无法显示
-            std.debug.print("[CPU Backend] fillTextInternal: detected Korean, attempting to load Korean font\n", .{});
+            log.debug("fillTextInternal: detected Korean, attempting to load Korean font\n", .{});
             font_face = self.font_manager.getFont("KoreanFont");
             if (font_face == null) {
                 font_face = self.tryLoadKoreanFont() catch null;
             }
             // 如果韩文字体加载失败，回退到中文字体（因为中文字体通常也支持韩文）
             if (font_face == null) {
-                std.debug.print("[CPU Backend] fillTextInternal: Korean font failed, falling back to Chinese font\n", .{});
+                log.debug("fillTextInternal: Korean font failed, falling back to Chinese font\n", .{});
                 font_face = self.font_manager.getFont("ChineseFont");
                 if (font_face == null) {
                     font_face = self.tryLoadChineseFont() catch null;
@@ -660,21 +661,21 @@ pub const CpuRenderBackend = struct {
                 // 按字符分别渲染，对每个字符使用合适的字体
                 self.renderTextWithMixedFonts(face, chinese_font_face, text, x, y, font.size, color) catch |err| {
                     // 如果渲染失败，使用占位符
-                    std.debug.print("[CPU Backend] fillTextInternal: renderTextWithMixedFonts failed: {}, using placeholder\n", .{err});
+                    log.debug("fillTextInternal: renderTextWithMixedFonts failed: {}, using placeholder\n", .{err});
                     self.renderTextPlaceholder(text, x, y, font, color);
                 };
                 return;
             }
         } else if (cjk_language == 2) {
             // 日文：优先尝试加载日文字体，如果失败则回退到中文字体（因为中文字体通常也支持日文汉字）
-            std.debug.print("[CPU Backend] fillTextInternal: detected Japanese, attempting to load Japanese font\n", .{});
+            log.debug("fillTextInternal: detected Japanese, attempting to load Japanese font\n", .{});
             font_face = self.font_manager.getFont("JapaneseFont");
             if (font_face == null) {
                 font_face = self.tryLoadJapaneseFont() catch null;
             }
             // 如果日文字体加载失败，回退到中文字体
             if (font_face == null) {
-                std.debug.print("[CPU Backend] fillTextInternal: Japanese font failed, falling back to Chinese font\n", .{});
+                log.debug("fillTextInternal: Japanese font failed, falling back to Chinese font\n", .{});
                 font_face = self.font_manager.getFont("ChineseFont");
                 if (font_face == null) {
                     font_face = self.tryLoadChineseFont() catch null;
@@ -682,7 +683,7 @@ pub const CpuRenderBackend = struct {
             }
         } else if (cjk_language == 1) {
             // 中文：优先尝试加载中文字体
-            std.debug.print("[CPU Backend] fillTextInternal: detected Chinese, attempting to load Chinese font\n", .{});
+            log.debug("fillTextInternal: detected Chinese, attempting to load Chinese font\n", .{});
             font_face = self.font_manager.getFont("ChineseFont");
             if (font_face == null) {
                 font_face = self.tryLoadChineseFont() catch null;
@@ -701,7 +702,7 @@ pub const CpuRenderBackend = struct {
             // 字体已加载，使用真正的字形渲染
             self.renderTextWithFont(face, text, x, y, font.size, color) catch |err| {
                 // 如果渲染失败，回退到占位符
-                std.debug.print("[CPU Backend] fillTextInternal: font rendering failed: {}, falling back to placeholder\n", .{err});
+                log.debug("fillTextInternal: font rendering failed: {}, falling back to placeholder\n", .{err});
                 self.renderTextPlaceholder(text, x, y, font, color);
             };
         } else {
@@ -738,7 +739,7 @@ pub const CpuRenderBackend = struct {
         // 尝试加载中文字体
         for (chinese_font_paths) |path| {
             if (self.font_manager.loadFont(path, "ChineseFont")) |face| {
-                std.debug.print("[CPU Backend] Successfully loaded Chinese font from: {s}\n", .{path});
+                log.debug("Successfully loaded Chinese font from: {s}\n", .{path});
                 return face;
             } else |_| {
                 // 继续尝试下一个路径
@@ -773,7 +774,7 @@ pub const CpuRenderBackend = struct {
         // 尝试加载日文字体
         for (japanese_font_paths) |path| {
             if (self.font_manager.loadFont(path, "JapaneseFont")) |face| {
-                std.debug.print("[CPU Backend] Successfully loaded Japanese font from: {s}\n", .{path});
+                log.debug("Successfully loaded Japanese font from: {s}\n", .{path});
                 return face;
             } else |_| {
                 // 继续尝试下一个路径
@@ -809,17 +810,17 @@ pub const CpuRenderBackend = struct {
         // 尝试加载韩文字体
         for (korean_font_paths) |path| {
             if (self.font_manager.loadFont(path, "KoreanFont")) |face| {
-                std.debug.print("[CPU Backend] Successfully loaded Korean font from: {s}\n", .{path});
+                log.debug("Successfully loaded Korean font from: {s}\n", .{path});
                 return face;
             } else |err| {
                 // 输出错误信息以便调试
-                std.debug.print("[CPU Backend] Failed to load Korean font from {s}: {}\n", .{ path, err });
+                log.debug("Failed to load Korean font from {s}: {}\n", .{ path, err });
                 // 继续尝试下一个路径
                 continue;
             }
         }
 
-        std.debug.print("[CPU Backend] Warning: No Korean font found, Korean text may not display correctly\n", .{});
+        log.warn("Warning: No Korean font found, Korean text may not display correctly\n", .{});
         return null;
     }
 
@@ -881,7 +882,7 @@ pub const CpuRenderBackend = struct {
 
             if (should_try) {
                 if (self.font_manager.loadFont(path, font_family)) |face| {
-                    std.debug.print("[CPU Backend] Successfully loaded font from: {s}\n", .{path});
+                    log.debug("Successfully loaded font from: {s}\n", .{path});
                     return face;
                 } else |_| {
                     // 继续尝试下一个路径
@@ -893,7 +894,7 @@ pub const CpuRenderBackend = struct {
         // 如果按名称匹配失败，尝试所有路径
         for (font_paths) |path| {
             if (self.font_manager.loadFont(path, font_family)) |face| {
-                std.debug.print("[CPU Backend] Successfully loaded font from: {s}\n", .{path});
+                log.debug("Successfully loaded font from: {s}\n", .{path});
                 return face;
             } else |_| {
                 // 继续尝试下一个路径
@@ -1069,7 +1070,7 @@ pub const CpuRenderBackend = struct {
             if (glyph_index_opt) |glyph_index| {
                 // 调试：检查"韩"字（U+97E9）的字形索引
                 if (codepoint == 0x97E9) {
-                    std.debug.print("[CPU Backend] renderTextWithFont: found glyph for '韩' (U+97E9), glyph_index={d}\n", .{glyph_index});
+                    log.debug("renderTextWithFont: found glyph for '韩' (U+97E9), glyph_index={d}\n", .{glyph_index});
                 }
                 // 获取字形的水平度量
                 const h_metrics = try font_face.getHorizontalMetrics(glyph_index);
@@ -1120,7 +1121,7 @@ pub const CpuRenderBackend = struct {
                 // 如果找不到字形，返回错误，让调用者回退到其他字体
                 // 调试：检查"韩"字（U+97E9）是否找不到字形
                 if (codepoint == 0x97E9) {
-                    std.debug.print("[CPU Backend] renderTextWithFont: glyph not found for '韩' (U+97E9), will fallback to Chinese font\n", .{});
+                    log.debug("renderTextWithFont: glyph not found for '韩' (U+97E9), will fallback to Chinese font\n", .{});
                 }
                 return error.GlyphNotFound;
             }

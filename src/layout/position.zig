@@ -78,7 +78,7 @@ fn layoutRelative(layout_box: *box.LayoutBox) void {
 /// Absolute定位：相对于最近的定位祖先
 /// TODO: 简化实现 - 当前假设相对于父元素定位
 fn layoutAbsolute(layout_box: *box.LayoutBox, containing_block: box.Size) void {
-    std.debug.print("[Position] layoutAbsolute: start, position_left={?}, position_top={?}, containing_block=({d:.1}x{d:.1})\n", 
+    std.log.debug("[Position] layoutAbsolute: start, position_left={?}, position_top={?}, containing_block=({d:.1}x{d:.1})", 
         .{ layout_box.position_left, layout_box.position_top, containing_block.width, containing_block.height });
     
     // 找到定位祖先，获取其内容区域的位置
@@ -101,7 +101,7 @@ fn layoutAbsolute(layout_box: *box.LayoutBox, containing_block: box.Size) void {
                 .document => "document",
                 .doctype => "doctype",
             };
-            std.debug.print("[Position] layoutAbsolute: found positioned ancestor '{s}' (position={}) at ({d:.1}, {d:.1})\n", 
+            std.log.debug("[Position] layoutAbsolute: found positioned ancestor '{s}' (position={}) at ({d:.1}, {d:.1})", 
                 .{ node_type_str, anc.position, containing_block_x, containing_block_y });
             break;
         }
@@ -109,7 +109,7 @@ fn layoutAbsolute(layout_box: *box.LayoutBox, containing_block: box.Size) void {
     }
     
     if (positioned_ancestor == null) {
-        std.debug.print("[Position] layoutAbsolute: no positioned ancestor found, using viewport (0, 0)\n", .{});
+        std.log.debug("[Position] layoutAbsolute: no positioned ancestor found, using viewport (0, 0)", .{});
     }
     
     // 如果找不到定位祖先，使用传入的containing_block（相对于视口或初始包含块）
@@ -118,7 +118,7 @@ fn layoutAbsolute(layout_box: *box.LayoutBox, containing_block: box.Size) void {
     // 计算水平位置（left优先，如果未设置则使用right）
     if (layout_box.position_left) |left| {
         layout_box.box_model.content.x = containing_block_x + left;
-        std.debug.print("[Position] layoutAbsolute: set x = {d:.1} + {d:.1} = {d:.1}\n", .{ containing_block_x, left, layout_box.box_model.content.x });
+        std.log.debug("[Position] layoutAbsolute: set x = {d:.1} + {d:.1} = {d:.1}", .{ containing_block_x, left, layout_box.box_model.content.x });
     } else if (layout_box.position_right) |right| {
         // right值相对于包含块的右边缘
         const total_width = layout_box.box_model.content.width +
@@ -132,13 +132,13 @@ fn layoutAbsolute(layout_box: *box.LayoutBox, containing_block: box.Size) void {
     } else {
         // 如果left和right都未设置，使用默认值0
         layout_box.box_model.content.x = containing_block_x;
-        std.debug.print("[Position] layoutAbsolute: no left/right, set x = {d:.1}\n", .{containing_block_x});
+        std.log.debug("[Position] layoutAbsolute: no left/right, set x = {d:.1}", .{containing_block_x});
     }
 
     // 计算垂直位置（top优先，如果未设置则使用bottom）
     if (layout_box.position_top) |top| {
         layout_box.box_model.content.y = containing_block_y + top;
-        std.debug.print("[Position] layoutAbsolute: set y = {d:.1} + {d:.1} = {d:.1}\n", .{ containing_block_y, top, layout_box.box_model.content.y });
+        std.log.debug("[Position] layoutAbsolute: set y = {d:.1} + {d:.1} = {d:.1}", .{ containing_block_y, top, layout_box.box_model.content.y });
     } else if (layout_box.position_bottom) |bottom| {
         // bottom值相对于包含块的下边缘
         const total_height = layout_box.box_model.content.height +
@@ -152,10 +152,10 @@ fn layoutAbsolute(layout_box: *box.LayoutBox, containing_block: box.Size) void {
     } else {
         // 如果top和bottom都未设置，使用默认值0
         layout_box.box_model.content.y = containing_block_y;
-        std.debug.print("[Position] layoutAbsolute: no top/bottom, set y = {d:.1}\n", .{containing_block_y});
+        std.log.debug("[Position] layoutAbsolute: no top/bottom, set y = {d:.1}", .{containing_block_y});
     }
     
-    std.debug.print("[Position] layoutAbsolute: final position = ({d:.1}, {d:.1})\n", .{ layout_box.box_model.content.x, layout_box.box_model.content.y });
+    std.log.debug("[Position] layoutAbsolute: final position = ({d:.1}, {d:.1})", .{ layout_box.box_model.content.x, layout_box.box_model.content.y });
 }
 
 /// Fixed定位：相对于视口

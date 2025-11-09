@@ -210,21 +210,21 @@ pub fn main() !void {
     , .{ css_content, html_body_content });
     defer allocator.free(html_with_css);
     try html_output_file.writeAll(html_with_css);
-    std.debug.print("HTML content written to: parsed_html.html\n", .{});
+    std.log.debug("HTML content written to: parsed_html.html", .{});
 
     // 加载HTML
     try browser.loadHTML(html_content);
-    std.debug.print("HTML parsed successfully!\n", .{});
+    std.log.debug("HTML parsed successfully!", .{});
 
     // 添加CSS样式表
     try browser.addStylesheet(css_content);
-    std.debug.print("CSS stylesheet added successfully!\n", .{});
+    std.log.debug("CSS stylesheet added successfully!", .{});
 
     // 检查body元素是否存在
     if (browser.document.getBody()) |_| {
-        std.debug.print("Body element found\n", .{});
+        std.log.debug("Body element found", .{});
     } else {
-        std.debug.print("Warning: Body element not found\n", .{});
+        std.log.warn("Body element not found", .{});
     }
 
     // 先进行一次布局计算，获取所有文本的实际位置和宽度
@@ -259,13 +259,13 @@ pub fn main() !void {
     const calculated_width = @as(u32, @intFromFloat(max_x + margin));
     const calculated_height = @as(u32, @intFromFloat(max_y + margin));
     
-    std.debug.print("Calculated page size: {d}x{d} (max_x={d:.1}, max_y={d:.1})\n", .{ calculated_width, calculated_height, max_x, max_y });
+    std.log.debug("Calculated page size: {d}x{d} (max_x={d:.1}, max_y={d:.1})", .{ calculated_width, calculated_height, max_x, max_y });
     
     // 使用计算出的尺寸进行实际渲染
     const output_path = "output.png";
-    std.debug.print("Rendering page to PNG ({d}x{d})...\n", .{ calculated_width, calculated_height });
+    std.log.debug("Rendering page to PNG ({d}x{d})...", .{ calculated_width, calculated_height });
     try browser.renderToPNG(calculated_width, calculated_height, output_path);
-    std.debug.print("Page rendered successfully to: {s}\n", .{output_path});
+    std.log.debug("Page rendered successfully to: {s}", .{output_path});
 }
 
 /// 计算布局树中所有文本节点的最大边界
@@ -326,7 +326,7 @@ fn calculateMaxBounds(
         
         // 计算文本的实际宽度
         const text_end_x = temp_backend.calculateTextWidth(text_content, layout_box.box_model.content.x, font) catch |err| {
-            std.debug.print("[calculateMaxBounds] Failed to calculate text width: {}\n", .{err});
+            std.log.debug("[calculateMaxBounds] Failed to calculate text width: {}", .{err});
             // 如果计算失败，使用估算值
             const char_width = font.size * 0.7;
             const text_width = char_width * @as(f32, @floatFromInt(text_content.len));

@@ -34,7 +34,7 @@ pub const Renderer = struct {
     fn renderLayoutBox(self: *Renderer, layout_box: *box.LayoutBox) !void {
         // 如果display为none，不渲染
         if (layout_box.display == .none) {
-            std.debug.print("[Renderer] renderLayoutBox: display=none, skipping\n", .{});
+            std.log.debug("[Renderer] renderLayoutBox: display=none, skipping", .{});
             return;
         }
         
@@ -48,7 +48,7 @@ pub const Renderer = struct {
                     std.mem.eql(u8, tag_name, "script") or
                     std.mem.eql(u8, tag_name, "style") or
                     std.mem.eql(u8, tag_name, "link")) {
-                    std.debug.print("[Renderer] renderLayoutBox: skipping metadata tag '{s}'\n", .{tag_name});
+                    std.log.debug("[Renderer] renderLayoutBox: skipping metadata tag '{s}'", .{tag_name});
                     return;
                 }
             }
@@ -62,7 +62,7 @@ pub const Renderer = struct {
             .document => "document",
             .doctype => "doctype",
         };
-        std.debug.print("[Renderer] renderLayoutBox: node_type={s}, content=({d:.1}, {d:.1}, {d:.1}x{d:.1})\n", .{
+        std.log.debug("[Renderer] renderLayoutBox: node_type={s}, content=({d:.1}, {d:.1}, {d:.1}x{d:.1})", .{
             node_type_str,
             layout_box.box_model.content.x,
             layout_box.box_model.content.y,
@@ -121,7 +121,7 @@ pub const Renderer = struct {
         // 获取背景颜色
         const bg_color = self.getBackgroundColor(computed_style);
 
-        std.debug.print("[Renderer] renderBackground: bg_color={?}, rect=({d:.1}, {d:.1}, {d:.1}x{d:.1})\n", .{
+        std.log.debug("[Renderer] renderBackground: bg_color={?}, rect=({d:.1}, {d:.1}, {d:.1}x{d:.1})", .{
             bg_color, rect.x, rect.y, rect.width, rect.height,
         });
 
@@ -153,11 +153,11 @@ pub const Renderer = struct {
             // 从Node.data中获取文本内容
             const text_content = layout_box.node.data.text;
 
-            std.debug.print("[Renderer] renderContent: text_node found, content=\"{s}\", len={d}\n", .{ text_content, text_content.len });
+            std.log.debug("[Renderer] renderContent: text_node found, content=\"{s}\", len={d}", .{ text_content, text_content.len });
 
             // 如果文本内容为空，不渲染
             if (text_content.len == 0) {
-                std.debug.print("[Renderer] renderContent: text is empty, skipping\n", .{});
+                std.log.debug("[Renderer] renderContent: text is empty, skipping", .{});
                 return;
             }
             
@@ -170,7 +170,7 @@ pub const Renderer = struct {
                 }
             }
             if (is_whitespace_only) {
-                std.debug.print("[Renderer] renderContent: text contains only whitespace, skipping\n", .{});
+                std.log.debug("[Renderer] renderContent: text contains only whitespace, skipping", .{});
                 return;
             }
 
@@ -197,7 +197,7 @@ pub const Renderer = struct {
             const text_color = self.getTextColor(text_computed_style);
             const font = self.getFont(text_computed_style);
 
-            std.debug.print("[Renderer] renderContent: text_color={?}, font_size={d:.1}\n", .{ text_color, font.size });
+            std.log.debug("[Renderer] renderContent: text_color={?}, font_size={d:.1}", .{ text_color, font.size });
 
             if (text_color) |color| {
                 // 绘制文本
@@ -212,13 +212,13 @@ pub const Renderer = struct {
                 // 对于绝对定位的文本节点，top值应该直接作为基线位置（或者加上一个小的偏移）
                 const ascent_ratio: f32 = 0.7; // 典型的ascent比例（降低以给descender更多空间）
                 const baseline_y = rect.y + font.size * ascent_ratio;
-                std.debug.print("[Renderer] renderContent: calling fillText at ({d:.1}, {d:.1}), text=\"{s}\", rect=({d:.1}, {d:.1}, {d:.1}x{d:.1}), font_size={d:.1}\n", .{ rect.x, baseline_y, text_content, rect.x, rect.y, rect.width, rect.height, font.size });
+                std.log.debug("[Renderer] renderContent: calling fillText at ({d:.1}, {d:.1}), text=\"{s}\", rect=({d:.1}, {d:.1}, {d:.1}x{d:.1}), font_size={d:.1}", .{ rect.x, baseline_y, text_content, rect.x, rect.y, rect.width, rect.height, font.size });
                 self.render_backend.fillText(text_content, rect.x, baseline_y, font, color);
             } else {
-                std.debug.print("[Renderer] renderContent: no text color, skipping\n", .{});
+                std.log.debug("[Renderer] renderContent: no text color, skipping", .{});
             }
         } else {
-            std.debug.print("[Renderer] renderContent: not a text node (node_type={}), skipping\n", .{layout_box.node.node_type});
+            std.log.debug("[Renderer] renderContent: not a text node (node_type={}), skipping", .{layout_box.node.node_type});
         }
     }
 

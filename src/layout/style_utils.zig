@@ -111,9 +111,9 @@ pub fn applyStyleToLayoutBox(layout_box: *box.LayoutBox, computed_style: *const 
             if (layout_box.node.asElement()) |elem| elem.attributes.get("class") else null
         else null;
         if (class_name) |class| {
-            std.debug.print("[StyleUtils] applyStyleToLayoutBox: node='{s}.{s}', position={s} -> {}\n", .{ node_type_str, class, position_value, layout_box.position });
+            std.log.debug("[StyleUtils] applyStyleToLayoutBox: node='{s}.{s}', position={s} -> {}", .{ node_type_str, class, position_value, layout_box.position });
         } else {
-            std.debug.print("[StyleUtils] applyStyleToLayoutBox: node='{s}', position={s} -> {}\n", .{ node_type_str, position_value, layout_box.position });
+            std.log.debug("[StyleUtils] applyStyleToLayoutBox: node='{s}', position={s} -> {}", .{ node_type_str, position_value, layout_box.position });
         }
     }
 
@@ -125,7 +125,7 @@ pub fn applyStyleToLayoutBox(layout_box: *box.LayoutBox, computed_style: *const 
     // 解析定位属性（top, right, bottom, left）
     if (getPropertyLength(computed_style, "top", containing_size.height)) |top| {
         layout_box.position_top = top;
-        std.debug.print("[StyleUtils] applyStyleToLayoutBox: position_top={d:.1}\n", .{top});
+        std.log.debug("[StyleUtils] applyStyleToLayoutBox: position_top={d:.1}", .{top});
     }
     if (getPropertyLength(computed_style, "right", containing_size.width)) |right| {
         layout_box.position_right = right;
@@ -135,7 +135,7 @@ pub fn applyStyleToLayoutBox(layout_box: *box.LayoutBox, computed_style: *const 
     }
     if (getPropertyLength(computed_style, "left", containing_size.width)) |left| {
         layout_box.position_left = left;
-        std.debug.print("[StyleUtils] applyStyleToLayoutBox: position_left={d:.1}\n", .{left});
+        std.log.debug("[StyleUtils] applyStyleToLayoutBox: position_left={d:.1}", .{left});
     }
 
     // TODO: 解析padding、border、margin
@@ -217,6 +217,112 @@ pub fn getJustifyContent(computed_style: *const cascade.ComputedStyle) JustifyCo
         return parseJustifyContent(value);
     }
     return .flex_start; // 默认值
+}
+
+/// 解析align-items属性值
+pub const AlignItems = enum {
+    flex_start,
+    flex_end,
+    center,
+    baseline,
+    stretch,
+};
+
+pub fn parseAlignItems(value: []const u8) AlignItems {
+    if (std.mem.eql(u8, value, "flex-start")) return .flex_start;
+    if (std.mem.eql(u8, value, "flex-end")) return .flex_end;
+    if (std.mem.eql(u8, value, "center")) return .center;
+    if (std.mem.eql(u8, value, "baseline")) return .baseline;
+    if (std.mem.eql(u8, value, "stretch")) return .stretch;
+    // 默认返回stretch
+    return .stretch;
+}
+
+/// 解析align-content属性值
+pub const AlignContent = enum {
+    flex_start,
+    flex_end,
+    center,
+    space_between,
+    space_around,
+    space_evenly,
+    stretch,
+};
+
+pub fn parseAlignContent(value: []const u8) AlignContent {
+    if (std.mem.eql(u8, value, "flex-start")) return .flex_start;
+    if (std.mem.eql(u8, value, "flex-end")) return .flex_end;
+    if (std.mem.eql(u8, value, "center")) return .center;
+    if (std.mem.eql(u8, value, "space-between")) return .space_between;
+    if (std.mem.eql(u8, value, "space-around")) return .space_around;
+    if (std.mem.eql(u8, value, "space-evenly")) return .space_evenly;
+    if (std.mem.eql(u8, value, "stretch")) return .stretch;
+    // 默认返回stretch
+    return .stretch;
+}
+
+/// Flex item属性结构
+pub const FlexItemProperties = struct {
+    grow: f32 = 0.0,
+    shrink: f32 = 1.0,
+    basis: ?f32 = null, // null表示auto
+};
+
+/// 从ComputedStyle获取flex-grow值
+pub fn getFlexGrow(computed_style: *const cascade.ComputedStyle) f32 {
+    if (getPropertyKeyword(computed_style, "flex-grow")) |value| {
+        if (std.fmt.parseFloat(f32, value)) |num| {
+            return num;
+        } else |_| {}
+    }
+    return 0.0; // 默认值
+}
+
+/// 从ComputedStyle获取flex-shrink值
+pub fn getFlexShrink(computed_style: *const cascade.ComputedStyle) f32 {
+    if (getPropertyKeyword(computed_style, "flex-shrink")) |value| {
+        if (std.fmt.parseFloat(f32, value)) |num| {
+            return num;
+        } else |_| {}
+    }
+    return 1.0; // 默认值
+}
+
+/// 从ComputedStyle获取flex-basis值
+/// 返回null表示auto
+pub fn getFlexBasis(computed_style: *const cascade.ComputedStyle, containing_size: f32) ?f32 {
+    // 先检查flex-basis属性
+    if (getPropertyLength(computed_style, "flex-basis", containing_size)) |basis| {
+        return basis;
+    }
+    // 检查flex简写属性（简化实现：只支持单个值，如"1"表示flex-grow=1）
+    // TODO: 完整实现需要解析flex简写（flex-grow flex-shrink flex-basis）
+    return null; // auto
+}
+
+/// 从ComputedStyle获取完整的flex属性
+pub fn getFlexProperties(computed_style: *const cascade.ComputedStyle, containing_size: f32) FlexItemProperties {
+    return .{
+        .grow = getFlexGrow(computed_style),
+        .shrink = getFlexShrink(computed_style),
+        .basis = getFlexBasis(computed_style, containing_size),
+    };
+}
+
+/// 从ComputedStyle获取align-items属性
+pub fn getAlignItems(computed_style: *const cascade.ComputedStyle) AlignItems {
+    if (getPropertyKeyword(computed_style, "align-items")) |value| {
+        return parseAlignItems(value);
+    }
+    return .stretch; // 默认值
+}
+
+/// 从ComputedStyle获取align-content属性
+pub fn getAlignContent(computed_style: *const cascade.ComputedStyle) AlignContent {
+    if (getPropertyKeyword(computed_style, "align-content")) |value| {
+        return parseAlignContent(value);
+    }
+    return .stretch; // 默认值
 }
 
 /// Grid属性解析

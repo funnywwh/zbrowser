@@ -150,7 +150,7 @@ pub const LayoutEngine = struct {
                         .document => "document",
                         .doctype => "doctype",
                     };
-                    std.debug.print("[LayoutEngine] Processing absolute/fixed child: '{s}', position={}, position_left={?}, position_top={?}\n", 
+                    std.log.debug("[LayoutEngine] Processing absolute/fixed child: '{s}', position={}, position_left={?}, position_top={?}", 
                         .{ child_node_type_str, child.position, child.position_left, child.position_top });
                     
                     // 先定位父元素（如果父元素也是绝对定位的），确保子元素能找到正确的定位祖先
@@ -171,7 +171,7 @@ pub const LayoutEngine = struct {
                                 .document => "document",
                                 .doctype => "doctype",
                             };
-                            std.debug.print("[LayoutEngine] Found positioned ancestor for '{s}': '{s}' (position={}) at ({d:.1}, {d:.1})\n", 
+                            std.log.debug("[LayoutEngine] Found positioned ancestor for '{s}': '{s}' (position={}) at ({d:.1}, {d:.1})", 
                                 .{ child_node_type_str, ancestor_node_type_str, anc.position, anc.box_model.content.x, anc.box_model.content.y });
                             break;
                         }
@@ -179,7 +179,7 @@ pub const LayoutEngine = struct {
                     }
                     
                     if (ancestor == null) {
-                        std.debug.print("[LayoutEngine] No positioned ancestor found for '{s}', using viewport\n", .{child_node_type_str});
+                        std.log.debug("[LayoutEngine] No positioned ancestor found for '{s}', using viewport", .{child_node_type_str});
                     }
                     
                     // 先应用绝对定位（在递归布局子元素之前）

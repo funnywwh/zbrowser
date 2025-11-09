@@ -5,17 +5,17 @@ const tokenizer = @import("tokenizer");
 
 /// 测试运行器
 pub fn runTests(allocator: std.mem.Allocator) !void {
-    std.debug.print("Running tests...\n", .{});
+    std.log.debug("Running tests...", .{});
 
     try testHTMLTokenizer(allocator);
     try testHTMLParser(allocator);
     try testDOM(allocator);
 
-    std.debug.print("All tests passed!\n", .{});
+    std.log.debug("All tests passed!", .{});
 }
 
 fn testHTMLTokenizer(allocator: std.mem.Allocator) !void {
-    std.debug.print("Testing HTML Tokenizer...\n", .{});
+    std.log.debug("Testing HTML Tokenizer...", .{});
 
     const html_input = "<div class='test'>Hello</div>";
     var tok = tokenizer.Tokenizer.init(html_input, allocator);
@@ -40,11 +40,11 @@ fn testHTMLTokenizer(allocator: std.mem.Allocator) !void {
     std.debug.assert(token3.token_type == .end_tag);
     std.debug.assert(std.mem.eql(u8, token3.data.end_tag.name, "div"));
 
-    std.debug.print("  HTML Tokenizer tests passed\n", .{});
+    std.log.debug("  HTML Tokenizer tests passed", .{});
 }
 
 fn testHTMLParser(allocator: std.mem.Allocator) !void {
-    std.debug.print("Testing HTML Parser...\n", .{});
+    std.log.debug("Testing HTML Parser...", .{});
 
     const html_input = "<html><head><title>Test</title></head><body><p>Hello</p></body></html>";
     const doc = try dom.Document.init(allocator);
@@ -72,11 +72,11 @@ fn testHTMLParser(allocator: std.mem.Allocator) !void {
     const body = doc_ptr.getBody();
     std.debug.assert(body != null);
 
-    std.debug.print("  HTML Parser tests passed\n", .{});
+    std.log.debug("  HTML Parser tests passed", .{});
 }
 
 fn testDOM(allocator: std.mem.Allocator) !void {
-    std.debug.print("Testing DOM...\n", .{});
+    std.log.debug("Testing DOM...", .{});
 
     const doc = try dom.Document.init(allocator);
     const doc_ptr = try allocator.create(dom.Document);
@@ -106,7 +106,7 @@ fn testDOM(allocator: std.mem.Allocator) !void {
     std.debug.assert(body_node.first_child == p_node);
     std.debug.assert(p_node.first_child == text_node);
 
-    std.debug.print("  DOM tests passed\n", .{});
+    std.log.debug("  DOM tests passed", .{});
 }
 
 fn freeAllNodes(allocator: std.mem.Allocator, node: *dom.Node) void {

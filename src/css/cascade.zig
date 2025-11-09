@@ -151,7 +151,7 @@ pub const Cascade = struct {
                 if (computed.properties.getPtr(name)) |existing| {
                     existing.deinit();
                     existing.* = new_decl;
-                    std.debug.print("[Cascade] computeStyle: inline style '{s}' overwrote existing property\n", .{name});
+                    std.log.debug("[Cascade] computeStyle: inline style '{s}' overwrote existing property", .{name});
                 } else {
                     computed.properties.put(name, new_decl) catch |err| {
                         self.allocator.free(name);
@@ -159,7 +159,7 @@ pub const Cascade = struct {
                         mutable_value.deinit(self.allocator);
                         return err;
                     };
-                    std.debug.print("[Cascade] computeStyle: inline style '{s}' added to computed properties\n", .{name});
+                    std.log.debug("[Cascade] computeStyle: inline style '{s}' added to computed properties", .{name});
                 }
             }
         }
@@ -251,18 +251,18 @@ pub const Cascade = struct {
                             .unit = unit,
                         },
                     };
-                    std.debug.print("[Cascade] parseInlineStyle: parsed length property '{s}' = {d}px\n", .{ property_name, num });
+                    std.log.debug("[Cascade] parseInlineStyle: parsed length property '{s}' = {d}px", .{ property_name, num });
                 } else {
                     // 关键字
                     const keyword = try self.allocator.dupe(u8, value_str);
                     value = parser.Value{ .keyword = keyword };
-                    std.debug.print("[Cascade] parseInlineStyle: parsed keyword property '{s}' = '{s}'\n", .{ property_name, keyword });
+                    std.log.debug("[Cascade] parseInlineStyle: parsed keyword property '{s}' = '{s}'", .{ property_name, keyword });
                 }
             } else {
                 // 关键字
                 const keyword = try self.allocator.dupe(u8, value_str);
                 value = parser.Value{ .keyword = keyword };
-                std.debug.print("[Cascade] parseInlineStyle: parsed keyword property '{s}' = '{s}'\n", .{ property_name, keyword });
+                std.log.debug("[Cascade] parseInlineStyle: parsed keyword property '{s}' = '{s}'", .{ property_name, keyword });
             }
             
             const decl = parser.Declaration{
