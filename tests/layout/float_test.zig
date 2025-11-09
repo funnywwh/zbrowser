@@ -137,6 +137,73 @@ test "layoutFloat multiple floats - left floats stack horizontally" {
     try testing.expectEqual(@as(f32, 0), float2_box.box_model.content.y);
 }
 
+test "layoutFloat collision detection - considers padding and border" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 创建测试节点
+    const containing_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, containing_node);
+
+    const float1_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, float1_node);
+
+    const float2_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, float2_node);
+
+    // 创建布局框
+    var containing_box = box.LayoutBox.init(containing_node, allocator);
+    containing_box.box_model.content.x = 0;
+    containing_box.box_model.content.y = 0;
+    containing_box.box_model.content.width = 800;
+    containing_box.box_model.content.height = 600;
+    defer containing_box.deinit();
+
+    var float1_box = box.LayoutBox.init(float1_node, allocator);
+    float1_box.float = .left;
+    float1_box.box_model.content.width = 100;
+    float1_box.box_model.content.height = 50;
+    // 设置padding和border，这些应该被考虑在碰撞检测中
+    float1_box.box_model.padding.left = 5;
+    float1_box.box_model.padding.right = 5;
+    float1_box.box_model.border.left = 2;
+    float1_box.box_model.border.right = 2;
+    defer float1_box.deinit();
+
+    var float2_box = box.LayoutBox.init(float2_node, allocator);
+    float2_box.float = .left;
+    float2_box.box_model.content.width = 100;
+    float2_box.box_model.content.height = 50;
+    defer float2_box.deinit();
+
+    // 执行浮动布局（先布局第一个）
+    var y: f32 = 0;
+    float_layout.layoutFloat(&float1_box, &containing_box, &y);
+
+    // 将第一个浮动元素添加到包含块的children中
+    try containing_box.children.append(allocator, &float1_box);
+
+    // 布局第二个浮动元素（应该考虑第一个的padding和border）
+    // float1的总宽度 = content(100) + padding(5+5) + border(2+2) = 114
+    // float2应该从114开始，而不是100
+    y = 0;
+    float_layout.layoutFloat(&float2_box, &containing_box, &y);
+
+    // 将第二个浮动元素添加到包含块的children中
+    try containing_box.children.append(allocator, &float2_box);
+
+    // 检查第一个浮动元素位置
+    try testing.expectEqual(@as(f32, 0), float1_box.box_model.content.x);
+    try testing.expectEqual(@as(f32, 0), float1_box.box_model.content.y);
+
+    // 检查第二个浮动元素位置（应该考虑第一个的padding和border）
+    // float1的总宽度 = 100 + 5 + 5 + 2 + 2 = 114
+    // float2应该从114开始
+    try testing.expectEqual(@as(f32, 114), float2_box.box_model.content.x);
+    try testing.expectEqual(@as(f32, 0), float2_box.box_model.content.y);
+}
+
 test "layoutFloat boundary - empty containing block" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
@@ -288,4 +355,65 @@ test "clearFloats boundary - no floats" {
 
     // 如果没有浮动元素，应该返回原始y值
     try testing.expectEqual(initial_y, max_y);
+}
+
+test "layoutFloat wrap - wraps to next line when doesn't fit" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 创建测试节点：包含块宽度为200，两个浮动元素各150宽，第二个应该换行
+    const containing_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, containing_node);
+
+    const float1_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, float1_node);
+
+    const float2_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, float2_node);
+
+    // 创建布局框
+    var containing_box = box.LayoutBox.init(containing_node, allocator);
+    containing_box.box_model.content.x = 0;
+    containing_box.box_model.content.y = 0;
+    containing_box.box_model.content.width = 200; // 窄的包含块
+    containing_box.box_model.content.height = 600;
+    defer containing_box.deinit();
+
+    var float1_box = box.LayoutBox.init(float1_node, allocator);
+    float1_box.float = .left;
+    float1_box.box_model.content.width = 150; // 第一个浮动元素占150
+    float1_box.box_model.content.height = 50;
+    defer float1_box.deinit();
+
+    var float2_box = box.LayoutBox.init(float2_node, allocator);
+    float2_box.float = .left;
+    float2_box.box_model.content.width = 150; // 第二个浮动元素也占150，但包含块只有200，应该换行
+    float2_box.box_model.content.height = 50;
+    defer float2_box.deinit();
+
+    // 执行浮动布局（先布局第一个）
+    var y: f32 = 0;
+    float_layout.layoutFloat(&float1_box, &containing_box, &y);
+
+    // 将第一个浮动元素添加到包含块的children中
+    try containing_box.children.append(allocator, &float1_box);
+
+    // 布局第二个浮动元素（应该换行，因为200 < 150 + 150）
+    // 注意：需要重置y为0来测试换行，但实际上y已经被第一个元素更新了
+    // 为了测试换行，我们需要手动设置y
+    y = 0;
+    float_layout.layoutFloat(&float2_box, &containing_box, &y);
+
+    // 将第二个浮动元素添加到包含块的children中
+    try containing_box.children.append(allocator, &float2_box);
+
+    // 检查第一个浮动元素位置
+    try testing.expectEqual(@as(f32, 0), float1_box.box_model.content.x);
+    try testing.expectEqual(@as(f32, 0), float1_box.box_model.content.y);
+
+    // 检查第二个浮动元素位置（应该换行到下一行）
+    // 如果换行，应该在y=50（第一个元素的高度）的位置
+    try testing.expectEqual(@as(f32, 0), float2_box.box_model.content.x); // 换行后从左边开始
+    try testing.expectEqual(@as(f32, 50), float2_box.box_model.content.y); // 在第一个元素下方
 }

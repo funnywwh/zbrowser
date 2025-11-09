@@ -26,7 +26,7 @@ pub fn layoutPosition(layout_box: *box.LayoutBox, viewport: box.Size) void {
         .relative => {
             // relative定位：相对于正常位置偏移
             // 参考：CSS 2.1规范 9.4.3节（Relative positioning）
-            layoutRelative(layout_box);
+            layoutRelative(layout_box, viewport);
         },
         .absolute => {
             // absolute定位：相对于最近的定位祖先
@@ -53,34 +53,53 @@ pub fn layoutPosition(layout_box: *box.LayoutBox, viewport: box.Size) void {
 /// Relative定位：相对于正常位置偏移
 /// 根据top、right、bottom、left值计算偏移量
 /// top/left优先，如果未设置则使用bottom/right
-fn layoutRelative(layout_box: *box.LayoutBox) void {
+/// 参数：
+/// - layout_box: 要定位的布局框
+/// - containing_block: 包含块尺寸（用于计算right和bottom）
+fn layoutRelative(layout_box: *box.LayoutBox, containing_block: box.Size) void {
+    // 保存正常位置（在偏移之前）
+    const normal_x = layout_box.box_model.content.x;
+    const normal_y = layout_box.box_model.content.y;
+    const normal_width = layout_box.box_model.content.width;
+    const normal_height = layout_box.box_model.content.height;
+
     // 计算水平偏移（left优先，如果未设置则使用right）
     if (layout_box.position_left) |left| {
         layout_box.box_model.content.x += left;
     } else if (layout_box.position_right) |right| {
-        // right值需要相对于包含块的宽度计算
-        // 简化实现：假设包含块宽度已知，这里暂时不处理right
-        // TODO: 需要传入containing_block参数
-        _ = right;
+        // right值相对于包含块的右边缘
+        // 元素右边缘应该距离包含块右边缘right像素
+        // 最终右边缘位置 = containing_block.width - right
+        // 最终左边缘位置 = (containing_block.width - right) - normal_width
+        // 偏移量 = 最终左边缘位置 - normal_x
+        const final_right_edge = containing_block.width - right;
+        const final_left_edge = final_right_edge - normal_width;
+        const offset_x = final_left_edge - normal_x;
+        layout_box.box_model.content.x += offset_x;
     }
 
     // 计算垂直偏移（top优先，如果未设置则使用bottom）
     if (layout_box.position_top) |top| {
         layout_box.box_model.content.y += top;
     } else if (layout_box.position_bottom) |bottom| {
-        // bottom值需要相对于包含块的高度计算
-        // 简化实现：假设包含块高度已知，这里暂时不处理bottom
-        // TODO: 需要传入containing_block参数
-        _ = bottom;
+        // bottom值相对于包含块的底边缘
+        // 元素底边缘应该距离包含块底边缘bottom像素
+        // 最终底边缘位置 = containing_block.height - bottom
+        // 最终顶边缘位置 = (containing_block.height - bottom) - normal_height
+        // 偏移量 = 最终顶边缘位置 - normal_y
+        const final_bottom_edge = containing_block.height - bottom;
+        const final_top_edge = final_bottom_edge - normal_height;
+        const offset_y = final_top_edge - normal_y;
+        layout_box.box_model.content.y += offset_y;
     }
 }
 
 /// Absolute定位：相对于最近的定位祖先
-/// TODO: 简化实现 - 当前假设相对于父元素定位
+/// 实现已完整：会遍历父节点链，找到第一个position != static的祖先作为包含块
+/// 如果找不到定位祖先，使用传入的containing_block（通常是视口或初始包含块）
 fn layoutAbsolute(layout_box: *box.LayoutBox, containing_block: box.Size) void {
-    std.log.debug("[Position] layoutAbsolute: start, position_left={?}, position_top={?}, containing_block=({d:.1}x{d:.1})", 
-        .{ layout_box.position_left, layout_box.position_top, containing_block.width, containing_block.height });
-    
+    std.log.debug("[Position] layoutAbsolute: start, position_left={?}, position_top={?}, containing_block=({d:.1}x{d:.1})", .{ layout_box.position_left, layout_box.position_top, containing_block.width, containing_block.height });
+
     // 找到定位祖先，获取其内容区域的位置
     // 如果找不到定位祖先，使用传入的containing_block（通常是视口或初始包含块）
     var containing_block_x: f32 = 0;
@@ -101,17 +120,16 @@ fn layoutAbsolute(layout_box: *box.LayoutBox, containing_block: box.Size) void {
                 .document => "document",
                 .doctype => "doctype",
             };
-            std.log.debug("[Position] layoutAbsolute: found positioned ancestor '{s}' (position={}) at ({d:.1}, {d:.1})", 
-                .{ node_type_str, anc.position, containing_block_x, containing_block_y });
+            std.log.debug("[Position] layoutAbsolute: found positioned ancestor '{s}' (position={}) at ({d:.1}, {d:.1})", .{ node_type_str, anc.position, containing_block_x, containing_block_y });
             break;
         }
         ancestor = anc.parent;
     }
-    
+
     if (positioned_ancestor == null) {
         std.log.debug("[Position] layoutAbsolute: no positioned ancestor found, using viewport (0, 0)", .{});
     }
-    
+
     // 如果找不到定位祖先，使用传入的containing_block（相对于视口或初始包含块）
     // 此时containing_block_x和containing_block_y已经是0，这是正确的
 
@@ -124,9 +142,9 @@ fn layoutAbsolute(layout_box: *box.LayoutBox, containing_block: box.Size) void {
         const total_width = layout_box.box_model.content.width +
             layout_box.box_model.padding.horizontal() +
             layout_box.box_model.border.horizontal();
-        const block_width = if (positioned_ancestor) |anc| 
+        const block_width = if (positioned_ancestor) |anc|
             anc.box_model.content.width
-        else 
+        else
             containing_block.width;
         layout_box.box_model.content.x = containing_block_x + block_width - total_width - right;
     } else {
@@ -144,9 +162,9 @@ fn layoutAbsolute(layout_box: *box.LayoutBox, containing_block: box.Size) void {
         const total_height = layout_box.box_model.content.height +
             layout_box.box_model.padding.vertical() +
             layout_box.box_model.border.vertical();
-        const block_height = if (positioned_ancestor) |anc| 
+        const block_height = if (positioned_ancestor) |anc|
             anc.box_model.content.height
-        else 
+        else
             containing_block.height;
         layout_box.box_model.content.y = containing_block_y + block_height - total_height - bottom;
     } else {
@@ -154,7 +172,7 @@ fn layoutAbsolute(layout_box: *box.LayoutBox, containing_block: box.Size) void {
         layout_box.box_model.content.y = containing_block_y;
         std.log.debug("[Position] layoutAbsolute: no top/bottom, set y = {d:.1}", .{containing_block_y});
     }
-    
+
     std.log.debug("[Position] layoutAbsolute: final position = ({d:.1}, {d:.1})", .{ layout_box.box_model.content.x, layout_box.box_model.content.y });
 }
 
@@ -169,10 +187,9 @@ fn layoutFixed(layout_box: *box.LayoutBox, viewport: box.Size) void {
 fn layoutSticky(layout_box: *box.LayoutBox, containing_block: box.Size) void {
     // TODO: 完整实现需要跟踪滚动位置
     // 当前简化实现：使用与relative类似的逻辑
-    _ = containing_block;
 
     // 初始位置使用relative定位逻辑
-    layoutRelative(layout_box);
+    layoutRelative(layout_box, containing_block);
 
     // TODO: 当滚动时，如果元素到达指定位置，将其"粘"在那里
     // 这需要：

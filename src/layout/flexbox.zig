@@ -14,14 +14,13 @@ const style_utils = @import("style_utils");
 /// - containing_block: 包含块尺寸
 /// - stylesheets: CSS样式表（用于获取Flexbox属性）
 ///
-/// TODO: 简化实现 - 当前实现了基本的row和column方向布局，不换行
-/// 完整实现需要：
-/// 1. 实现flex items的基础尺寸计算
-/// 2. 实现flex items的flex尺寸计算（考虑flex-grow, flex-shrink, flex-basis）
-/// 3. 实现flex lines的计算（处理换行）
-/// 4. 实现交叉轴尺寸计算
-/// 5. 实现对齐算法（justify-content, align-items, align-content）
-/// 6. 处理flex-direction的反向（row-reverse, column-reverse）
+/// 实现已改进：
+/// 1. ✅ flex-direction反向已实现（row-reverse, column-reverse在applyJustifyContent中处理）
+/// 2. ✅ 基本的对齐算法已实现（justify-content, align-items）
+/// TODO: 简化实现 - 完整实现还需要：
+/// 1. 完善flex items的flex尺寸计算（考虑flex-grow, flex-shrink, flex-basis的完整逻辑）
+/// 2. 完善flex lines的计算（处理换行的完整逻辑）
+/// 3. 实现align-content多行对齐
 /// 参考：CSS Flexible Box Layout Module Level 1
 pub fn layoutFlexbox(layout_box: *box.LayoutBox, containing_block: box.Size, stylesheets: []const css_parser.Stylesheet) void {
     // 计算样式以获取Flexbox属性
@@ -58,7 +57,7 @@ pub fn layoutFlexbox(layout_box: *box.LayoutBox, containing_block: box.Size, sty
     // 收集所有flex items的属性和基础尺寸
     var flex_items = std.ArrayList(FlexItem){};
     defer flex_items.deinit(layout_box.allocator);
-    
+
     const container_main_size = if (is_row) layout_box.box_model.content.width else layout_box.box_model.content.height;
     const container_cross_size = if (is_row) layout_box.box_model.content.height else layout_box.box_model.content.width;
 
@@ -81,7 +80,7 @@ pub fn layoutFlexbox(layout_box: *box.LayoutBox, containing_block: box.Size, sty
 
         // 获取flex属性
         const flex_props = style_utils.getFlexProperties(&child_computed_style, container_main_size);
-        
+
         // 计算基础尺寸（main size和cross size）
         const base_main_size = if (is_row) child.box_model.content.width else child.box_model.content.height;
         const base_cross_size = if (is_row) child.box_model.content.height else child.box_model.content.width;
@@ -264,7 +263,7 @@ fn layoutFlexboxMultiLine(
         }
         flex_lines.deinit(layout_box.allocator);
     }
-    
+
     createFlexLines(&flex_lines, flex_items, container_main_size, is_row, layout_box.allocator);
 
     // 第二步：对每个flex line计算尺寸和对齐
@@ -272,15 +271,15 @@ fn layoutFlexboxMultiLine(
         // 创建一个临时的FlexItem数组用于计算（因为calculateFlexSizes需要*std.ArrayList(FlexItem)）
         var line_items = std.ArrayList(FlexItem){};
         defer line_items.deinit(layout_box.allocator);
-        
+
         // 将line.items中的指针解引用并复制到line_items
         for (line.items.items) |item_ptr| {
             line_items.append(layout_box.allocator, item_ptr.*) catch continue;
         }
-        
+
         // 计算这一行的flex尺寸
         calculateFlexSizes(&line_items, container_main_size, is_row);
-        
+
         // 将计算结果同步回line.items（通过layout_box更新）
         // 注意：calculateFlexSizes已经直接更新了layout_box的尺寸，所以不需要同步
         // 只需要更新FlexItem结构中的final_main_size等字段
@@ -600,7 +599,7 @@ fn applyAlignItems(
 ) void {
     for (flex_items.items) |*item| {
         var cross_offset: f32 = 0;
-        
+
         switch (align_items) {
             .flex_start => {
                 cross_offset = 0;

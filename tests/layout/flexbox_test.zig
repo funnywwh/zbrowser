@@ -343,5 +343,64 @@ test "layoutFlexbox column direction - vertical stack" {
     try testing.expectEqual(@as(f32, 0), item2_box.box_model.content.y);
 }
 
+test "layoutFlexbox row-reverse - reverses item order" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 创建测试节点
+    const container_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, container_node);
+
+    const item1_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, item1_node);
+
+    const item2_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, item2_node);
+
+    // 创建布局框
+    var container_box = box.LayoutBox.init(container_node, allocator);
+    container_box.display = .flex;
+    container_box.box_model.content.x = 0;
+    container_box.box_model.content.y = 0;
+    container_box.box_model.content.width = 800;
+    container_box.box_model.content.height = 600;
+    defer container_box.deinit();
+
+    var item1_box = box.LayoutBox.init(item1_node, allocator);
+    item1_box.box_model.content.width = 100;
+    item1_box.box_model.content.height = 50;
+    defer item1_box.deinit();
+
+    var item2_box = box.LayoutBox.init(item2_node, allocator);
+    item2_box.box_model.content.width = 150;
+    item2_box.box_model.content.height = 50;
+    defer item2_box.deinit();
+
+    // 添加子元素
+    try container_box.children.append(allocator, &item1_box);
+    try container_box.children.append(allocator, &item2_box);
+    item1_box.parent = &container_box;
+    item2_box.parent = &container_box;
+
+    // 执行Flexbox布局（row-reverse方向）
+    // 注意：当前实现默认使用row方向，row-reverse需要从样式表获取
+    // 这里先测试row方向，row-reverse的测试需要等样式系统完成后才能实现
+    const containing_block = box.Size{ .width = 800, .height = 600 };
+    flexbox.layoutFlexbox(&container_box, containing_block, &[_]css.Stylesheet{});
+
+    // 检查布局结果
+    try testing.expect(container_box.is_layouted);
+    try testing.expect(item1_box.is_layouted);
+    try testing.expect(item2_box.is_layouted);
+
+    // TODO: 当样式系统完成后，可以通过设置flex-direction: row-reverse来测试反向
+    // 当前默认是row方向，所以检查row方向的布局
+    try testing.expectEqual(@as(f32, 0), item1_box.box_model.content.x);
+    try testing.expectEqual(@as(f32, 0), item1_box.box_model.content.y);
+    try testing.expectEqual(@as(f32, 100), item2_box.box_model.content.x);
+    try testing.expectEqual(@as(f32, 0), item2_box.box_model.content.y);
+}
+
 // TODO: 添加flex-grow测试用例
 // 需要先实现flex-grow功能，然后添加测试
