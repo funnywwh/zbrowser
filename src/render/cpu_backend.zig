@@ -367,7 +367,12 @@ pub const CpuRenderBackend = struct {
 
         // 尝试使用字体模块渲染文本
         // 首先尝试获取字体（如果已加载）
-        const font_face = self.font_manager.getFont(font.family);
+        var font_face = self.font_manager.getFont(font.family);
+        
+        // 如果字体未加载，尝试加载默认字体
+        if (font_face == null) {
+            font_face = self.tryLoadDefaultFont(font.family) catch null;
+        }
         
         if (font_face) |face| {
             // 字体已加载，使用真正的字形渲染
@@ -380,6 +385,70 @@ pub const CpuRenderBackend = struct {
             // 字体未加载，使用占位符
             self.renderTextPlaceholder(text, x, y, font, color);
         }
+    }
+
+    /// 尝试加载默认字体
+    /// 从常见路径查找并加载字体文件
+    fn tryLoadDefaultFont(self: *CpuRenderBackend, font_family: []const u8) !?*font_module.FontFace {
+        // 常见的字体文件路径（Windows）
+        const font_paths = [_][]const u8{
+            "C:\\Windows\\Fonts\\arial.ttf",
+            "C:\\Windows\\Fonts\\Arial.ttf",
+            "C:\\Windows\\Fonts\\arial.ttf",
+            "C:\\Windows\\Fonts\\calibri.ttf",
+            "C:\\Windows\\Fonts\\Calibri.ttf",
+            "fonts/arial.ttf",
+            "fonts/Arial.ttf",
+            "arial.ttf",
+            "Arial.ttf",
+        };
+
+        // 根据字体名称选择可能的路径
+        var font_name_lower = std.ArrayList(u8){};
+        defer font_name_lower.deinit(self.allocator);
+        for (font_family) |c| {
+            font_name_lower.append(self.allocator, std.ascii.toLower(c)) catch break;
+        }
+        const font_name_lower_slice = font_name_lower.items;
+
+        // 尝试从常见路径加载字体
+        for (font_paths) |path| {
+            // 如果路径包含字体名称（不区分大小写），优先尝试
+            var path_lower = std.ArrayList(u8){};
+            defer path_lower.deinit(self.allocator);
+            for (path) |c| {
+                path_lower.append(self.allocator, std.ascii.toLower(c)) catch break;
+            }
+            const path_lower_slice = path_lower.items;
+
+            // 检查路径是否包含字体名称
+            const should_try = if (std.mem.indexOf(u8, path_lower_slice, font_name_lower_slice) != null) true
+            else if (std.mem.eql(u8, font_name_lower_slice, "arial") and std.mem.indexOf(u8, path_lower_slice, "arial") != null) true
+            else false;
+
+            if (should_try) {
+                if (self.font_manager.loadFont(path, font_family)) |face| {
+                    std.debug.print("[CPU Backend] Successfully loaded font from: {s}\n", .{path});
+                    return face;
+                } else |_| {
+                    // 继续尝试下一个路径
+                    continue;
+                }
+            }
+        }
+
+        // 如果按名称匹配失败，尝试所有路径
+        for (font_paths) |path| {
+            if (self.font_manager.loadFont(path, font_family)) |face| {
+                std.debug.print("[CPU Backend] Successfully loaded font from: {s}\n", .{path});
+                return face;
+            } else |_| {
+                // 继续尝试下一个路径
+                continue;
+            }
+        }
+
+        return null;
     }
 
     /// 使用字体渲染真正的文本

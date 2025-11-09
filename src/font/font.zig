@@ -7,6 +7,8 @@ pub const FontManager = struct {
     allocator: std.mem.Allocator,
     /// 字体缓存：字体名称 -> 字体数据
     font_cache: std.StringHashMap(*FontFace),
+    /// 字体数据缓存：字体名称 -> 字体数据（需要单独管理生命周期）
+    font_data_cache: std.StringHashMap([]u8),
 
     const Self = @This();
 
@@ -15,18 +17,48 @@ pub const FontManager = struct {
         return .{
             .allocator = allocator,
             .font_cache = std.StringHashMap(*FontFace).init(allocator),
+            .font_data_cache = std.StringHashMap([]u8).init(allocator),
         };
     }
 
     /// 清理字体管理器
     pub fn deinit(self: *Self) void {
-        // 释放所有缓存的字体
+        // 先保存所有需要释放的资源
+        var entries = std.ArrayList(struct { name: []const u8, face: *FontFace }){};
+        defer entries.deinit(self.allocator);
+        
         var it = self.font_cache.iterator();
         while (it.next()) |entry| {
-            entry.value_ptr.*.deinit(self.allocator);
-            self.allocator.destroy(entry.value_ptr.*);
+            entries.append(self.allocator, .{
+                .name = entry.key_ptr.*,
+                .face = entry.value_ptr.*,
+            }) catch break;
         }
+        
+        // 释放字体面
+        for (entries.items) |entry| {
+            entry.face.deinit(self.allocator);
+            self.allocator.destroy(entry.face);
+        }
+        
+        // 释放字体数据
+        var it2 = self.font_data_cache.iterator();
+        while (it2.next()) |entry| {
+            self.allocator.free(entry.value_ptr.*);
+        }
+        
+        // 释放字体名称（需要转换为可变切片）
+        for (entries.items) |entry| {
+            // 字体名称是通过 dupe 分配的，需要释放
+            // 但 entry.name 是 const，我们需要从 font_cache 中获取
+            // 实际上，font_cache 的 key 就是字体名称，我们需要释放它
+            // 但我们已经保存了指针，可以直接释放
+            const name_mutable = @constCast(entry.name);
+            self.allocator.free(name_mutable);
+        }
+        
         self.font_cache.deinit();
+        self.font_data_cache.deinit();
     }
 
     /// 加载字体文件
@@ -51,12 +83,20 @@ pub const FontManager = struct {
         _ = try file.readAll(font_data);
 
         // 解析字体
-        const font_face = try FontFace.init(self.allocator, font_data);
-        errdefer font_face.deinit(self.allocator);
+        var font_face_value = try FontFace.init(self.allocator, font_data);
+        errdefer font_face_value.deinit(self.allocator);
+
+        // 分配 FontFace 指针
+        const font_face = try self.allocator.create(FontFace);
+        errdefer self.allocator.destroy(font_face);
+        font_face.* = font_face_value;
 
         // 缓存字体
         const font_name_dup = try self.allocator.dupe(u8, font_name);
         errdefer self.allocator.free(font_name_dup);
+
+        // 缓存字体数据（需要单独管理生命周期）
+        try self.font_data_cache.put(font_name_dup, font_data);
 
         try self.font_cache.put(font_name_dup, font_face);
 
@@ -99,7 +139,7 @@ pub const FontFace = struct {
     pub fn deinit(self: *Self, allocator: std.mem.Allocator) void {
         _ = allocator;
         self.ttf_parser.deinit(self.allocator);
-        // 注意：font_data 由调用者管理，这里不释放
+        // 注意：font_data 由 FontManager 管理，这里不释放
     }
 
     /// 获取字符的字形索引
