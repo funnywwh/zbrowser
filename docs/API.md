@@ -4,8 +4,8 @@
 
 ## 版本信息
 
-- **当前版本**: 0.1.0-alpha
-- **Zig版本要求**: 0.14.0+
+- **当前版本**: 0.7.0-alpha
+- **Zig版本要求**: 0.15.2+
 
 ## 模块概览
 
@@ -471,6 +471,309 @@ pub const Tokenizer = struct {
 
 ---
 
+## 字体模块 (`src/font/`)
+
+### FontManager (`font.zig`)
+
+字体管理器，负责加载、缓存和管理字体。
+
+```zig
+pub const FontManager = struct {
+    allocator: std.mem.Allocator,
+    font_cache: std.StringHashMap(*FontFace),
+    font_data_cache: std.StringHashMap([]u8),
+    
+    /// 初始化字体管理器
+    /// 
+    /// 参数:
+    ///   - allocator: 内存分配器
+    /// 
+    /// 返回:
+    ///   - FontManager实例
+    /// 
+    /// 示例:
+    /// ```zig
+    /// var font_manager = FontManager.init(allocator);
+    /// defer font_manager.deinit();
+    /// ```
+    pub fn init(allocator: std.mem.Allocator) Self;
+    
+    /// 清理字体管理器
+    /// 
+    /// 释放所有缓存的字体和字体数据
+    pub fn deinit(self: *Self) void;
+    
+    /// 加载字体文件
+    /// 
+    /// 参数:
+    ///   - font_path: 字体文件路径
+    ///   - font_name: 字体名称（用于缓存）
+    /// 
+    /// 返回:
+    ///   - FontFace指针或错误
+    /// 
+    /// 示例:
+    /// ```zig
+    /// const font_face = try font_manager.loadFont("arial.ttf", "Arial");
+    /// ```
+    pub fn loadFont(self: *Self, font_path: []const u8, font_name: []const u8) !*FontFace;
+    
+    /// 根据字体名称查找字体
+    /// 
+    /// 参数:
+    ///   - font_name: 字体名称（如 "Arial", "Times New Roman"）
+    /// 
+    /// 返回:
+    ///   - FontFace指针或null（如果未找到）
+    /// 
+    /// 示例:
+    /// ```zig
+    /// const font_face = font_manager.getFont("Arial");
+    /// if (font_face) |face| {
+    ///     // 使用字体
+    /// }
+    /// ```
+    pub fn getFont(self: *Self, font_name: []const u8) ?*FontFace;
+};
+```
+
+### FontFace (`font.zig`)
+
+字体面，表示一个已加载的字体文件。
+
+```zig
+pub const FontFace = struct {
+    allocator: std.mem.Allocator,
+    font_data: []const u8,
+    ttf_parser: ttf.TtfParser,
+    
+    /// 初始化字体面
+    /// 
+    /// 参数:
+    ///   - allocator: 内存分配器
+    ///   - font_data: 字体文件数据（原始字节）
+    /// 
+    /// 返回:
+    ///   - FontFace实例或错误
+    pub fn init(allocator: std.mem.Allocator, font_data: []const u8) !Self;
+    
+    /// 清理字体面
+    /// 
+    /// 参数:
+    ///   - allocator: 内存分配器（当前未使用）
+    pub fn deinit(self: *Self, allocator: std.mem.Allocator) void;
+    
+    /// 获取字符的字形索引
+    /// 
+    /// 参数:
+    ///   - codepoint: Unicode字符码点
+    /// 
+    /// 返回:
+    ///   - 字形索引或null（如果未找到）
+    /// 
+    /// 示例:
+    /// ```zig
+    /// const glyph_index = try font_face.getGlyphIndex('A');
+    /// ```
+    pub fn getGlyphIndex(self: *Self, codepoint: u21) !?u16;
+    
+    /// 获取字形数据
+    /// 
+    /// 参数:
+    ///   - glyph_index: 字形索引
+    /// 
+    /// 返回:
+    ///   - 字形数据（Glyph）
+    /// 
+    /// 示例:
+    /// ```zig
+    /// var glyph = try font_face.getGlyph(glyph_index);
+    /// defer glyph.deinit(allocator);
+    /// ```
+    pub fn getGlyph(self: *Self, glyph_index: u16) !ttf.TtfParser.Glyph;
+    
+    /// 获取字形的水平度量（宽度、左边界等）
+    /// 
+    /// 参数:
+    ///   - glyph_index: 字形索引
+    /// 
+    /// 返回:
+    ///   - 水平度量（HorizontalMetrics）
+    /// 
+    /// 示例:
+    /// ```zig
+    /// const metrics = try font_face.getHorizontalMetrics(glyph_index);
+    /// const width = metrics.advance_width;
+    /// ```
+    pub fn getHorizontalMetrics(self: *Self, glyph_index: u16) !ttf.TtfParser.HorizontalMetrics;
+    
+    /// 获取字体度量信息
+    /// 
+    /// 返回:
+    ///   - 字体度量（FontMetrics）
+    /// 
+    /// 示例:
+    /// ```zig
+    /// const metrics = try font_face.getFontMetrics();
+    /// const units_per_em = metrics.units_per_em;
+    /// ```
+    pub fn getFontMetrics(self: *Self) !ttf.TtfParser.FontMetrics;
+};
+```
+
+### TtfParser (`ttf.zig`)
+
+TTF/OTF字体解析器，解析字体文件的各种表。
+
+```zig
+pub const TtfParser = struct {
+    allocator: std.mem.Allocator,
+    font_data: []const u8,
+    table_directory: TableDirectory,
+    
+    /// 字体度量信息
+    pub const FontMetrics = struct {
+        units_per_em: u16,  // 单位/EM（字体设计单位）
+        ascent: i16,        // 上升高度
+        descent: i16,       // 下降高度
+        line_gap: i16,      // 行间距
+    };
+    
+    /// 水平度量信息
+    pub const HorizontalMetrics = struct {
+        advance_width: u16,      // 前进宽度
+        left_side_bearing: i16,  // 左边界
+    };
+    
+    /// 字形数据
+    pub const Glyph = struct {
+        glyph_index: u16,
+        points: std.ArrayList(Point),
+        instructions: std.ArrayList(u8),
+        
+        pub const Point = struct {
+            x: i16,
+            y: i16,
+            on_curve: bool,  // 是否在曲线上
+        };
+        
+        /// 清理字形数据
+        pub fn deinit(self: *Glyph, allocator: std.mem.Allocator) void;
+    };
+    
+    /// 初始化TTF解析器
+    /// 
+    /// 参数:
+    ///   - allocator: 内存分配器
+    ///   - font_data: 字体文件数据（原始字节）
+    /// 
+    /// 返回:
+    ///   - TtfParser实例或错误
+    pub fn init(allocator: std.mem.Allocator, font_data: []const u8) !Self;
+    
+    /// 清理TTF解析器
+    /// 
+    /// 参数:
+    ///   - allocator: 内存分配器
+    pub fn deinit(self: *Self, allocator: std.mem.Allocator) void;
+    
+    /// 获取字符的字形索引
+    /// 
+    /// 参数:
+    ///   - codepoint: Unicode字符码点
+    /// 
+    /// 返回:
+    ///   - 字形索引或null（如果未找到）
+    pub fn getGlyphIndex(self: *Self, codepoint: u21) !?u16;
+    
+    /// 获取字形数据
+    /// 
+    /// 参数:
+    ///   - glyph_index: 字形索引
+    /// 
+    /// 返回:
+    ///   - 字形数据（Glyph）
+    pub fn getGlyph(self: *Self, glyph_index: u16) !Glyph;
+    
+    /// 获取字形的水平度量
+    /// 
+    /// 参数:
+    ///   - glyph_index: 字形索引
+    /// 
+    /// 返回:
+    ///   - 水平度量（HorizontalMetrics）
+    pub fn getHorizontalMetrics(self: *Self, glyph_index: u16) !HorizontalMetrics;
+    
+    /// 获取字体度量信息
+    /// 
+    /// 返回:
+    ///   - 字体度量（FontMetrics）
+    pub fn getFontMetrics(self: *Self) !FontMetrics;
+};
+```
+
+### GlyphRenderer (`glyph.zig`)
+
+字形渲染器，将字形轮廓转换为像素数据。
+
+```zig
+pub const GlyphRenderer = struct {
+    allocator: std.mem.Allocator,
+    
+    /// 初始化字形渲染器
+    /// 
+    /// 参数:
+    ///   - allocator: 内存分配器
+    /// 
+    /// 返回:
+    ///   - GlyphRenderer实例
+    pub fn init(allocator: std.mem.Allocator) Self;
+    
+    /// 清理字形渲染器
+    pub fn deinit(self: *Self) void;
+    
+    /// 渲染字形到像素缓冲区
+    /// 
+    /// 参数:
+    ///   - glyph: 字形数据
+    ///   - font_metrics: 字体度量信息
+    ///   - font_size: 字体大小（像素）
+    ///   - width: 输出缓冲区宽度
+    ///   - height: 输出缓冲区高度
+    ///   - x_offset: X偏移量
+    ///   - y_offset: Y偏移量
+    /// 
+    /// 返回:
+    ///   - 像素缓冲区（RGBA格式）或错误
+    /// 
+    /// 示例:
+    /// ```zig
+    /// const pixels = try glyph_renderer.renderGlyph(
+    ///     glyph,
+    ///     font_metrics,
+    ///     16.0,  // 字体大小
+    ///     32,    // 宽度
+    ///     32,    // 高度
+    ///     0,     // X偏移
+    ///     0,     // Y偏移
+    /// );
+    /// defer allocator.free(pixels);
+    /// ```
+    pub fn renderGlyph(
+        self: *Self,
+        glyph: *ttf.TtfParser.Glyph,
+        font_metrics: ttf.TtfParser.FontMetrics,
+        font_size: f32,
+        width: u32,
+        height: u32,
+        x_offset: i32,
+        y_offset: i32,
+    ) ![]u8;
+};
+```
+
+---
+
 ## 工具模块 (`src/utils/`)
 
 ### Allocator模块 (`allocator.zig`)
@@ -732,6 +1035,21 @@ freeAllNodes(allocator, &doc_ptr.node);
 ---
 
 ## 版本历史
+
+### 0.7.0-alpha
+
+- ✅ **完成字体模块核心功能并集成到渲染后端**
+  - TTF/OTF字体解析器完整实现
+  - 字形渲染器完整实现
+  - 文本渲染集成（已完成）
+    - ✅ 字体模块集成到CPU渲染后端
+    - ✅ 自动字体加载（从Windows系统字体目录自动加载）
+    - ✅ 真正的文本渲染（使用字形渲染器渲染真实字形）
+    - ✅ 字体缓存机制（避免重复加载）
+    - ✅ 回退机制（字体加载失败时使用占位符）
+- ✅ Windows支持（环境脚本、字体目录支持）
+- ✅ 所有测试通过：304/304 passed
+- ✅ 0内存泄漏
 
 ### 0.1.0-alpha
 
