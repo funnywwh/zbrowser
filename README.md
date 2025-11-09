@@ -524,7 +524,7 @@ zig build test
 ## 状态
 
 **当前版本**: 0.8.1-alpha  
-**开发阶段**: 阶段1-5核心功能完成（TrueType Hinting完整实现，小字体优化）
+**开发阶段**: 阶段1-5核心功能完成（TrueType Hinting完整实现，小字体优化，Flexbox布局完整实现）
 
 ### 最新更新（v0.8.1-alpha）
 
