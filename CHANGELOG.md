@@ -13,6 +13,7 @@
 ### 改进
 - **内存泄漏修复**：修复了CSS层叠引擎中内联样式覆盖现有属性时的内存泄漏问题。现在当内联样式覆盖现有属性时，旧的key和value会被正确释放。
 - **getPropertyLength修复**：修复了`getPropertyLength`函数对关键字值返回0而不是null的问题。现在当属性值是关键字类型（如多值属性）时，`getPropertyLength`会正确返回`null`，允许`getPropertyKeyword`正确读取关键字值。
+- **Inline布局内存泄漏修复**：修复了Inline布局中`layoutInline`函数总是创建新的IFC而不清理已存在的formatting_context导致的内存泄漏问题。现在在创建新的IFC之前，会先检查并清理已存在的formatting_context。
 
 ### 技术细节
 - 修改了 `src/css/cascade.zig` 中的 `parseInlineStyle` 函数，添加了对多值属性的检查
