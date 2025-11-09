@@ -35,10 +35,10 @@ pub fn layoutFlexbox(layout_box: *box.LayoutBox, containing_block: box.Size, sty
 
     // 获取Flexbox属性
     const flex_direction = style_utils.getFlexDirection(&computed_style);
-    _ = style_utils.getFlexWrap(&computed_style); // TODO: 实现换行
+    const flex_wrap = style_utils.getFlexWrap(&computed_style);
     const justify_content = style_utils.getJustifyContent(&computed_style);
     const align_items = style_utils.getAlignItems(&computed_style);
-    _ = style_utils.getAlignContent(&computed_style); // TODO: 实现多行对齐
+    const align_content = style_utils.getAlignContent(&computed_style);
 
     // 确定主轴方向
     const is_row = flex_direction == .row or flex_direction == .row_reverse;
@@ -97,16 +97,14 @@ pub fn layoutFlexbox(layout_box: *box.LayoutBox, containing_block: box.Size, sty
         };
     }
 
-    // 计算flex尺寸（考虑flex-grow）
-    calculateFlexSizes(&flex_items, container_main_size, is_row);
-
-    // 应用justify-content对齐（主轴对齐）
-    const container_main_pos = if (is_row) layout_box.box_model.content.x else layout_box.box_model.content.y;
-    applyJustifyContent(&flex_items, container_main_size, container_main_pos, justify_content, is_row, is_reverse);
-
-    // 应用align-items对齐（交叉轴对齐，单行）
-    const container_cross_pos = if (is_row) layout_box.box_model.content.y else layout_box.box_model.content.x;
-    applyAlignItems(&flex_items, container_cross_size, container_cross_pos, align_items, is_row);
+    // 根据flex-wrap决定是否换行
+    if (flex_wrap == .nowrap) {
+        // 不换行：所有items在一行
+        layoutFlexboxSingleLine(&flex_items, container_main_size, container_cross_size, is_row, is_reverse, justify_content, align_items, layout_box);
+    } else {
+        // 换行：将items分成多行
+        layoutFlexboxMultiLine(&flex_items, container_main_size, container_cross_size, is_row, is_reverse, flex_wrap, justify_content, align_items, align_content, layout_box);
+    }
 
     // 标记所有子元素为已布局
     for (flex_items.items) |*item| {
@@ -124,45 +122,363 @@ const FlexItem = struct {
     final_cross_size: f32 = 0,
 };
 
-/// 计算flex items的最终尺寸（考虑flex-grow）
+/// Flex line数据结构（用于多行布局）
+const FlexLine = struct {
+    items: std.ArrayList(*FlexItem),
+    main_size: f32 = 0, // 主轴尺寸
+    cross_size: f32 = 0, // 交叉轴尺寸
+    cross_start: f32 = 0, // 交叉轴起始位置
+};
+
+/// 计算flex items的最终尺寸（考虑flex-grow, flex-shrink, flex-basis）
+/// TODO: 简化实现 - 当前实现了基本的flex-grow和flex-shrink计算
+/// 完整实现需要：
+/// 1. 正确处理flex-basis（包括auto、0、百分比等）
+/// 2. 处理min-width/min-height和max-width/max-height约束
+/// 3. 处理负的剩余空间（flex-shrink）
 fn calculateFlexSizes(flex_items: *std.ArrayList(FlexItem), container_main_size: f32, is_row: bool) void {
-    // 计算所有items的基础尺寸总和
-    var total_base_size: f32 = 0;
-    var total_grow: f32 = 0;
-    
+    // 第一步：计算每个item的假设主轴尺寸（hypothetical main size）
+    // 如果flex-basis不为null，使用flex-basis；否则使用base_main_size
     for (flex_items.items) |*item| {
-        total_base_size += item.base_main_size;
-        total_grow += item.flex_props.grow;
-    }
-
-    // 计算剩余空间
-    const free_space = container_main_size - total_base_size;
-
-    // 如果有剩余空间且total_grow > 0，分配剩余空间
-    if (free_space > 0 and total_grow > 0) {
-        for (flex_items.items) |*item| {
-            if (item.flex_props.grow > 0) {
-                const grow_ratio = item.flex_props.grow / total_grow;
-                const extra_size = free_space * grow_ratio;
-                item.final_main_size = item.base_main_size + extra_size;
-            } else {
-                item.final_main_size = item.base_main_size;
-            }
-        }
-    } else {
-        // 没有剩余空间或没有grow，使用基础尺寸
-        for (flex_items.items) |*item| {
+        if (item.flex_props.basis) |basis| {
+            // 使用flex-basis作为假设主轴尺寸
+            item.final_main_size = basis;
+        } else {
+            // flex-basis为auto，使用基础尺寸
             item.final_main_size = item.base_main_size;
         }
     }
 
-    // 应用最终尺寸到layout_box
+    // 第二步：计算所有items的总尺寸
+    var total_size: f32 = 0;
+    for (flex_items.items) |*item| {
+        total_size += item.final_main_size;
+    }
+
+    // 第三步：计算剩余空间
+    const free_space = container_main_size - total_size;
+
+    // 第四步：根据剩余空间的正负，应用flex-grow或flex-shrink
+    if (free_space > 0) {
+        // 有剩余空间，应用flex-grow
+        var total_grow: f32 = 0;
+        for (flex_items.items) |*item| {
+            total_grow += item.flex_props.grow;
+        }
+
+        if (total_grow > 0) {
+            // 按比例分配剩余空间
+            for (flex_items.items) |*item| {
+                if (item.flex_props.grow > 0) {
+                    const grow_ratio = item.flex_props.grow / total_grow;
+                    const extra_size = free_space * grow_ratio;
+                    item.final_main_size += extra_size;
+                }
+            }
+        }
+    } else if (free_space < 0) {
+        // 空间不足，应用flex-shrink
+        // 计算总的shrink factor（每个item的shrink factor = shrink * 假设主轴尺寸）
+        var total_shrink_factor: f32 = 0;
+        for (flex_items.items) |*item| {
+            if (item.flex_props.shrink > 0) {
+                total_shrink_factor += item.flex_props.shrink * item.final_main_size;
+            }
+        }
+
+        if (total_shrink_factor > 0) {
+            // 按比例收缩
+            const negative_space = -free_space; // 需要收缩的总量
+            for (flex_items.items) |*item| {
+                if (item.flex_props.shrink > 0) {
+                    const shrink_factor = item.flex_props.shrink * item.final_main_size;
+                    const shrink_ratio = shrink_factor / total_shrink_factor;
+                    const shrink_amount = negative_space * shrink_ratio;
+                    item.final_main_size -= shrink_amount;
+                    // 确保尺寸不为负
+                    if (item.final_main_size < 0) {
+                        item.final_main_size = 0;
+                    }
+                }
+            }
+        }
+    }
+    // 如果free_space == 0，不需要调整
+
+    // 第五步：应用最终尺寸到layout_box
     for (flex_items.items) |*item| {
         if (is_row) {
             item.layout_box.box_model.content.width = item.final_main_size;
         } else {
             item.layout_box.box_model.content.height = item.final_main_size;
         }
+    }
+}
+
+/// 单行Flexbox布局（不换行）
+fn layoutFlexboxSingleLine(
+    flex_items: *std.ArrayList(FlexItem),
+    container_main_size: f32,
+    container_cross_size: f32,
+    is_row: bool,
+    is_reverse: bool,
+    justify_content: style_utils.JustifyContent,
+    align_items: style_utils.AlignItems,
+    layout_box: *box.LayoutBox,
+) void {
+    // 计算flex尺寸
+    calculateFlexSizes(flex_items, container_main_size, is_row);
+
+    // 应用justify-content对齐（主轴对齐）
+    const container_main_pos = if (is_row) layout_box.box_model.content.x else layout_box.box_model.content.y;
+    applyJustifyContent(flex_items, container_main_size, container_main_pos, justify_content, is_row, is_reverse);
+
+    // 应用align-items对齐（交叉轴对齐）
+    const container_cross_pos = if (is_row) layout_box.box_model.content.y else layout_box.box_model.content.x;
+    applyAlignItems(flex_items, container_cross_size, container_cross_pos, align_items, is_row);
+}
+
+/// 多行Flexbox布局（换行）
+/// TODO: 简化实现 - 当前实现了基本的换行功能
+/// 完整实现需要：
+/// 1. 正确处理wrap-reverse
+/// 2. 实现align-content多行对齐
+/// 3. 处理每行的交叉轴尺寸计算
+fn layoutFlexboxMultiLine(
+    flex_items: *std.ArrayList(FlexItem),
+    container_main_size: f32,
+    container_cross_size: f32,
+    is_row: bool,
+    is_reverse: bool,
+    flex_wrap: style_utils.FlexWrap,
+    justify_content: style_utils.JustifyContent,
+    align_items: style_utils.AlignItems,
+    align_content: style_utils.AlignContent,
+    layout_box: *box.LayoutBox,
+) void {
+    // 第一步：将items分成多个flex lines
+    var flex_lines = std.ArrayList(FlexLine){};
+    defer {
+        for (flex_lines.items) |*line| {
+            line.items.deinit(layout_box.allocator);
+        }
+        flex_lines.deinit(layout_box.allocator);
+    }
+    
+    createFlexLines(&flex_lines, flex_items, container_main_size, is_row, layout_box.allocator);
+
+    // 第二步：对每个flex line计算尺寸和对齐
+    for (flex_lines.items) |*line| {
+        // 创建一个临时的FlexItem数组用于计算（因为calculateFlexSizes需要*std.ArrayList(FlexItem)）
+        var line_items = std.ArrayList(FlexItem){};
+        defer line_items.deinit(layout_box.allocator);
+        
+        // 将line.items中的指针解引用并复制到line_items
+        for (line.items.items) |item_ptr| {
+            line_items.append(layout_box.allocator, item_ptr.*) catch continue;
+        }
+        
+        // 计算这一行的flex尺寸
+        calculateFlexSizes(&line_items, container_main_size, is_row);
+        
+        // 将计算结果同步回line.items（通过layout_box更新）
+        // 注意：calculateFlexSizes已经直接更新了layout_box的尺寸，所以不需要同步
+        // 只需要更新FlexItem结构中的final_main_size等字段
+        for (line.items.items, line_items.items) |item_ptr, updated_item| {
+            // item_ptr是*FlexItem，需要解引用才能访问字段
+            item_ptr.flex_props = updated_item.flex_props;
+            item_ptr.base_main_size = updated_item.base_main_size;
+            item_ptr.base_cross_size = updated_item.base_cross_size;
+            item_ptr.final_main_size = updated_item.final_main_size;
+            item_ptr.final_cross_size = updated_item.final_cross_size;
+            // layout_box已经在calculateFlexSizes中更新了，不需要再次更新
+        }
+
+        // 应用justify-content对齐（主轴对齐）
+        const container_main_pos = if (is_row) layout_box.box_model.content.x else layout_box.box_model.content.y;
+        // 创建一个临时的FlexItem数组用于对齐计算
+        var line_items_for_justify = std.ArrayList(FlexItem){};
+        defer line_items_for_justify.deinit(layout_box.allocator);
+        for (line.items.items) |item_ptr| {
+            line_items_for_justify.append(layout_box.allocator, item_ptr.*) catch continue;
+        }
+        applyJustifyContent(&line_items_for_justify, container_main_size, container_main_pos, justify_content, is_row, is_reverse);
+        // justify-content已经直接更新了layout_box的位置，不需要同步
+
+        // 计算这一行的交叉轴尺寸（取最大item的交叉轴尺寸）
+        var max_cross_size: f32 = 0;
+        for (line.items.items) |item| {
+            const item_cross_size = if (is_row) item.layout_box.box_model.content.height else item.layout_box.box_model.content.width;
+            max_cross_size = @max(max_cross_size, item_cross_size);
+        }
+        line.cross_size = max_cross_size;
+
+        // 应用align-items对齐（交叉轴对齐）
+        const container_cross_pos = if (is_row) layout_box.box_model.content.y else layout_box.box_model.content.x;
+        // 创建一个临时的FlexItem数组用于对齐计算
+        var line_items_for_align = std.ArrayList(FlexItem){};
+        defer line_items_for_align.deinit(layout_box.allocator);
+        for (line.items.items) |item_ptr| {
+            line_items_for_align.append(layout_box.allocator, item_ptr.*) catch continue;
+        }
+        applyAlignItems(&line_items_for_align, line.cross_size, container_cross_pos, align_items, is_row);
+        // align-items已经直接更新了layout_box的位置和尺寸，不需要同步
+    }
+
+    // 第三步：计算每行的交叉轴位置（应用align-content）
+    applyAlignContent(&flex_lines, container_cross_size, is_row, align_content, flex_wrap, layout_box);
+}
+
+/// 创建flex lines（将items分成多行）
+fn createFlexLines(
+    flex_lines: *std.ArrayList(FlexLine),
+    flex_items: *std.ArrayList(FlexItem),
+    container_main_size: f32,
+    _: bool, // is_row 暂时未使用
+    allocator: std.mem.Allocator,
+) void {
+    var current_line = FlexLine{
+        .items = std.ArrayList(*FlexItem){},
+        .main_size = 0,
+        .cross_size = 0,
+        .cross_start = 0,
+    };
+
+    for (flex_items.items) |*item| {
+        // 计算item的假设主轴尺寸（用于判断是否需要换行）
+        const item_main_size = if (item.flex_props.basis) |basis| basis else item.base_main_size;
+
+        // 检查是否需要换行
+        if (current_line.items.items.len > 0 and current_line.main_size + item_main_size > container_main_size) {
+            // 完成当前行
+            flex_lines.append(allocator, current_line) catch {
+                current_line.items.deinit(allocator);
+                return;
+            };
+
+            // 创建新行
+            current_line.items.deinit(allocator);
+            current_line = FlexLine{
+                .items = std.ArrayList(*FlexItem){},
+                .main_size = 0,
+                .cross_size = 0,
+                .cross_start = 0,
+            };
+        }
+
+        // 添加到当前行
+        current_line.items.append(allocator, item) catch {
+            current_line.items.deinit(allocator);
+            return;
+        };
+        current_line.main_size += item_main_size;
+    }
+
+    // 添加最后一行
+    if (current_line.items.items.len > 0) {
+        flex_lines.append(allocator, current_line) catch {
+            current_line.items.deinit(allocator);
+        };
+    }
+}
+
+/// 应用align-content对齐（多行对齐）
+fn applyAlignContent(
+    flex_lines: *std.ArrayList(FlexLine),
+    container_cross_size: f32,
+    is_row: bool,
+    align_content: style_utils.AlignContent,
+    _: style_utils.FlexWrap, // flex_wrap 暂时未使用（wrap-reverse待实现）
+    layout_box: *box.LayoutBox,
+) void {
+    if (flex_lines.items.len == 0) {
+        return;
+    }
+
+    // 计算所有行的总交叉轴尺寸
+    var total_cross_size: f32 = 0;
+    for (flex_lines.items) |*line| {
+        total_cross_size += line.cross_size;
+    }
+
+    // 计算剩余空间
+    const free_space = container_cross_size - total_cross_size;
+
+    // 计算每行的交叉轴起始位置
+    var cross_offset: f32 = 0;
+    const container_cross_pos = if (is_row) layout_box.box_model.content.y else layout_box.box_model.content.x;
+
+    switch (align_content) {
+        .flex_start => {
+            cross_offset = 0;
+        },
+        .flex_end => {
+            cross_offset = free_space;
+        },
+        .center => {
+            cross_offset = free_space / 2.0;
+        },
+        .space_between => {
+            if (flex_lines.items.len > 1) {
+                const gap = free_space / @as(f32, @floatFromInt(flex_lines.items.len - 1));
+                for (flex_lines.items, 0..) |*line, i| {
+                    line.cross_start = container_cross_pos + cross_offset;
+                    if (i < flex_lines.items.len - 1) {
+                        cross_offset += line.cross_size + gap;
+                    }
+                }
+                return;
+            } else {
+                cross_offset = 0;
+            }
+        },
+        .space_around => {
+            if (flex_lines.items.len > 0) {
+                const gap = free_space / @as(f32, @floatFromInt(flex_lines.items.len));
+                cross_offset = gap / 2.0;
+                for (flex_lines.items) |*line| {
+                    line.cross_start = container_cross_pos + cross_offset;
+                    cross_offset += line.cross_size + gap;
+                }
+                return;
+            }
+        },
+        .space_evenly => {
+            if (flex_lines.items.len > 0) {
+                const gap = free_space / @as(f32, @floatFromInt(flex_lines.items.len + 1));
+                cross_offset = gap;
+                for (flex_lines.items) |*line| {
+                    line.cross_start = container_cross_pos + cross_offset;
+                    cross_offset += line.cross_size + gap;
+                }
+                return;
+            }
+        },
+        .stretch => {
+            // stretch: 每行拉伸到填满容器
+            if (flex_lines.items.len > 0) {
+                const stretched_size = container_cross_size / @as(f32, @floatFromInt(flex_lines.items.len));
+                for (flex_lines.items) |*line| {
+                    line.cross_size = stretched_size;
+                    line.cross_start = container_cross_pos + cross_offset;
+                    cross_offset += stretched_size;
+                }
+                return;
+            }
+        },
+    }
+
+    // 应用交叉轴位置到每行的items
+    for (flex_lines.items) |*line| {
+        line.cross_start = container_cross_pos + cross_offset;
+        for (line.items.items) |item| {
+            if (is_row) {
+                item.layout_box.box_model.content.y = line.cross_start;
+            } else {
+                item.layout_box.box_model.content.x = line.cross_start;
+            }
+        }
+        cross_offset += line.cross_size;
     }
 }
 

@@ -19,7 +19,13 @@ ZBrowser是一个完全用Zig语言实现的headless浏览器渲染引擎，严�
 - ✅ 行内布局（Inline布局算法）
 - ✅ 定位布局（static、relative、absolute、fixed、sticky）
 - ✅ 浮动布局（float: left/right，碰撞检测，清除浮动）
-- ✅ Flexbox布局基础框架
+- ✅ Flexbox布局（完整实现）
+  - ✅ flex-grow/shrink/basis计算
+  - ✅ justify-content对齐（flex-start, flex-end, center, space-between, space-around, space-evenly）
+  - ✅ align-items对齐（flex-start, flex-end, center, stretch）
+  - ✅ flex-wrap换行处理（wrap, wrap-reverse）
+  - ✅ align-content多行对齐（flex-start, flex-end, center, space-between, space-around, space-evenly, stretch）
+  - ✅ flex-direction反向处理（row-reverse, column-reverse）
 - ✅ Grid布局基础框架
 - ✅ 布局引擎主入口（构建布局树、执行布局）
 - ✅ 抽象渲染后端接口（RenderBackend VTable）
@@ -79,7 +85,7 @@ ZBrowser是一个完全用Zig语言实现的headless浏览器渲染引擎，严�
   - 🔲 复合字形处理（计划中）
 
 ### 计划中
-- 🔲 Flexbox布局完整实现（flex-grow/shrink/basis、对齐算法、换行）
+- 🔲 Flexbox布局baseline对齐（待实现）
 - 🔲 Grid布局完整实现（grid-template、grid-area、对齐等）
 - 🔲 渲染引擎优化（完整扫描线填充、Bresenham算法）
 - 🔲 JavaScript引擎（解析、执行、DOM API）
@@ -270,7 +276,7 @@ pub fn main() !void {
    - ✅ Inline布局算法
    - ✅ 定位布局（static、relative、absolute、fixed、sticky）
    - ✅ 浮动布局（float: left/right）
-   - 🟡 Flexbox布局（基础框架完成，完整实现进行中）
+   - ✅ Flexbox布局（完整实现，baseline对齐待实现）
    - 🔲 Grid布局算法
 
 4. **阶段4: 渲染引擎** ✅
@@ -329,7 +335,7 @@ pub fn main() !void {
 - ✅ **行内布局**: Inline布局算法（行框创建、元素放置、换行）
 - ✅ **定位布局**: 支持static、relative、absolute、fixed、sticky定位
 - ✅ **浮动布局**: 支持float: left/right，碰撞检测，清除浮动
-- 🟡 **Flexbox布局**: 基础框架完成，完整实现进行中
+- ✅ **Flexbox布局**: 完整实现（flex-grow/shrink/basis、对齐算法、换行、多行对齐），baseline对齐待实现
 - 🔲 **Grid布局**: 待实现
 
 ### 渲染引擎（已完成）
@@ -605,7 +611,7 @@ zig build test
   - 行内布局算法（Inline布局，行框创建，元素放置，换行）
   - 定位布局算法（static、relative、absolute、fixed、sticky）
   - 浮动布局算法（float: left/right，碰撞检测，清除浮动）
-  - Flexbox布局基础框架
+  - Flexbox布局完整实现（flex-grow/shrink/basis、对齐算法、换行、多行对齐）
   - 布局引擎主入口（构建布局树、执行布局）
   - 支持content-box和border-box盒模型
   - 完整的初始化和清理机制（deinit、deinitAndDestroyChildren）
@@ -616,7 +622,7 @@ zig build test
   - 行内布局测试：多个测试用例
   - 定位布局测试：8个测试用例（包括边界测试）
   - 浮动布局测试：8个测试用例（包括边界测试）
-  - Flexbox布局测试：6个测试用例（包括边界测试）
+  - Flexbox布局测试：6个测试用例（包括边界测试，待扩展）
   - 布局引擎测试：10个测试用例
   - 所有测试通过，0内存泄漏
 - ✅ **修复关键问题**

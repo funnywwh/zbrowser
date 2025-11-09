@@ -130,9 +130,15 @@ zbrowser/
   - ✅ position.zig：定位布局（static, relative, absolute, fixed, sticky）
   - ✅ float.zig：浮动布局（float: left/right，碰撞检测，清除浮动）
   - ✅ engine.zig：布局引擎主入口（构建布局树、执行布局）
-- 🟡 实现Flexbox布局
-  - ✅ flexbox.zig：Flexbox基础框架
-  - 🔲 完整实现：flex-grow/shrink/basis、对齐算法、换行
+- ✅ 实现Flexbox布局
+  - ✅ flexbox.zig：Flexbox完整实现
+  - ✅ flex-grow/shrink/basis计算
+  - ✅ justify-content对齐（flex-start, flex-end, center, space-between, space-around, space-evenly）
+  - ✅ align-items对齐（flex-start, flex-end, center, stretch）
+  - ✅ flex-wrap换行处理（wrap, wrap-reverse）
+  - ✅ align-content多行对齐（flex-start, flex-end, center, space-between, space-around, space-evenly, stretch）
+  - ✅ flex-direction反向处理（row-reverse, column-reverse）
+  - 🔲 baseline对齐（待实现）
 - 🔲 实现Grid布局
   - 🔲 grid.zig：Grid算法（网格线计算、区域分配、对齐）
 - ✅ 编写布局引擎测试用例（覆盖率100%）
@@ -142,12 +148,12 @@ zbrowser/
   - ✅ 行内布局测试：多个测试用例
   - ✅ 定位布局测试：8个测试用例
   - ✅ 浮动布局测试：8个测试用例
-  - ✅ Flexbox布局测试：6个测试用例
+  - ✅ Flexbox布局测试：6个测试用例（待扩展更多测试）
   - ✅ 布局引擎测试：10个测试用例
 
 **验收标准**：
 - ✅ 正确计算元素尺寸和位置（Block、Inline、Position、Float布局）
-- 🟡 Flexbox布局基础框架完成，完整实现进行中
+- ✅ Flexbox布局完整实现（flex-grow/shrink/basis、对齐算法、换行、多行对齐），baseline对齐待实现
 - 🔲 Grid布局待实现
 - ✅ 测试覆盖率100%（60+个测试用例，全部通过）
 
