@@ -40,12 +40,22 @@ ZBrowser是一个完全用Zig语言实现的headless浏览器渲染引擎，严�
   - ✅ DEFLATE存储模式（BTYPE=00，支持大数据分块）
   - ✅ zlib格式（头部、ADLER32校验）
   - ✅ 支持大图像（自动分块处理，避免整数溢出）
-- 🟡 字体模块（基础框架完成）
+- ✅ 字体模块（核心功能完成）
   - ✅ 字体管理器（FontManager、FontFace）
-  - ✅ TTF/OTF字体解析器基础框架（表目录解析）
-  - ✅ 字形渲染器基础框架（占位符实现）
-  - 🔲 TTF字体表解析（cmap、head、hhea、hmtx、glyf、loca）
-  - 🔲 字形轮廓解析和渲染（TrueType轮廓、扫描线填充、抗锯齿）
+  - ✅ TTF/OTF字体解析器（完整实现）
+    - ✅ 字体表目录解析（SFNT头部、表记录）
+    - ✅ head表解析（字体度量信息、units_per_em）
+    - ✅ hhea表解析（水平头部信息、ascent、descent、line_gap）
+    - ✅ hmtx表解析（水平度量表、advance_width、left_side_bearing）
+    - ✅ cmap表解析（字符到字形映射，支持格式4和格式12）
+    - ✅ loca表解析（字形位置索引，支持短格式和长格式）
+    - ✅ glyf表解析（字形轮廓数据，包括控制点和坐标）
+  - ✅ 字形渲染器（完整实现）
+    - ✅ 字形轮廓转换（字体单位到像素单位）
+    - ✅ 二次贝塞尔曲线处理（TrueType轮廓）
+    - ✅ 扫描线填充算法（轮廓填充）
+    - 🔲 抗锯齿渲染（计划中）
+    - 🔲 复合字形处理（计划中）
 
 ### 计划中
 - 🔲 Flexbox布局完整实现（flex-grow/shrink/basis、对齐算法、换行）
@@ -134,15 +144,42 @@ zbrowser/
 ### 环境要求
 
 - Zig 0.15.2（需要单独下载，见下方说明）
-- Linux系统（其他平台需要相应调整）
+- Linux系统或Windows系统（支持WSL）
 
-**注意**: Zig编译器文件较大（>100MB），未包含在git仓库中。请从[Zig官网](https://ziglang.org/download/)下载Zig 0.15.2，解压到项目根目录，或使用系统包管理器安装。
+**注意**: Zig编译器文件较大（>100MB），未包含在git仓库中。请从[Zig官网](https://ziglang.org/download/)下载Zig 0.15.2，解压到项目根目录：
+- Linux: `zig-x86_64-linux-0.15.2/`
+- Windows: `zig-x86_64-windows-0.15.2/`
 
 ### 构建项目
 
+**Linux/WSL:**
 ```bash
 # 设置环境变量（使用项目自带的Zig）
 source env.sh
+
+# 构建项目
+zig build
+
+# 运行示例
+zig build run
+```
+
+**Windows (PowerShell):**
+```powershell
+# 设置环境变量（使用项目自带的Zig）
+. .\env.ps1
+
+# 构建项目
+zig build
+
+# 运行示例
+zig build run
+```
+
+**Windows (CMD):**
+```cmd
+# 设置环境变量（使用项目自带的Zig）
+env.bat
 
 # 构建项目
 zig build
@@ -221,13 +258,18 @@ pub fn main() !void {
    - ✅ 渲染树到像素转换（Renderer模块）
    - ✅ PNG编码器（完整实现，支持大图像）
 
-5. **阶段5: 字体加载和字形渲染** 🟡（进行中）
+5. **阶段5: 字体加载和字形渲染** ✅（核心功能完成）
    - ✅ 字体管理器（FontManager、FontFace）
-   - ✅ TTF/OTF字体解析器基础框架
-   - ✅ 字形渲染器基础框架
-   - 🔲 TTF字体表完整解析（cmap、head、hhea、hmtx、glyf、loca）
-   - 🔲 字形轮廓解析和渲染（TrueType轮廓、扫描线填充、抗锯齿）
-   - 🔲 集成到渲染后端
+   - ✅ TTF/OTF字体解析器（完整实现）
+     - ✅ 字体表目录解析
+     - ✅ head、hhea、hmtx、cmap、loca、glyf表解析
+   - ✅ 字形渲染器（完整实现）
+     - ✅ 字形轮廓转换
+     - ✅ 二次贝塞尔曲线处理
+     - ✅ 扫描线填充算法
+   - 🔲 抗锯齿渲染（计划中）
+   - 🔲 复合字形处理（计划中）
+   - 🔲 集成到渲染后端（计划中）
 
 6. **阶段6-8: JavaScript引擎、DOM API、动画等** 🔲
    - JavaScript解析和执行
@@ -287,27 +329,26 @@ pub fn main() !void {
   - DEFLATE存储模式（支持大数据自动分块）
   - zlib格式（头部、ADLER32校验）
 
-### 字体模块（进行中）
+### 字体模块（核心功能完成）
 
-- 🟡 **字体管理器**: FontManager和FontFace
+- ✅ **字体管理器**: FontManager和FontFace
   - ✅ 字体加载和缓存机制
   - ✅ 字体查找接口
-- 🟡 **TTF/OTF解析器**: TtfParser
+- ✅ **TTF/OTF解析器**: TtfParser
   - ✅ 字体表目录解析（SFNT头部、表记录）
   - ✅ 基础数据结构（FontMetrics、HorizontalMetrics、Glyph）
-  - 🔲 cmap表解析（字符到字形索引映射）
-  - 🔲 head表解析（字体度量信息）
-  - 🔲 hhea表解析（水平头部信息）
-  - 🔲 hmtx表解析（水平度量表）
-  - 🔲 glyf表解析（字形轮廓数据）
-  - 🔲 loca表解析（字形位置索引）
-- 🟡 **字形渲染器**: GlyphRenderer
-  - ✅ 基础框架和占位符实现
-  - 🔲 字形轮廓转换（字体单位到像素单位）
-  - 🔲 扫描线填充算法
-  - 🔲 抗锯齿渲染（亚像素渲染）
-  - 🔲 二次贝塞尔曲线处理（TrueType轮廓）
-  - 🔲 复合字形处理（多个轮廓组合）
+  - ✅ cmap表解析（字符到字形索引映射，支持格式4和格式12）
+  - ✅ head表解析（字体度量信息、units_per_em）
+  - ✅ hhea表解析（水平头部信息、ascent、descent、line_gap）
+  - ✅ hmtx表解析（水平度量表、advance_width、left_side_bearing）
+  - ✅ glyf表解析（字形轮廓数据，包括控制点和坐标）
+  - ✅ loca表解析（字形位置索引，支持短格式和长格式）
+- ✅ **字形渲染器**: GlyphRenderer
+  - ✅ 字形轮廓转换（字体单位到像素单位）
+  - ✅ 扫描线填充算法（轮廓填充）
+  - ✅ 二次贝塞尔曲线处理（TrueType轮廓）
+  - 🔲 抗锯齿渲染（计划中）
+  - 🔲 复合字形处理（计划中）
 
 详细设计请参考 [DESIGN.md](DESIGN.md)
 
@@ -325,9 +366,13 @@ pub fn main() !void {
 
 #### 测试统计
 
-- **Font 模块**：5 个测试
+- **Font 模块**：24 个测试
   - FontManager测试（初始化、空缓存、查找不存在的字体等）
-  - TTF解析器测试（占位符，待实现）
+  - TTF解析器测试（13个测试用例，包括边界测试）
+    - 初始化、字体度量、字符映射、水平度量、字形解析
+    - 边界情况：空数据、无效格式、缺失表、表太短等
+  - 字形渲染器测试（8个测试用例，包括边界测试）
+    - 空字形、简单轮廓、控制点处理、边界情况等
 - **HTML DOM 模块**：26 个测试
   - Document API测试（getDocumentElement、getHead、getBody、getElementsByTagName等）
   - Node操作测试（appendChild、removeChild、querySelector等）
@@ -356,7 +401,7 @@ pub fn main() !void {
   - Math Utils测试（8个测试用例）
   - Allocator Utils测试（6个测试用例）
 
-- **总计**：225+ 个测试
+- **总计**：304 个测试
 
 #### 测试完成状态
 
@@ -369,7 +414,7 @@ pub fn main() !void {
 
 #### 测试结果
 
-- ✅ 所有测试通过：225+/225+ passed
+- ✅ 所有测试通过：304/304 passed
 - ✅ 0个内存泄漏
 - ✅ 代码编译无错误
 - ✅ 所有内存管理正确（无双重释放、无泄漏）
@@ -430,19 +475,30 @@ zig build test
 
 ## 状态
 
-**当前版本**: 0.6.0-alpha  
-**开发阶段**: 阶段1-4完成，阶段5进行中（字体模块基础框架完成）
+**当前版本**: 0.7.0-alpha  
+**开发阶段**: 阶段1-5核心功能完成（字体模块核心功能完成）
 
-### 最新更新（v0.6.0-alpha）
+### 最新更新（v0.7.0-alpha）
 
-- ✅ **完成字体模块基础框架**
-  - 字体管理器（FontManager、FontFace）：支持字体加载、缓存和查找
-  - TTF/OTF字体解析器（TtfParser）：支持字体表目录解析、基础数据结构
-  - 字形渲染器（GlyphRenderer）：基础框架和占位符实现
-  - 所有简化实现都添加了TODO注释，说明完整实现计划
-  - 创建了完整的测试文件（font_test.zig、ttf_test.zig）
-  - 更新了构建系统，添加字体模块支持
-  - 所有代码遵循TDD原则，包含边界测试
+- ✅ **完成字体模块核心功能**
+  - TTF/OTF字体解析器完整实现
+    - ✅ head表解析（字体度量信息、units_per_em）
+    - ✅ hhea表解析（水平头部信息、ascent、descent、line_gap）
+    - ✅ hmtx表解析（水平度量表、advance_width、left_side_bearing）
+    - ✅ cmap表解析（字符到字形映射，支持格式4和格式12）
+    - ✅ loca表解析（字形位置索引，支持短格式和长格式）
+    - ✅ glyf表解析（字形轮廓数据，包括控制点和坐标）
+  - 字形渲染器完整实现
+    - ✅ 字形轮廓转换（字体单位到像素单位）
+    - ✅ 二次贝塞尔曲线处理（TrueType轮廓）
+    - ✅ 扫描线填充算法（轮廓填充）
+  - 完整的测试覆盖（24个测试用例，包括边界测试）
+  - 修复所有内存泄漏问题
+  - 修复段错误（布局树清理问题）
+  - 适配Zig 0.15.2 API（ArrayList初始化方式）
+- ✅ **Windows支持**
+  - 添加env.bat和env.ps1脚本，支持Windows环境
+  - 修复Windows下的编译和测试问题
 
 ### 历史更新（v0.5.0-alpha）
 
