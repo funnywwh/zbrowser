@@ -382,10 +382,35 @@ pub fn getRowGap(computed_style: *const cascade.ComputedStyle, containing_size: 
     if (getPropertyLength(computed_style, "row-gap", containing_size)) |gap| {
         return gap;
     }
-    // 检查gap简写属性（如果gap有两个值，row-gap是第一个值）
-    // TODO: 简化实现 - 当前只支持gap简写属性的单个值，需要支持两个值（row-gap column-gap）
-    if (getPropertyLength(computed_style, "gap", containing_size)) |gap| {
-        return gap;
+    // 检查gap简写属性
+    if (getPropertyKeyword(computed_style, "gap")) |gap_value| {
+        // 解析gap简写属性：可能是单个值或两个值（row-gap column-gap）
+        // 使用固定大小的数组，最多支持2个值
+        var values: [2]f32 = undefined;
+        var count: usize = 0;
+
+        var iter = std.mem.splitSequence(u8, gap_value, " ");
+        while (iter.next()) |value_str| {
+            if (count >= 2) break; // 最多解析2个值
+
+            const trimmed = std.mem.trim(u8, value_str, " \t\n\r");
+            if (trimmed.len == 0) continue;
+
+            // 解析长度值（简化：只支持px）
+            if (std.mem.endsWith(u8, trimmed, "px")) {
+                const num_str = trimmed[0 .. trimmed.len - 2];
+                if (std.fmt.parseFloat(f32, num_str)) |num| {
+                    values[count] = num;
+                    count += 1;
+                } else |_| {}
+            }
+        }
+
+        // 如果只有一个值，同时用于row-gap和column-gap
+        // 如果有两个值，第一个是row-gap
+        if (count > 0) {
+            return values[0];
+        }
     }
     return 0.0; // 默认值
 }
@@ -396,10 +421,37 @@ pub fn getColumnGap(computed_style: *const cascade.ComputedStyle, containing_siz
     if (getPropertyLength(computed_style, "column-gap", containing_size)) |gap| {
         return gap;
     }
-    // 检查gap简写属性（如果gap有两个值，column-gap是第二个值）
-    // TODO: 简化实现 - 当前只支持gap简写属性的单个值，需要支持两个值（row-gap column-gap）
-    if (getPropertyLength(computed_style, "gap", containing_size)) |gap| {
-        return gap;
+    // 检查gap简写属性
+    if (getPropertyKeyword(computed_style, "gap")) |gap_value| {
+        // 解析gap简写属性：可能是单个值或两个值（row-gap column-gap）
+        // 使用固定大小的数组，最多支持2个值
+        var values: [2]f32 = undefined;
+        var count: usize = 0;
+
+        var iter = std.mem.splitSequence(u8, gap_value, " ");
+        while (iter.next()) |value_str| {
+            if (count >= 2) break; // 最多解析2个值
+
+            const trimmed = std.mem.trim(u8, value_str, " \t\n\r");
+            if (trimmed.len == 0) continue;
+
+            // 解析长度值（简化：只支持px）
+            if (std.mem.endsWith(u8, trimmed, "px")) {
+                const num_str = trimmed[0 .. trimmed.len - 2];
+                if (std.fmt.parseFloat(f32, num_str)) |num| {
+                    values[count] = num;
+                    count += 1;
+                } else |_| {}
+            }
+        }
+
+        // 如果只有一个值，同时用于row-gap和column-gap
+        // 如果有两个值，第二个是column-gap
+        if (count == 1) {
+            return values[0];
+        } else if (count >= 2) {
+            return values[1];
+        }
     }
     return 0.0; // 默认值
 }
