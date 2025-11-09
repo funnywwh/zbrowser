@@ -203,7 +203,14 @@ pub const LayoutBox = struct {
     /// 注意：此方法不会释放子节点的内存，只清理子节点的内容
     /// 如果子节点是用allocator.create创建的，需要在调用deinit()后手动调用allocator.destroy()
     pub fn deinit(self: *LayoutBox) void {
-        // 先清理所有子节点
+        // 注意：formatting_context的清理由创建它的布局函数负责（如layoutInline）
+        // 这是因为formatting_context的类型是*anyopaque，需要根据display类型判断具体类型
+        // 而box模块不能导入context模块（会造成循环依赖）
+        // 如果需要在deinit中清理formatting_context，需要在调用deinit之前手动清理
+        // 或者使用deinitAndDestroyChildren，它会递归清理所有子节点（包括formatting_context）
+        // TODO: 实现formatting_context的自动清理机制（可能需要使用函数指针或vtable）
+
+        // 清理所有子节点
         // 注意：只清理子节点的内容，不释放子节点的内存
         // 子节点的内存需要在调用deinit()后手动释放（如果子节点是用allocator.create创建的）
         const items_len = self.children.items.len;
@@ -214,7 +221,7 @@ pub const LayoutBox = struct {
             }
         }
 
-        // 然后清理ArrayList本身（只有在capacity > 0时才需要）
+        // 最后清理ArrayList本身（只有在capacity > 0时才需要）
         const capacity = self.children.capacity;
         if (capacity > 0) {
             self.children.deinit(self.allocator);
@@ -230,7 +237,7 @@ pub const LayoutBox = struct {
         const children_count = self.children.items.len;
         const allocator = self.allocator; // 保存allocator引用，避免在清理过程中失效
         const capacity = self.children.capacity;
-        
+
         if (children_count > 0) {
             // 分配临时数组来保存子节点指针
             const children_to_destroy = allocator.alloc(*LayoutBox, children_count) catch {
@@ -240,22 +247,22 @@ pub const LayoutBox = struct {
                 }
                 return;
             };
-            
+
             // 复制子节点指针
             @memcpy(children_to_destroy, self.children.items);
-            
+
             // 先清理ArrayList本身（释放items的内存）
             if (capacity > 0) {
                 self.children.deinit(allocator);
             }
-            
+
             // 然后递归清理并释放所有子节点
             for (children_to_destroy) |child| {
                 child.deinitAndDestroyChildren();
                 // 子节点是用allocator.create创建的，需要释放内存
                 allocator.destroy(child);
             }
-            
+
             // 释放临时数组
             allocator.free(children_to_destroy);
         } else {
