@@ -118,24 +118,32 @@ pub fn main() !void {
     var browser = try Browser.init(allocator);
     defer browser.deinit();
 
-    // 定义HTML内容
+    // 定义HTML内容 - 演示字体无极放大和中文支持
     const html_content =
         \\<!DOCTYPE html>
         \\<html>
         \\<head>
-        \\  <title>ZBrowser Test Page</title>
+        \\  <title>字体无极放大与中文支持演示</title>
         \\</head>
         \\<body>
-        \\  <h1>Hello, ZBrowser!</h1>
-        \\  <p>This is a test page rendered by ZBrowser.</p>
-        \\  <div style="background-color: #f0f0f0; padding: 20px; margin: 10px;">
-        \\    <h2>Features</h2>
-        \\    <ul>
-        \\      <li>HTML5 Parsing</li>
-        \\      <li>CSS3 Styling</li>
-        \\      <li>Layout Engine</li>
-        \\      <li>PNG Rendering</li>
-        \\    </ul>
+        \\  <h1>字体无极放大演示</h1>
+        \\  <div class="font-demo">
+        \\    <p class="size-12">12px: Hello World! 你好世界！</p>
+        \\    <p class="size-16">16px: Hello World! 你好世界！</p>
+        \\    <p class="size-24">24px: Hello World! 你好世界！</p>
+        \\    <p class="size-32">32px: Hello World! 你好世界！</p>
+        \\    <p class="size-48">48px: Hello World! 你好世界！</p>
+        \\    <p class="size-64">64px: Hello World! 你好世界！</p>
+        \\    <p class="size-96">96px: Hello World! 你好世界！</p>
+        \\    <p class="size-128">128px: Hello World! 你好世界！</p>
+        \\  </div>
+        \\  <h2>中文支持演示</h2>
+        \\  <div class="chinese-demo">
+        \\    <p>简体中文：这是一个测试页面，展示中文字符的渲染效果。</p>
+        \\    <p>繁體中文：這是一個測試頁面，展示繁體中文字符的渲染效果。</p>
+        \\    <p>日文：これはテストページです。日本語の文字を表示します。</p>
+        \\    <p>韩文：이것은 테스트 페이지입니다. 한국어 문자를 표시합니다.</p>
+        \\    <p>数字和符号：0123456789 !@#$%^&*()</p>
         \\  </div>
         \\</body>
         \\</html>
@@ -146,31 +154,40 @@ pub fn main() !void {
         \\body {
         \\  font-family: Arial, sans-serif;
         \\  margin: 20px;
-        \\  background-color: #f5f5f5;
+        \\  background-color: #ffffff;
+        \\  color: #000000;
         \\}
         \\h1 {
         \\  color: #333333;
-        \\  font-size: 32px;
-        \\  margin-bottom: 10px;
+        \\  font-size: 36px;
+        \\  margin-bottom: 20px;
         \\}
         \\h2 {
         \\  color: #666666;
-        \\  font-size: 24px;
-        \\  margin-top: 0;
+        \\  font-size: 28px;
+        \\  margin-top: 30px;
+        \\  margin-bottom: 15px;
         \\}
-        \\p {
-        \\  color: #444444;
-        \\  font-size: 16px;
-        \\  line-height: 1.5;
+        \\.font-demo p {
+        \\  margin: 10px 0;
+        \\  padding: 5px;
+        \\  border-left: 3px solid #4CAF50;
+        \\  padding-left: 10px;
         \\}
-        \\ul {
-        \\  list-style-type: disc;
-        \\  padding-left: 30px;
-        \\}
-        \\li {
-        \\  color: #555555;
-        \\  font-size: 14px;
-        \\  margin: 5px 0;
+        \\.size-12 { font-size: 12px; }
+        \\.size-16 { font-size: 16px; }
+        \\.size-24 { font-size: 24px; }
+        \\.size-32 { font-size: 32px; }
+        \\.size-48 { font-size: 48px; }
+        \\.size-64 { font-size: 64px; }
+        \\.size-96 { font-size: 96px; }
+        \\.size-128 { font-size: 128px; }
+        \\.chinese-demo p {
+        \\  margin: 8px 0;
+        \\  padding: 8px;
+        \\  background-color: #f9f9f9;
+        \\  border-radius: 4px;
+        \\  font-size: 18px;
         \\}
     ;
 
@@ -189,9 +206,9 @@ pub fn main() !void {
         std.debug.print("Warning: Body element not found\n", .{});
     }
 
-    // 渲染页面为PNG
-    const width: u32 = 800;
-    const height: u32 = 600;
+    // 渲染页面为PNG（更大的尺寸以容纳大字体）
+    const width: u32 = 1200;
+    const height: u32 = 2000;
     const output_path = "output.png";
 
     std.debug.print("Rendering page to PNG ({d}x{d})...\n", .{ width, height });

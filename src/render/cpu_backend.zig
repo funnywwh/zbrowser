@@ -474,11 +474,14 @@ pub const CpuRenderBackend = struct {
 
         // 遍历文本中的每个字符
         var i: usize = 0;
-        while (i < text.len) : (i += 1) {
-            const codepoint = self.decodeUtf8Codepoint(text[i..]) catch {
+        while (i < text.len) {
+            const decode_result = self.decodeUtf8Codepoint(text[i..]) catch {
                 // 如果解码失败，跳过这个字节
+                i += 1;
                 continue;
             };
+            const codepoint = decode_result.codepoint;
+            i += decode_result.bytes_consumed;
 
             // 获取字符的字形索引
             const glyph_index_opt = try font_face.getGlyphIndex(codepoint);
@@ -517,18 +520,55 @@ pub const CpuRenderBackend = struct {
         }
     }
 
-    /// 解码UTF-8字符码点（简化实现，只处理ASCII）
-    fn decodeUtf8Codepoint(self: *CpuRenderBackend, bytes: []const u8) !u21 {
+    /// 解码UTF-8字符码点（完整实现，支持中文等多字节字符）
+    fn decodeUtf8Codepoint(self: *CpuRenderBackend, bytes: []const u8) !struct { codepoint: u21, bytes_consumed: usize } {
         _ = self;
         if (bytes.len == 0) {
             return error.InvalidUtf8;
         }
-        // 简化实现：只处理ASCII字符（0-127）
-        if (bytes[0] < 128) {
-            return bytes[0];
+        
+        const first_byte = bytes[0];
+        
+        // ASCII字符（0-127）
+        if (first_byte < 128) {
+            return .{ .codepoint = first_byte, .bytes_consumed = 1 };
         }
-        // TODO: 完整实现需要处理多字节UTF-8字符
-        return error.InvalidUtf8;
+        
+        // 多字节UTF-8字符
+        var codepoint: u21 = 0;
+        var bytes_consumed: usize = 0;
+        
+        if ((first_byte & 0xE0) == 0xC0) {
+            // 2字节字符（110xxxxx 10xxxxxx）
+            if (bytes.len < 2) return error.InvalidUtf8;
+            if ((bytes[1] & 0xC0) != 0x80) return error.InvalidUtf8;
+            codepoint = (@as(u21, first_byte & 0x1F) << 6) | @as(u21, bytes[1] & 0x3F);
+            bytes_consumed = 2;
+        } else if ((first_byte & 0xF0) == 0xE0) {
+            // 3字节字符（1110xxxx 10xxxxxx 10xxxxxx）
+            if (bytes.len < 3) return error.InvalidUtf8;
+            if ((bytes[1] & 0xC0) != 0x80) return error.InvalidUtf8;
+            if ((bytes[2] & 0xC0) != 0x80) return error.InvalidUtf8;
+            codepoint = (@as(u21, first_byte & 0x0F) << 12) | 
+                       (@as(u21, bytes[1] & 0x3F) << 6) | 
+                       @as(u21, bytes[2] & 0x3F);
+            bytes_consumed = 3;
+        } else if ((first_byte & 0xF8) == 0xF0) {
+            // 4字节字符（11110xxx 10xxxxxx 10xxxxxx 10xxxxxx）
+            if (bytes.len < 4) return error.InvalidUtf8;
+            if ((bytes[1] & 0xC0) != 0x80) return error.InvalidUtf8;
+            if ((bytes[2] & 0xC0) != 0x80) return error.InvalidUtf8;
+            if ((bytes[3] & 0xC0) != 0x80) return error.InvalidUtf8;
+            codepoint = (@as(u21, first_byte & 0x07) << 18) | 
+                       (@as(u21, bytes[1] & 0x3F) << 12) | 
+                       (@as(u21, bytes[2] & 0x3F) << 6) | 
+                       @as(u21, bytes[3] & 0x3F);
+            bytes_consumed = 4;
+        } else {
+            return error.InvalidUtf8;
+        }
+        
+        return .{ .codepoint = codepoint, .bytes_consumed = bytes_consumed };
     }
 
     /// 绘制字符的简单模式（用于占位符）
