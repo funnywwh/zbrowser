@@ -170,4 +170,19 @@ pub const FontFace = struct {
     pub fn getFontMetrics(self: *Self) !ttf.TtfParser.FontMetrics {
         return try self.ttf_parser.getFontMetrics();
     }
+    
+    /// 获取fpgm表（Font Program）
+    pub fn getFpgm(self: *Self) ?[]const u8 {
+        return self.ttf_parser.getFpgm();
+    }
+    
+    /// 获取prep表（Control Value Program）
+    pub fn getPrep(self: *Self) ?[]const u8 {
+        return self.ttf_parser.getPrep();
+    }
+    
+    /// 获取cvt表（Control Value Table）
+    pub fn getCvt(self: *Self) ?[]const u8 {
+        return self.ttf_parser.getCvt();
+    }
 };

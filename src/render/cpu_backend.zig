@@ -1030,6 +1030,17 @@ pub const CpuRenderBackend = struct {
         font_size: f32,
         color: backend.Color,
     ) !void {
+        // 初始化Hinting（如果尚未初始化）
+        // 获取hinting表
+        const fpgm_data = font_face.getFpgm();
+        const prep_data = font_face.getPrep();
+        const cvt_data = font_face.getCvt();
+        
+        // 初始化hinting解释器
+        _ = self.glyph_renderer.initHinting(fpgm_data, prep_data, cvt_data) catch {
+            // Hinting初始化失败，继续使用原始渲染
+        };
+        
         // 获取字体度量信息
         const font_metrics = try font_face.getFontMetrics();
         const units_per_em = font_metrics.units_per_em;

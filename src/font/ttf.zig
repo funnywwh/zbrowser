@@ -898,6 +898,24 @@ pub const TtfParser = struct {
         }
     }
 
+    /// 获取fpgm表（Font Program）
+    /// 返回：fpgm表数据（如果存在）
+    pub fn getFpgm(self: *Self) ?[]const u8 {
+        return self.findTable("fpgm");
+    }
+    
+    /// 获取prep表（Control Value Program）
+    /// 返回：prep表数据（如果存在）
+    pub fn getPrep(self: *Self) ?[]const u8 {
+        return self.findTable("prep");
+    }
+    
+    /// 获取cvt表（Control Value Table）
+    /// 返回：cvt表数据（如果存在）
+    pub fn getCvt(self: *Self) ?[]const u8 {
+        return self.findTable("cvt ");
+    }
+    
     /// 获取字体度量信息
     pub fn getFontMetrics(self: *Self) !FontMetrics {
         // 解析head表获取units_per_em

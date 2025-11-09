@@ -1,11 +1,14 @@
 const std = @import("std");
 const backend = @import("backend");
 const ttf_module = @import("ttf");
+const hinting_module = @import("hinting");
 
 /// 字形渲染器
 /// 负责将字形轮廓转换为像素
 pub const GlyphRenderer = struct {
     allocator: std.mem.Allocator,
+    /// Hinting解释器
+    hinting_interpreter: hinting_module.HintingInterpreter,
 
     const Self = @This();
 
@@ -13,12 +16,36 @@ pub const GlyphRenderer = struct {
     pub fn init(allocator: std.mem.Allocator) Self {
         return .{
             .allocator = allocator,
+            .hinting_interpreter = hinting_module.HintingInterpreter.init(allocator),
         };
     }
 
     /// 清理字形渲染器
     pub fn deinit(self: *Self) void {
-        _ = self;
+        self.hinting_interpreter.deinit();
+    }
+    
+    /// 初始化Hinting（加载fpgm、prep、cvt表）
+    pub fn initHinting(
+        self: *Self,
+        fpgm_data: ?[]const u8,
+        prep_data: ?[]const u8,
+        cvt_data: ?[]const u8,
+    ) !void {
+        // 加载CVT表
+        if (cvt_data) |cvt| {
+            try self.hinting_interpreter.loadCvt(cvt);
+        }
+        
+        // 加载fpgm表
+        if (fpgm_data) |fpgm| {
+            try self.hinting_interpreter.loadFpgm(fpgm);
+        }
+        
+        // 加载prep表
+        if (prep_data) |prep| {
+            try self.hinting_interpreter.loadPrep(prep);
+        }
     }
 
     /// 渲染字形到像素缓冲区
@@ -34,7 +61,7 @@ pub const GlyphRenderer = struct {
     /// - color: 文本颜色
     pub fn renderGlyph(
         self: *Self,
-        glyph: *const ttf_module.TtfParser.Glyph,
+        glyph: *ttf_module.TtfParser.Glyph,
         pixels: []u8,
         width: u32,
         height: u32,
@@ -57,6 +84,18 @@ pub const GlyphRenderer = struct {
 
         // 计算缩放因子
         const scale = font_size / @as(f32, @floatFromInt(units_per_em));
+        
+        // 应用Hinting指令（如果存在）
+        if (glyph.instructions.items.len > 0) {
+            _ = self.hinting_interpreter.executeGlyphInstructions(
+                glyph.instructions.items,
+                &glyph.points,
+                font_size,
+                units_per_em,
+            ) catch {
+                // Hinting执行失败，继续使用原始点
+            };
+        }
 
         // 将轮廓点转换为像素坐标，并处理二次贝塞尔曲线
         var pixel_points = std.ArrayList(Point){};
@@ -180,7 +219,7 @@ pub const GlyphRenderer = struct {
         }
 
         // 使用扫描线算法填充轮廓（支持多个轮廓）
-        self.fillOutline(pixel_points.items, pixel_contour_end_points.items, pixels, width, height, color);
+        self.fillOutline(pixel_points.items, pixel_contour_end_points.items, pixels, width, height, color, font_size);
     }
 
     /// 使用扫描线算法填充轮廓（带抗锯齿，支持多个轮廓）
@@ -193,6 +232,7 @@ pub const GlyphRenderer = struct {
         width: u32,
         height: u32,
         color: backend.Color,
+        font_size: f32,
     ) void {
         if (points.len < 3) {
             return;
@@ -269,7 +309,7 @@ pub const GlyphRenderer = struct {
                 const end_x = @as(i32, @intFromFloat(x2)) + 4;
 
                 var px = start_x;
-                while (px < end_x) : (px += 1) {
+            while (px < end_x) : (px += 1) {
                     // 检查像素是否在画布范围内
                     if (px < 0 or px >= @as(i32, @intCast(width))) continue;
                     
@@ -280,17 +320,17 @@ pub const GlyphRenderer = struct {
                     const subpixel_offsets = [_]f32{ -1.0/3.0, 0.0, 1.0/3.0 }; // R, G, B子像素偏移
                     var subpixel_coverages = [_]f32{ 0.0, 0.0, 0.0 };
                     
-                    // 计算每个子像素的覆盖度
+                    // 计算每个子像素的覆盖度（传入字体大小以调整小字体的抗锯齿参数）
                     var i: usize = 0;
                     while (i < 3) : (i += 1) {
                         const subpixel_x = pixel_x + subpixel_offsets[i];
-                        subpixel_coverages[i] = self.calculateCoverageWithMSDF(subpixel_x, y, x1, x2);
+                        subpixel_coverages[i] = self.calculateCoverageWithMSDF(subpixel_x, y, x1, x2, font_size);
                     }
                     
                     // 使用子像素覆盖度渲染
                     if (subpixel_coverages[0] > 0.0 or subpixel_coverages[1] > 0.0 or subpixel_coverages[2] > 0.0) {
                         const index = (@as(usize, @intCast(scanline)) * width + @as(usize, @intCast(px))) * 4;
-                        if (index + 3 < pixels.len) {
+                if (index + 3 < pixels.len) {
                             const alpha = @as(f32, @floatFromInt(color.a)) / 255.0;
                             
                             // 分别处理RGB三个通道，使用对应的子像素覆盖度
@@ -335,13 +375,15 @@ pub const GlyphRenderer = struct {
 
     /// 计算像素的覆盖度（用于抗锯齿）- 保留用于兼容性
     fn calculateCoverage(self: *Self, pixel_x: f32, pixel_y: f32, x1: f32, x2: f32) f32 {
-        return self.calculateCoverageWithMSDF(pixel_x, pixel_y, x1, x2);
+        // 使用默认字体大小16px（如果没有提供字体大小信息）
+        return self.calculateCoverageWithMSDF(pixel_x, pixel_y, x1, x2, 16.0);
     }
 
     /// 计算像素的覆盖度（使用MSDF - 多通道有符号距离场）
     /// 使用子像素采样和距离场方法获得更平滑的边缘
     /// 参考Chrome的高质量抗锯齿算法和MSDF技术
-    fn calculateCoverageWithMSDF(_: *Self, pixel_x: f32, pixel_y: f32, x1: f32, x2: f32) f32 {
+    /// font_size: 字体大小（像素），用于调整小字体的抗锯齿参数
+    fn calculateCoverageWithMSDF(_: *Self, pixel_x: f32, pixel_y: f32, x1: f32, x2: f32, font_size: f32) f32 {
         const pixel_left = pixel_x - 0.5;
         const pixel_top = pixel_y - 0.5;
         
@@ -378,12 +420,19 @@ pub const GlyphRenderer = struct {
         // 判断是否在轮廓内部（完全覆盖）
         const is_inside = center_x >= x1 and center_x < x2;
         
+        // 根据字体大小调整抗锯齿参数
+        // 小字体需要更低的覆盖度以避免笔画过粗
+        const is_small_font = font_size < 20.0;
+        const min_coverage: f32 = if (is_small_font) 0.75 else 0.95; // 小字体降低最小覆盖度
+        const edge_coverage: f32 = if (is_small_font) 0.7 else 0.9; // 小字体降低边缘覆盖度
+        const internal_threshold: f32 = if (is_small_font) 0.6 else 0.8; // 小字体降低内部阈值
+        
         // 使用更平滑的距离场算法，参考Chrome的实现
         if (is_inside) {
             // 在轮廓内部
-            if (min_x_dist > 0.8) {
-                // 完全在内部，确保覆盖度为1.0以保证清晰度
-                coverage = @max(coverage, 0.95);
+            if (min_x_dist > internal_threshold) {
+                // 完全在内部，根据字体大小调整覆盖度
+                coverage = @max(coverage, min_coverage);
             } else {
                 // 在边缘附近，使用平滑过渡
                 const smooth_range: f32 = 1.2;
@@ -396,11 +445,13 @@ pub const GlyphRenderer = struct {
                     const t4 = t3 * t;
                     // 使用四次平滑函数，提供更平滑的过渡
                     const smooth = t4 * (t * (t * 10.0 - 20.0) + 15.0) - t4 * 4.0 + 1.0;
-                    // 确保边缘处有足够的覆盖度，同时保持平滑
-                    coverage = coverage * (0.75 + smooth * 0.2);
+                    // 根据字体大小调整边缘覆盖度
+                    const edge_factor: f32 = if (is_small_font) 0.65 else 0.75;
+                    const smooth_factor: f32 = if (is_small_font) 0.15 else 0.2;
+                    coverage = coverage * (edge_factor + smooth * smooth_factor);
                 } else {
-                    // 距离边缘较远，保持高覆盖度
-                    coverage = @max(coverage, 0.9);
+                    // 距离边缘较远，根据字体大小调整覆盖度
+                    coverage = @max(coverage, edge_coverage);
                 }
             }
         } else {
@@ -424,7 +475,9 @@ pub const GlyphRenderer = struct {
         
         // 使用MSDF的平滑函数：将距离转换为覆盖度
         // 使用更平滑的过渡函数，参考MSDF的实现
-        const msdf_range: f32 = 0.75; // MSDF的平滑范围（稍微增大以获得更平滑的效果）
+        // 小字体使用更小的MSDF范围，避免过度平滑导致笔画变粗
+        const msdf_range_val: f32 = if (is_small_font) 0.6 else 0.75; // 小字体减小MSDF范围
+        const msdf_range = msdf_range_val;
         
         if (@abs(signed_distance) < msdf_range) {
             // 在平滑范围内，使用MSDF的平滑函数
@@ -434,13 +487,16 @@ pub const GlyphRenderer = struct {
             const smooth = t2 * (3.0 - 2.0 * t);
             // MSDF的覆盖度计算：内部为正，外部为负
             // 将signed_distance转换为覆盖度，使用平滑函数
+            // 小字体降低MSDF覆盖度的影响
             const msdf_coverage = if (signed_distance > 0.0) 
                 0.5 + smooth * 0.5  // 内部：0.5到1.0
             else 
                 0.5 - smooth * 0.5; // 外部：0.5到0.0
             
-            // 结合原有的覆盖度和MSDF覆盖度，获得更好的效果
-            coverage = coverage * 0.7 + msdf_coverage * 0.3;
+            // 结合原有的覆盖度和MSDF覆盖度，小字体降低MSDF的权重
+            const msdf_weight: f32 = if (is_small_font) 0.2 else 0.3;
+            const base_weight: f32 = 1.0 - msdf_weight;
+            coverage = coverage * base_weight + msdf_coverage * msdf_weight;
         } else {
             // 在平滑范围外，保持原有覆盖度
             // 如果距离足够远，直接使用距离场结果

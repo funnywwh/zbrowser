@@ -32,10 +32,14 @@ test "GlyphRenderer renderGlyph - empty glyph" {
     var instructions = std.ArrayList(u8){};
     defer instructions.deinit(allocator);
 
-    const empty_glyph = ttf.TtfParser.Glyph{
+    var contour_end_points = std.ArrayList(usize){};
+    defer contour_end_points.deinit(allocator);
+
+    var empty_glyph = ttf.TtfParser.Glyph{
         .glyph_index = 0,
         .points = points,
         .instructions = instructions,
+        .contour_end_points = contour_end_points,
     };
 
     // 创建像素缓冲区
@@ -76,10 +80,14 @@ test "GlyphRenderer renderGlyph boundary - single point" {
     var instructions = std.ArrayList(u8){};
     defer instructions.deinit(allocator);
 
-    const single_point_glyph = ttf.TtfParser.Glyph{
+    var contour_end_points = std.ArrayList(usize){};
+    defer contour_end_points.deinit(allocator);
+
+    var single_point_glyph = ttf.TtfParser.Glyph{
         .glyph_index = 0,
         .points = points,
         .instructions = instructions,
+        .contour_end_points = contour_end_points,
     };
 
     const pixels = try allocator.alloc(u8, 100 * 100 * 4);
@@ -121,10 +129,14 @@ test "GlyphRenderer renderGlyph - simple triangle" {
     var instructions = std.ArrayList(u8){};
     defer instructions.deinit(allocator);
 
-    const triangle_glyph = ttf.TtfParser.Glyph{
+    var contour_end_points = std.ArrayList(usize){};
+    defer contour_end_points.deinit(allocator);
+
+    var triangle_glyph = ttf.TtfParser.Glyph{
         .glyph_index = 0,
         .points = points,
         .instructions = instructions,
+        .contour_end_points = contour_end_points,
     };
 
     const pixels = try allocator.alloc(u8, 200 * 200 * 4);
@@ -167,10 +179,14 @@ test "GlyphRenderer renderGlyph boundary - glyph outside canvas" {
     var instructions = std.ArrayList(u8){};
     defer instructions.deinit(allocator);
 
-    const glyph_data = ttf.TtfParser.Glyph{
+    var contour_end_points = std.ArrayList(usize){};
+    defer contour_end_points.deinit(allocator);
+
+    var glyph_data = ttf.TtfParser.Glyph{
         .glyph_index = 0,
         .points = points,
         .instructions = instructions,
+        .contour_end_points = contour_end_points,
     };
 
     const pixels = try allocator.alloc(u8, 50 * 50 * 4);
@@ -211,10 +227,14 @@ test "GlyphRenderer renderGlyph boundary - zero font size" {
     var instructions = std.ArrayList(u8){};
     defer instructions.deinit(allocator);
 
-    const glyph_data = ttf.TtfParser.Glyph{
+    var contour_end_points = std.ArrayList(usize){};
+    defer contour_end_points.deinit(allocator);
+
+    var glyph_data = ttf.TtfParser.Glyph{
         .glyph_index = 0,
         .points = points,
         .instructions = instructions,
+        .contour_end_points = contour_end_points,
     };
 
     const pixels = try allocator.alloc(u8, 100 * 100 * 4);
@@ -255,10 +275,14 @@ test "GlyphRenderer renderGlyph boundary - zero units per em" {
     var instructions = std.ArrayList(u8){};
     defer instructions.deinit(allocator);
 
-    const glyph_data = ttf.TtfParser.Glyph{
+    var contour_end_points = std.ArrayList(usize){};
+    defer contour_end_points.deinit(allocator);
+
+    var glyph_data = ttf.TtfParser.Glyph{
         .glyph_index = 0,
         .points = points,
         .instructions = instructions,
+        .contour_end_points = contour_end_points,
     };
 
     const pixels = try allocator.alloc(u8, 100 * 100 * 4);
@@ -293,10 +317,14 @@ test "GlyphRenderer renderGlyph - with control points" {
     var instructions = std.ArrayList(u8){};
     defer instructions.deinit(allocator);
 
-    const curve_glyph = ttf.TtfParser.Glyph{
+    var contour_end_points = std.ArrayList(usize){};
+    defer contour_end_points.deinit(allocator);
+
+    var curve_glyph = ttf.TtfParser.Glyph{
         .glyph_index = 0,
         .points = points,
         .instructions = instructions,
+        .contour_end_points = contour_end_points,
     };
 
     const pixels = try allocator.alloc(u8, 200 * 200 * 4);

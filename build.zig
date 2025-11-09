@@ -254,6 +254,15 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    const font_hinting_module = b.createModule(.{
+        .root_source_file = b.path("src/font/hinting.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "ttf", .module = font_ttf_module },
+        },
+    });
+
     const font_glyph_module = b.createModule(.{
         .root_source_file = b.path("src/font/glyph.zig"),
         .target = target,
@@ -261,6 +270,7 @@ pub fn build(b: *std.Build) void {
         .imports = &.{
             .{ .name = "backend", .module = render_backend_module },
             .{ .name = "ttf", .module = font_ttf_module },
+            .{ .name = "hinting", .module = font_hinting_module },
         },
     });
 
@@ -449,6 +459,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "font", .module = font_module },
             .{ .name = "ttf", .module = font_ttf_module },
             .{ .name = "glyph", .module = font_glyph_module },
+            .{ .name = "hinting", .module = font_hinting_module },
             .{ .name = "backend", .module = render_backend_module },
         },
     });
