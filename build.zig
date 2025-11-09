@@ -246,12 +246,40 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    // Font模块（需要在render_cpu_backend_module之前定义）
+    const font_ttf_module = b.createModule(.{
+        .root_source_file = b.path("src/font/ttf.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    const font_glyph_module = b.createModule(.{
+        .root_source_file = b.path("src/font/glyph.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "backend", .module = render_backend_module },
+            .{ .name = "ttf", .module = font_ttf_module },
+        },
+    });
+
+    const font_module = b.createModule(.{
+        .root_source_file = b.path("src/font/font.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "ttf", .module = font_ttf_module },
+        },
+    });
+
     const render_cpu_backend_module = b.createModule(.{
         .root_source_file = b.path("src/render/cpu_backend.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{
             .{ .name = "backend", .module = render_backend_module },
+            .{ .name = "font", .module = font_module },
+            .{ .name = "glyph", .module = font_glyph_module },
         },
     });
 
@@ -282,32 +310,6 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .imports = &.{
             .{ .name = "deflate", .module = image_deflate_module },
-        },
-    });
-
-    // Font模块
-    const font_ttf_module = b.createModule(.{
-        .root_source_file = b.path("src/font/ttf.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-
-    const font_glyph_module = b.createModule(.{
-        .root_source_file = b.path("src/font/glyph.zig"),
-        .target = target,
-        .optimize = optimize,
-        .imports = &.{
-            .{ .name = "backend", .module = render_backend_module },
-            .{ .name = "ttf", .module = font_ttf_module },
-        },
-    });
-
-    const font_module = b.createModule(.{
-        .root_source_file = b.path("src/font/font.zig"),
-        .target = target,
-        .optimize = optimize,
-        .imports = &.{
-            .{ .name = "ttf", .module = font_ttf_module },
         },
     });
 

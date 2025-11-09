@@ -1,5 +1,8 @@
 const std = @import("std");
 const backend = @import("backend");
+const font_module = @import("font");
+const glyph_module = @import("glyph");
+const math = std.math;
 
 /// 路径点
 const Point = struct {
@@ -75,6 +78,12 @@ pub const CpuRenderBackend = struct {
     /// 状态栈（用于save/restore）
     state_stack: std.ArrayList(RenderState),
 
+    /// 字体管理器（用于加载和管理字体）
+    font_manager: font_module.FontManager,
+
+    /// 字形渲染器（用于渲染字形）
+    glyph_renderer: glyph_module.GlyphRenderer,
+
     /// 从RenderBackend获取CpuRenderBackend
     fn fromRenderBackend(self_ptr: *backend.RenderBackend) *CpuRenderBackend {
         const base_ptr = @intFromPtr(self_ptr);
@@ -112,6 +121,8 @@ pub const CpuRenderBackend = struct {
             .current_path = std.ArrayList(Point){},
             .current_state = RenderState{ .transform = Transform{} },
             .state_stack = std.ArrayList(RenderState){},
+            .font_manager = font_module.FontManager.init(allocator),
+            .glyph_renderer = glyph_module.GlyphRenderer.init(allocator),
         };
 
         return self;
@@ -121,6 +132,8 @@ pub const CpuRenderBackend = struct {
     pub fn deinit(self: *CpuRenderBackend) void {
         self.current_path.deinit(self.allocator);
         self.state_stack.deinit(self.allocator);
+        self.font_manager.deinit();
+        self.glyph_renderer.deinit();
         self.allocator.free(self.pixels);
         self.allocator.destroy(self);
     }
@@ -341,28 +354,246 @@ pub const CpuRenderBackend = struct {
     }
 
     /// 内部文本渲染实现
-    /// TODO: 简化实现 - 当前使用简单的占位符矩形表示文本
-    /// 完整实现需要：
-    /// 1. 字体加载和字形渲染
-    /// 2. 字符宽度计算（考虑字距、连字等）
-    /// 3. 文本换行和对齐
-    /// 4. 抗锯齿处理
+    /// 尝试使用字体模块渲染真正的文本，如果失败则回退到占位符
+    /// TODO: 完整实现需要：
+    /// 1. 字符宽度计算（考虑字距、连字等）
+    /// 2. 文本换行和对齐
+    /// 3. 抗锯齿处理
     fn fillTextInternal(self: *CpuRenderBackend, text: []const u8, x: f32, y: f32, font: backend.Font, color: backend.Color) void {
         // 如果文本为空，不绘制
         if (text.len == 0) {
             return;
         }
 
-        // 简化实现：使用矩形占位符表示文本
-        // 估算文本宽度（简化：每个字符宽度为字体大小的0.6倍）
-        // TODO: 使用font.family、font.weight、font.style等信息
-        const char_width = font.size * 0.6;
+        // 尝试使用字体模块渲染文本
+        // 首先尝试获取字体（如果已加载）
+        const font_face = self.font_manager.getFont(font.family);
+        
+        if (font_face) |face| {
+            // 字体已加载，使用真正的字形渲染
+            self.renderTextWithFont(face, text, x, y, font.size, color) catch |err| {
+                // 如果渲染失败，回退到占位符
+                std.debug.print("[CPU Backend] fillTextInternal: font rendering failed: {}, falling back to placeholder\n", .{err});
+                self.renderTextPlaceholder(text, x, y, font, color);
+            };
+        } else {
+            // 字体未加载，使用占位符
+            self.renderTextPlaceholder(text, x, y, font, color);
+        }
+    }
+
+    /// 使用字体渲染真正的文本
+    fn renderTextWithFont(
+        self: *CpuRenderBackend,
+        font_face: *font_module.FontFace,
+        text: []const u8,
+        x: f32,
+        y: f32,
+        font_size: f32,
+        color: backend.Color,
+    ) !void {
+        // 获取字体度量信息
+        const font_metrics = try font_face.getFontMetrics();
+        const units_per_em = font_metrics.units_per_em;
+
+        // 计算缩放因子
+        const scale = font_size / @as(f32, @floatFromInt(units_per_em));
+
+        // 当前X位置
+        var current_x = x;
+        // y是基线位置，直接传递给renderGlyph
+
+        // 遍历文本中的每个字符
+        var i: usize = 0;
+        while (i < text.len) : (i += 1) {
+            const codepoint = self.decodeUtf8Codepoint(text[i..]) catch {
+                // 如果解码失败，跳过这个字节
+                continue;
+            };
+
+            // 获取字符的字形索引
+            const glyph_index_opt = try font_face.getGlyphIndex(codepoint);
+            if (glyph_index_opt) |glyph_index| {
+                // 获取字形的水平度量
+                const h_metrics = try font_face.getHorizontalMetrics(glyph_index);
+                
+                // 获取字形数据
+                var glyph = try font_face.getGlyph(glyph_index);
+                defer glyph.deinit(self.allocator);
+
+                // 计算字形的X位置（考虑左边界）
+                const glyph_x = current_x + @as(f32, @floatFromInt(h_metrics.left_side_bearing)) * scale;
+
+                // 渲染字形
+                self.glyph_renderer.renderGlyph(
+                    &glyph,
+                    self.pixels,
+                    self.width,
+                    self.height,
+                    glyph_x,
+                    y, // y是基线位置
+                    font_size,
+                    units_per_em,
+                    color,
+                );
+
+                // 移动到下一个字符位置（考虑字符宽度）
+                const advance_width = @as(f32, @floatFromInt(h_metrics.advance_width));
+                current_x += advance_width * scale;
+            } else {
+                // 如果找不到字形，使用占位符宽度
+                const placeholder_width = font_size * 0.6;
+                current_x += placeholder_width;
+            }
+        }
+    }
+
+    /// 解码UTF-8字符码点（简化实现，只处理ASCII）
+    fn decodeUtf8Codepoint(self: *CpuRenderBackend, bytes: []const u8) !u21 {
+        _ = self;
+        if (bytes.len == 0) {
+            return error.InvalidUtf8;
+        }
+        // 简化实现：只处理ASCII字符（0-127）
+        if (bytes[0] < 128) {
+            return bytes[0];
+        }
+        // TODO: 完整实现需要处理多字节UTF-8字符
+        return error.InvalidUtf8;
+    }
+
+    /// 绘制字符的简单模式（用于占位符）
+    fn drawCharPattern(
+        self: *CpuRenderBackend,
+        x: f32,
+        y: f32,
+        width: f32,
+        height: f32,
+        char: u8,
+        color: backend.Color,
+        font_size: f32,
+    ) void {
+        const line_width = @max(1.0, font_size * 0.08);
+        const center_x = x + width * 0.5;
+        const center_y = y + height * 0.5;
+        const top_y = y;
+        const bottom_y = y + height;
+        const left = x;
+        const right = x + width;
+        
+        // 根据字符绘制不同的模式
+        switch (char) {
+            'A', 'a' => {
+                // 绘制一个简单的"A"形状：倒三角形 + 横线
+                self.drawLineBresenham(center_x, top_y, left, bottom_y, color, line_width);
+                self.drawLineBresenham(center_x, top_y, right, bottom_y, color, line_width);
+                self.drawLineBresenham(left + width * 0.3, center_y, right - width * 0.3, center_y, color, line_width);
+            },
+            'H', 'h' => {
+                // 绘制一个简单的"H"形状：两条竖线 + 横线
+                self.drawLineBresenham(left, top_y, left, bottom_y, color, line_width);
+                self.drawLineBresenham(right, top_y, right, bottom_y, color, line_width);
+                self.drawLineBresenham(left, center_y, right, center_y, color, line_width);
+            },
+            'E', 'e' => {
+                // 绘制一个简单的"E"形状：竖线 + 三条横线
+                self.drawLineBresenham(left, top_y, left, bottom_y, color, line_width);
+                self.drawLineBresenham(left, top_y, right, top_y, color, line_width);
+                self.drawLineBresenham(left, center_y, right * 0.7, center_y, color, line_width);
+                self.drawLineBresenham(left, bottom_y, right, bottom_y, color, line_width);
+            },
+            'L', 'l' => {
+                // 绘制一个简单的"L"形状：竖线 + 底横线
+                self.drawLineBresenham(left, top_y, left, bottom_y, color, line_width);
+                self.drawLineBresenham(left, bottom_y, right, bottom_y, color, line_width);
+            },
+            'O', 'o' => {
+                // 绘制一个简单的"O"形状：椭圆/圆
+                const radius = @min(width, height) * 0.4;
+                self.drawCircleOutline(center_x, center_y, radius, color, line_width);
+            },
+            'T', 't' => {
+                // 绘制一个简单的"T"形状：顶横线 + 竖线
+                self.drawLineBresenham(left, top_y, right, top_y, color, line_width);
+                self.drawLineBresenham(center_x, top_y, center_x, bottom_y, color, line_width);
+            },
+            'I', 'i' => {
+                // 绘制一个简单的"I"形状：竖线
+                self.drawLineBresenham(center_x, top_y, center_x, bottom_y, color, line_width);
+            },
+            'N', 'n' => {
+                // 绘制一个简单的"N"形状：两条竖线 + 斜线
+                self.drawLineBresenham(left, top_y, left, bottom_y, color, line_width);
+                self.drawLineBresenham(right, top_y, right, bottom_y, color, line_width);
+                self.drawLineBresenham(left, top_y, right, bottom_y, color, line_width);
+            },
+            'R', 'r' => {
+                // 绘制一个简单的"R"形状：竖线 + 半圆 + 斜线
+                self.drawLineBresenham(left, top_y, left, bottom_y, color, line_width);
+                self.drawLineBresenham(left, top_y, right * 0.7, top_y, color, line_width);
+                self.drawLineBresenham(right * 0.7, top_y, right * 0.7, center_y, color, line_width);
+                self.drawLineBresenham(left, center_y, right * 0.7, center_y, color, line_width);
+                self.drawLineBresenham(right * 0.7, center_y, right, bottom_y, color, line_width);
+            },
+            'S', 's' => {
+                // 绘制一个简单的"S"形状：曲线
+                self.drawLineBresenham(left, top_y, right * 0.8, top_y, color, line_width);
+                self.drawLineBresenham(left, top_y, left, center_y, color, line_width);
+                self.drawLineBresenham(left, center_y, right * 0.8, center_y, color, line_width);
+                self.drawLineBresenham(right * 0.8, center_y, right, bottom_y, color, line_width);
+                self.drawLineBresenham(right, bottom_y, left * 1.2, bottom_y, color, line_width);
+            },
+            else => {
+                // 默认：绘制一条对角线，表示有字符
+                self.drawLineBresenham(left, top_y, right, bottom_y, color, line_width);
+            },
+        }
+    }
+
+    /// 绘制圆形轮廓（简化实现）
+    fn drawCircleOutline(
+        self: *CpuRenderBackend,
+        center_x: f32,
+        center_y: f32,
+        radius: f32,
+        color: backend.Color,
+        line_width: f32,
+    ) void {
+        // 简化实现：绘制16个点形成圆形轮廓
+        const num_points = 16;
+        var i: usize = 0;
+        var prev_x: f32 = center_x + radius;
+        var prev_y: f32 = center_y;
+        
+        while (i <= num_points) : (i += 1) {
+            const angle = 2.0 * math.pi * @as(f32, @floatFromInt(i)) / @as(f32, @floatFromInt(num_points));
+            const x = center_x + radius * math.cos(angle);
+            const y = center_y + radius * math.sin(angle);
+            
+            if (i > 0) {
+                self.drawLineBresenham(prev_x, prev_y, x, y, color, line_width);
+            }
+            
+            prev_x = x;
+            prev_y = y;
+        }
+    }
+
+    /// 使用占位符渲染文本（回退方案）
+    fn renderTextPlaceholder(
+        self: *CpuRenderBackend,
+        text: []const u8,
+        x: f32,
+        y: f32,
+        font: backend.Font,
+        color: backend.Color,
+    ) void {
+        // 估算文本宽度（简化：每个字符宽度为字体大小的0.7倍）
+        const char_width = @max(6.0, font.size * 0.7);
         const text_width = char_width * @as(f32, @floatFromInt(text.len));
-        const text_height = font.size;
+        const text_height = @max(6.0, font.size);
 
         // 计算文本位置（y是基线位置，需要调整）
-        // 简化：假设基线在文本底部，所以文本顶部 = 基线 - 文本高度
-        // 但为了确保文本可见，如果y < text_height，将文本放在y位置
         const text_y = if (y >= text_height) y - text_height else y;
 
         // 如果文本完全在边界外，不绘制
@@ -381,9 +612,32 @@ pub const CpuRenderBackend = struct {
         const clamped_height = @min(text_height, max_y - clamped_y);
 
         if (clamped_width > 0 and clamped_height > 0) {
-            // 绘制文本占位符矩形
-            const text_rect = backend.Rect.init(clamped_x, clamped_y, clamped_width, clamped_height);
-            fillRectInternal(self, text_rect, color);
+            // 改进的占位符：使用线条绘制简单的字符形状，而不是实心矩形
+            const min_char_width = @max(6.0, char_width);
+            const min_char_height = @max(6.0, clamped_height * 0.95);
+            
+            var char_x = clamped_x;
+            var i: usize = 0;
+            while (i < text.len and char_x < max_x) : (i += 1) {
+                const char_w = @min(min_char_width, max_x - char_x);
+                if (char_w > 0) {
+                    const char_h = min_char_height;
+                    const char_y = clamped_y + (clamped_height - char_h) * 0.5; // 垂直居中
+                    
+                    // 为每个字符绘制一个简单的线条模式，使其看起来更像文本
+                    // 使用边框矩形 + 内部线条
+                    const char_rect = backend.Rect.init(char_x, char_y, char_w, char_h);
+                    
+                    // 绘制边框（细线）
+                    const border_width = @max(1.0, font.size * 0.05);
+                    strokeRectInternal(self, char_rect, color, border_width);
+                    
+                    // 根据字符绘制简单的内部线条模式
+                    const c = if (i < text.len) text[i] else ' ';
+                    self.drawCharPattern(char_x, char_y, char_w, char_h, c, color, font.size);
+                }
+                char_x += min_char_width;
+            }
         }
     }
 

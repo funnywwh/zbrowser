@@ -114,7 +114,7 @@ pub const FontFace = struct {
     /// 参数：
     /// - glyph_index: 字形索引
     /// 返回：字形数据
-    pub fn getGlyph(self: *Self, glyph_index: u16) !ttf.Glyph {
+    pub fn getGlyph(self: *Self, glyph_index: u16) !ttf.TtfParser.Glyph {
         return try self.ttf_parser.getGlyph(glyph_index);
     }
 
@@ -122,12 +122,12 @@ pub const FontFace = struct {
     /// 参数：
     /// - glyph_index: 字形索引
     /// 返回：水平度量
-    pub fn getHorizontalMetrics(self: *Self, glyph_index: u16) !ttf.HorizontalMetrics {
+    pub fn getHorizontalMetrics(self: *Self, glyph_index: u16) !ttf.TtfParser.HorizontalMetrics {
         return try self.ttf_parser.getHorizontalMetrics(glyph_index);
     }
 
     /// 获取字体度量信息
-    pub fn getFontMetrics(self: *Self) !ttf.FontMetrics {
+    pub fn getFontMetrics(self: *Self) !ttf.TtfParser.FontMetrics {
         return try self.ttf_parser.getFontMetrics();
     }
 };
