@@ -123,8 +123,9 @@ pub const GlyphRenderer = struct {
             max_y = @max(max_y, p.y);
         }
 
-        const start_scanline = @max(0, @as(i32, @intFromFloat(min_y)) - 1);
-        const end_scanline = @min(@as(i32, @intCast(height)), @as(i32, @intFromFloat(max_y)) + 2);
+        // 扩展扫描范围以处理边缘抗锯齿
+        const start_scanline = @max(0, @as(i32, @intFromFloat(min_y)) - 2);
+        const end_scanline = @min(@as(i32, @intCast(height)), @as(i32, @intFromFloat(max_y)) + 3);
 
         // 对每条扫描线，计算与轮廓的交点
         var scanline = start_scanline;
@@ -159,8 +160,9 @@ pub const GlyphRenderer = struct {
                 const x1 = intersections.items[j];
                 const x2 = intersections.items[j + 1];
 
-                const start_x = @max(0, @as(i32, @intFromFloat(x1)) - 1);
-                const end_x = @min(@as(i32, @intCast(width)), @as(i32, @intFromFloat(x2)) + 2);
+                // 扩展X范围以处理边缘抗锯齿
+                const start_x = @max(0, @as(i32, @intFromFloat(x1)) - 2);
+                const end_x = @min(@as(i32, @intCast(width)), @as(i32, @intFromFloat(x2)) + 3);
 
                 var px = start_x;
                 while (px < end_x) : (px += 1) {
@@ -202,47 +204,51 @@ pub const GlyphRenderer = struct {
     }
 
     /// 计算像素的覆盖度（用于抗锯齿）
-    /// 基于像素与轮廓边缘的距离计算平滑的alpha值
-    fn calculateCoverage(_: *Self, pixel_x: f32, _: f32, x1: f32, x2: f32) f32 {
+    /// 使用子像素采样和距离场方法获得更平滑的边缘
+    fn calculateCoverage(_: *Self, pixel_x: f32, pixel_y: f32, x1: f32, x2: f32) f32 {
         const pixel_left = pixel_x - 0.5;
-        const pixel_right = pixel_x + 0.5;
+        const pixel_top = pixel_y - 0.5;
         
-        // 计算像素与轮廓的重叠部分
-        const overlap_start = @max(pixel_left, x1);
-        const overlap_end = @min(pixel_right, x2);
-        const overlap = @max(0.0, overlap_end - overlap_start);
+        // 使用4x4子像素采样（16个采样点）获得更精确的覆盖度
+        const sub_samples = 4;
+        var covered: f32 = 0.0;
+        const sample_step = 1.0 / @as(f32, @floatFromInt(sub_samples));
         
-        // 如果完全重叠，覆盖度为1.0
-        if (overlap >= 0.99) {
-            return 1.0;
+        var sy: usize = 0;
+        while (sy < sub_samples) : (sy += 1) {
+            var sx: usize = 0;
+            while (sx < sub_samples) : (sx += 1) {
+                const sample_x = pixel_left + (@as(f32, @floatFromInt(sx)) + 0.5) * sample_step;
+                _ = pixel_top + (@as(f32, @floatFromInt(sy)) + 0.5) * sample_step; // Y坐标用于未来扩展
+                
+                // 检查采样点是否在轮廓内
+                if (sample_x >= x1 and sample_x < x2) {
+                    covered += 1.0;
+                }
+            }
         }
         
-        // 如果部分重叠，使用基于距离的平滑过渡
-        const center_x = pixel_x;
-        var coverage: f32 = overlap; // 基础覆盖度
+        var coverage = covered / @as(f32, @floatFromInt(sub_samples * sub_samples));
         
-        // 计算到边缘的距离
+        // 使用距离场方法增强边缘平滑度
+        const center_x = pixel_x;
         const dist_to_left = center_x - x1;
         const dist_to_right = x2 - center_x;
         const min_dist = @min(@abs(dist_to_left), @abs(dist_to_right));
         
-        // 如果像素在轮廓内但接近边缘，使用平滑过渡
-        if (center_x >= x1 and center_x < x2) {
-            if (min_dist < 0.75) {
-                // 在边缘0.75像素范围内，使用smoothstep平滑过渡
-                const t = min_dist / 0.75;
-                const smooth = t * t * (3.0 - 2.0 * t); // smoothstep函数
-                coverage = 0.3 + smooth * 0.7; // 在边缘处为0.3，距离0.75像素时为1.0
-            }
-        } else {
-            // 像素在轮廓外，但可能部分覆盖
-            if (min_dist < 0.5) {
-                // 部分覆盖，使用平滑过渡
-                const t = min_dist / 0.5;
-                const smooth = (1.0 - t) * (1.0 - t) * (3.0 - 2.0 * (1.0 - t)); // 反向smoothstep
-                coverage = overlap * smooth;
+        // 如果接近边缘，使用更平滑的过渡
+        if (min_dist < 1.0) {
+            // 使用改进的smoothstep函数，在边缘处提供更平滑的过渡
+            const t = min_dist / 1.0;
+            // 使用三次平滑函数：t^2 * (3 - 2t) 的改进版本
+            const smooth = t * t * t * (t * (t * 6.0 - 15.0) + 10.0); // smootherstep函数
+            // 在边缘处使用更低的覆盖度，提供更明显的抗锯齿效果
+            if (center_x >= x1 and center_x < x2) {
+                // 在轮廓内，边缘处覆盖度降低
+                coverage = coverage * (0.4 + smooth * 0.6);
             } else {
-                coverage = overlap;
+                // 在轮廓外，使用平滑衰减
+                coverage = coverage * (1.0 - smooth);
             }
         }
         
