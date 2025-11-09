@@ -37,6 +37,22 @@ pub const Renderer = struct {
             std.debug.print("[Renderer] renderLayoutBox: display=none, skipping\n", .{});
             return;
         }
+        
+        // 跳过title、head、meta、script、style等元数据标签（它们不应该在页面中渲染）
+        if (layout_box.node.node_type == .element) {
+            if (layout_box.node.asElement()) |elem| {
+                const tag_name = elem.tag_name;
+                if (std.mem.eql(u8, tag_name, "title") or
+                    std.mem.eql(u8, tag_name, "head") or
+                    std.mem.eql(u8, tag_name, "meta") or
+                    std.mem.eql(u8, tag_name, "script") or
+                    std.mem.eql(u8, tag_name, "style") or
+                    std.mem.eql(u8, tag_name, "link")) {
+                    std.debug.print("[Renderer] renderLayoutBox: skipping metadata tag '{s}'\n", .{tag_name});
+                    return;
+                }
+            }
+        }
 
         // 日志：渲染开始
         const node_type_str = switch (layout_box.node.node_type) {
@@ -81,19 +97,22 @@ pub const Renderer = struct {
             total_size.height,
         );
 
-        // 1. 绘制背景
-        try self.renderBackground(layout_box, &computed_style, border_rect);
+        // 1. 绘制背景（只对非文本节点绘制，避免覆盖文本）
+        // 注意：对于包含文本节点的元素（如<p>），背景应该只绘制到内容区域，不覆盖descender
+        if (layout_box.node.node_type != .text) {
+            try self.renderBackground(layout_box, &computed_style, border_rect);
+        }
 
         // 2. 绘制边框
         try self.renderBorder(layout_box, &computed_style, border_rect);
 
-        // 3. 绘制内容（文本）
-        try self.renderContent(layout_box, &computed_style, content_rect);
-
-        // 4. 递归渲染子节点
+        // 3. 递归渲染子节点（先渲染子节点，确保文本在背景之上）
         for (layout_box.children.items) |child| {
             try self.renderLayoutBox(child);
         }
+
+        // 4. 绘制内容（文本）- 在子节点之后绘制，确保文本在最上层
+        try self.renderContent(layout_box, &computed_style, content_rect);
     }
 
     /// 渲染背景
@@ -155,20 +174,46 @@ pub const Renderer = struct {
                 return;
             }
 
+            // 文本节点应该使用父元素的样式
+            // 如果当前computed_style为空（文本节点没有自己的样式），尝试从父元素获取
+            var text_computed_style = computed_style;
+            var parent_computed_style_opt: ?cascade.ComputedStyle = null;
+            if (layout_box.parent) |parent| {
+                // 重新计算父元素的样式（用于文本节点继承）
+                var cascade_engine = cascade.Cascade.init(self.allocator);
+                var parent_computed_style = try cascade_engine.computeStyle(parent.node, self.stylesheets);
+                
+                // 如果当前样式为空或没有font-size，使用父元素的样式
+                if (computed_style.getProperty("font-size") == null) {
+                    parent_computed_style_opt = parent_computed_style;
+                    text_computed_style = &parent_computed_style;
+                } else {
+                    parent_computed_style.deinit();
+                }
+            }
+            defer if (parent_computed_style_opt) |*pcs| pcs.deinit();
+
             // 获取文本颜色和字体
-            const text_color = self.getTextColor(computed_style);
-            const font = self.getFont(computed_style);
+            const text_color = self.getTextColor(text_computed_style);
+            const font = self.getFont(text_computed_style);
 
             std.debug.print("[Renderer] renderContent: text_color={?}, font_size={d:.1}\n", .{ text_color, font.size });
 
             if (text_color) |color| {
-                // 绘制文本（简化：使用fillText）
-                // y坐标需要调整：rect.y是内容区域的顶部，我们需要在内容区域内绘制文本
-                // fillTextInternal期望y是基线位置，但会将其转换为文本顶部
-                // 所以这里传入rect.y + font.size作为基线位置
-                const text_y = rect.y + font.size;
-                std.debug.print("[Renderer] renderContent: calling fillText at ({d:.1}, {d:.1}), text=\"{s}\", rect=({d:.1}, {d:.1}, {d:.1}x{d:.1})\n", .{ rect.x, text_y, text_content, rect.x, rect.y, rect.width, rect.height });
-                self.render_backend.fillText(text_content, rect.x, text_y, font, color);
+                // 绘制文本
+                // y坐标需要调整：rect.y是内容区域的顶部，我们需要计算基线位置
+                // 基线位置 = rect.y + ascent
+                // 使用字体大小的约70%作为ascent（典型值，实际应该从字体度量获取）
+                // 注意：这确保descender（如'p'的尾巴）有足够空间显示
+                // 进一步降低ascent比例，给descender留更多空间
+                // 对于绝对定位的元素，rect.y是top属性的值，表示内容区域的顶部
+                // 我们需要加上ascent来计算基线位置
+                // 但是，如果rect.height为0（未设置高度），说明这是绝对定位的文本节点
+                // 对于绝对定位的文本节点，top值应该直接作为基线位置（或者加上一个小的偏移）
+                const ascent_ratio: f32 = 0.7; // 典型的ascent比例（降低以给descender更多空间）
+                const baseline_y = rect.y + font.size * ascent_ratio;
+                std.debug.print("[Renderer] renderContent: calling fillText at ({d:.1}, {d:.1}), text=\"{s}\", rect=({d:.1}, {d:.1}, {d:.1}x{d:.1}), font_size={d:.1}\n", .{ rect.x, baseline_y, text_content, rect.x, rect.y, rect.width, rect.height, font.size });
+                self.render_backend.fillText(text_content, rect.x, baseline_y, font, color);
             } else {
                 std.debug.print("[Renderer] renderContent: no text color, skipping\n", .{});
             }
@@ -184,8 +229,9 @@ pub const Renderer = struct {
         if (style_utils.getPropertyColor(computed_style, "background-color")) |color| {
             return backend.Color.rgb(color.r, color.g, color.b);
         }
-        // 默认返回白色
-        return backend.Color.rgb(255, 255, 255);
+        // 如果没有设置背景颜色，返回null（不绘制背景）
+        // 这样可以避免白色背景覆盖文本的descender
+        return null;
     }
 
     /// 获取边框颜色

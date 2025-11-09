@@ -100,6 +100,21 @@ pub fn applyStyleToLayoutBox(layout_box: *box.LayoutBox, computed_style: *const 
     // 解析position
     if (getPropertyKeyword(computed_style, "position")) |position_value| {
         layout_box.position = parsePositionType(position_value);
+        const node_type_str = switch (layout_box.node.node_type) {
+            .element => if (layout_box.node.asElement()) |elem| elem.tag_name else "unknown",
+            .text => "text",
+            .comment => "comment",
+            .document => "document",
+            .doctype => "doctype",
+        };
+        const class_name = if (layout_box.node.node_type == .element) 
+            if (layout_box.node.asElement()) |elem| elem.attributes.get("class") else null
+        else null;
+        if (class_name) |class| {
+            std.debug.print("[StyleUtils] applyStyleToLayoutBox: node='{s}.{s}', position={s} -> {}\n", .{ node_type_str, class, position_value, layout_box.position });
+        } else {
+            std.debug.print("[StyleUtils] applyStyleToLayoutBox: node='{s}', position={s} -> {}\n", .{ node_type_str, position_value, layout_box.position });
+        }
     }
 
     // 解析float
@@ -110,6 +125,7 @@ pub fn applyStyleToLayoutBox(layout_box: *box.LayoutBox, computed_style: *const 
     // 解析定位属性（top, right, bottom, left）
     if (getPropertyLength(computed_style, "top", containing_size.height)) |top| {
         layout_box.position_top = top;
+        std.debug.print("[StyleUtils] applyStyleToLayoutBox: position_top={d:.1}\n", .{top});
     }
     if (getPropertyLength(computed_style, "right", containing_size.width)) |right| {
         layout_box.position_right = right;
@@ -119,6 +135,7 @@ pub fn applyStyleToLayoutBox(layout_box: *box.LayoutBox, computed_style: *const 
     }
     if (getPropertyLength(computed_style, "left", containing_size.width)) |left| {
         layout_box.position_left = left;
+        std.debug.print("[StyleUtils] applyStyleToLayoutBox: position_left={d:.1}\n", .{left});
     }
 
     // TODO: 解析padding、border、margin

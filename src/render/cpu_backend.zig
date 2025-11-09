@@ -353,6 +353,241 @@ pub const CpuRenderBackend = struct {
         fillTextInternal(self, text, x, y, font, color);
     }
 
+    /// 计算文本的实际渲染宽度（不渲染，只计算）
+    /// 返回文本的结束x坐标
+    pub fn calculateTextWidth(self: *CpuRenderBackend, text: []const u8, x: f32, font: backend.Font) !f32 {
+        if (text.len == 0) {
+            return x;
+        }
+
+        // 检测文本中是否包含CJK字符
+        const cjk_language = self.detectCJKLanguage(text);
+        
+        // 获取字体
+        var font_face: ?*font_module.FontFace = null;
+        
+        if (cjk_language == 3) {
+            // 韩文
+            font_face = self.font_manager.getFont("KoreanFont");
+            if (font_face == null) {
+                font_face = self.tryLoadKoreanFont() catch null;
+            }
+            const chinese_font_face = self.font_manager.getFont("ChineseFont") orelse self.tryLoadChineseFont() catch null;
+            return self.calculateTextWidthWithMixedFonts(font_face, chinese_font_face, text, x, font.size);
+        } else if (cjk_language == 2) {
+            // 日文
+            font_face = self.font_manager.getFont("JapaneseFont");
+            if (font_face == null) {
+                font_face = self.tryLoadJapaneseFont() catch null;
+            }
+            if (font_face == null) {
+                font_face = self.font_manager.getFont("ChineseFont");
+                if (font_face == null) {
+                    font_face = self.tryLoadChineseFont() catch null;
+                }
+            }
+        } else if (cjk_language == 1) {
+            // 中文
+            font_face = self.font_manager.getFont("ChineseFont");
+            if (font_face == null) {
+                font_face = self.tryLoadChineseFont() catch null;
+            }
+        }
+        
+        if (font_face == null) {
+            font_face = self.font_manager.getFont(font.family);
+            if (font_face == null) {
+                font_face = self.tryLoadDefaultFont(font.family) catch null;
+            }
+        }
+        
+        if (font_face) |face| {
+            return self.calculateTextWidthWithFont(face, text, x, font.size);
+        } else {
+            // 如果没有字体，使用估算值
+            const char_width = font.size * 0.7;
+            return x + char_width * @as(f32, @floatFromInt(text.len));
+        }
+    }
+
+    /// 使用字体计算文本宽度
+    fn calculateTextWidthWithFont(
+        self: *CpuRenderBackend,
+        font_face: *font_module.FontFace,
+        text: []const u8,
+        x: f32,
+        font_size: f32,
+    ) !f32 {
+        const font_metrics = try font_face.getFontMetrics();
+        const units_per_em = font_metrics.units_per_em;
+        const scale = font_size / @as(f32, @floatFromInt(units_per_em));
+
+        var current_x = x;
+        var i: usize = 0;
+        while (i < text.len) {
+            const decode_result = self.decodeUtf8Codepoint(text[i..]) catch {
+                i += 1;
+                continue;
+            };
+            const codepoint = decode_result.codepoint;
+            i += decode_result.bytes_consumed;
+
+            const glyph_index_opt = try font_face.getGlyphIndex(codepoint);
+            if (glyph_index_opt) |glyph_index| {
+                const h_metrics = try font_face.getHorizontalMetrics(glyph_index);
+                const advance_width = @as(f32, @floatFromInt(h_metrics.advance_width));
+                current_x += advance_width * scale;
+            } else {
+                const placeholder_width = font_size * 0.6;
+                current_x += placeholder_width;
+            }
+        }
+        return current_x;
+    }
+
+    /// 使用混合字体计算文本宽度
+    fn calculateTextWidthWithMixedFonts(
+        self: *CpuRenderBackend,
+        primary_font: ?*font_module.FontFace,
+        fallback_font: ?*font_module.FontFace,
+        text: []const u8,
+        x: f32,
+        font_size: f32,
+    ) !f32 {
+        if (primary_font == null) {
+            if (fallback_font) |fallback| {
+                return self.calculateTextWidthWithFont(fallback, text, x, font_size);
+            } else {
+                const char_width = font_size * 0.7;
+                return x + char_width * @as(f32, @floatFromInt(text.len));
+            }
+        }
+
+        const font_face = primary_font.?;
+        const font_metrics = try font_face.getFontMetrics();
+        const units_per_em = font_metrics.units_per_em;
+        const scale = font_size / @as(f32, @floatFromInt(units_per_em));
+
+        var current_x = x;
+        var i: usize = 0;
+        while (i < text.len) {
+            const decode_result = self.decodeUtf8Codepoint(text[i..]) catch {
+                i += 1;
+                continue;
+            };
+            const codepoint = decode_result.codepoint;
+            i += decode_result.bytes_consumed;
+
+            const glyph_index_opt = try font_face.getGlyphIndex(codepoint);
+            if (glyph_index_opt) |glyph_index| {
+                const h_metrics = try font_face.getHorizontalMetrics(glyph_index);
+                const advance_width = @as(f32, @floatFromInt(h_metrics.advance_width));
+                current_x += advance_width * scale;
+            } else {
+                // 主字体不支持，尝试备用字体
+                if (fallback_font) |fallback| {
+                    const fallback_glyph_index_opt = try fallback.getGlyphIndex(codepoint);
+                    if (fallback_glyph_index_opt) |fallback_glyph_index| {
+                        const fallback_metrics = try fallback.getFontMetrics();
+                        const fallback_scale = font_size / @as(f32, @floatFromInt(fallback_metrics.units_per_em));
+                        const h_metrics = try fallback.getHorizontalMetrics(fallback_glyph_index);
+                        const advance_width = @as(f32, @floatFromInt(h_metrics.advance_width));
+                        current_x += advance_width * fallback_scale;
+                        continue;
+                    }
+                }
+                // 如果备用字体也不支持，使用占位符宽度
+                const placeholder_width = font_size * 0.6;
+                current_x += placeholder_width;
+            }
+        }
+        return current_x;
+    }
+
+    /// 检测文本中是否包含CJK字符（中文、日文、韩文）
+    /// 返回：语言类型（0=无，1=中文，2=日文，3=韩文）
+    fn detectCJKLanguage(self: *CpuRenderBackend, text: []const u8) u8 {
+        _ = self;
+        var i: usize = 0;
+        var has_chinese: bool = false;
+        var has_japanese_kana: bool = false;  // 日文假名（平假名、片假名）
+        var has_korean: bool = false;
+        var japanese_kana_count: usize = 0;
+        var chinese_han_count: usize = 0;
+        var korean_count: usize = 0;
+        
+        while (i < text.len) {
+            // 检查是否是多字节UTF-8字符
+            if (i + 2 < text.len) {
+                const b1 = text[i];
+                const b2 = text[i + 1];
+                const b3 = text[i + 2];
+                
+                // 3字节UTF-8字符（CJK字符通常是3字节）
+                if ((b1 & 0xF0) == 0xE0) {
+                    const codepoint = (@as(u21, b1 & 0x0F) << 12) | (@as(u21, b2 & 0x3F) << 6) | (@as(u21, b3 & 0x3F));
+                    
+                    // 日文平假名：0x3040-0x309F
+                    // 日文片假名：0x30A0-0x30FF
+                    if ((codepoint >= 0x3040 and codepoint <= 0x309F) or
+                        (codepoint >= 0x30A0 and codepoint <= 0x30FF)) {
+                        has_japanese_kana = true;
+                        japanese_kana_count += 1;
+                    }
+                    // 中文汉字（简体+繁体）：0x4E00-0x9FFF
+                    // 注意：这个范围也包含日文汉字，但如果没有日文假名，优先判断为中文
+                    if (codepoint >= 0x4E00 and codepoint <= 0x9FFF) {
+                        has_chinese = true;
+                        chinese_han_count += 1;
+                    }
+                    // 韩文音节：0xAC00-0xD7A3
+                    if (codepoint >= 0xAC00 and codepoint <= 0xD7A3) {
+                        has_korean = true;
+                        korean_count += 1;
+                        std.debug.print("[CPU Backend] detectCJKLanguage: found Korean character U+{X:0>4}, korean_count={d}\n", .{ codepoint, korean_count });
+                    }
+                    i += 3;
+                    continue;
+                }
+            }
+            
+            // 检查2字节UTF-8字符（韩文字母）
+            if (i + 1 < text.len) {
+                const b1 = text[i];
+                const b2 = text[i + 1];
+                
+                // 2字节UTF-8字符
+                if ((b1 & 0xE0) == 0xC0) {
+                    const codepoint = (@as(u21, b1 & 0x1F) << 6) | (@as(u21, b2 & 0x3F));
+                    // 韩文字母：0x1100-0x11FF
+                    if (codepoint >= 0x1100 and codepoint <= 0x11FF) {
+                        has_korean = true;
+                    }
+                    i += 2;
+                    continue;
+                }
+            }
+            
+            i += 1;
+        }
+        
+        // 返回优先级：韩文 > 日文（有假名）> 中文
+        // 如果同时有中文汉字和日文假名，优先判断为日文
+        if (has_korean) {
+            std.debug.print("[CPU Backend] detectCJKLanguage: detected Korean (has_korean=true, korean_count={d}, has_chinese={}, has_japanese_kana={})\n", .{ korean_count, has_chinese, has_japanese_kana });
+            return 3;
+        }
+        if (has_japanese_kana) {
+            std.debug.print("[CPU Backend] detectCJKLanguage: detected Japanese (has_japanese_kana=true, has_chinese={})\n", .{has_chinese});
+            return 2;  // 有日文假名，判断为日文
+        }
+        if (has_chinese) {
+            std.debug.print("[CPU Backend] detectCJKLanguage: detected Chinese (has_chinese=true, has_korean={}, has_japanese_kana={})\n", .{ has_korean, has_japanese_kana });
+            return 1;  // 只有中文汉字，判断为中文
+        }
+        return 0;
+    }
+
     /// 内部文本渲染实现
     /// 尝试使用字体模块渲染真正的文本，如果失败则回退到占位符
     /// TODO: 完整实现需要：
@@ -365,13 +600,74 @@ pub const CpuRenderBackend = struct {
             return;
         }
 
-        // 尝试使用字体模块渲染文本
-        // 首先尝试获取字体（如果已加载）
-        var font_face = self.font_manager.getFont(font.family);
+        // 检测文本中是否包含CJK字符（中文、日文、韩文）
+        const cjk_language = self.detectCJKLanguage(text);
         
-        // 如果字体未加载，尝试加载默认字体
+        // 尝试使用字体模块渲染文本
+        var font_face: ?*font_module.FontFace = null;
+        
+        // 根据检测到的语言类型，优先尝试加载相应的字体
+        if (cjk_language == 3) {
+            // 韩文：优先尝试加载韩文字体
+            // 注意：如果文本中同时包含中文汉字和韩文字符，使用韩文字体
+            // 如果韩文字体不支持某些中文汉字，这些汉字可能无法显示
+            std.debug.print("[CPU Backend] fillTextInternal: detected Korean, attempting to load Korean font\n", .{});
+            font_face = self.font_manager.getFont("KoreanFont");
+            if (font_face == null) {
+                font_face = self.tryLoadKoreanFont() catch null;
+            }
+            // 如果韩文字体加载失败，回退到中文字体（因为中文字体通常也支持韩文）
+            if (font_face == null) {
+                std.debug.print("[CPU Backend] fillTextInternal: Korean font failed, falling back to Chinese font\n", .{});
+                font_face = self.font_manager.getFont("ChineseFont");
+                if (font_face == null) {
+                    font_face = self.tryLoadChineseFont() catch null;
+                }
+            }
+            
+            // 尝试使用韩文字体渲染，如果某些字符找不到字形，按字符分别处理
+            if (font_face) |face| {
+                // 获取中文字体作为备用（用于渲染中文汉字）
+                const chinese_font_face = self.font_manager.getFont("ChineseFont") orelse self.tryLoadChineseFont() catch null;
+                
+                // 按字符分别渲染，对每个字符使用合适的字体
+                self.renderTextWithMixedFonts(face, chinese_font_face, text, x, y, font.size, color) catch |err| {
+                    // 如果渲染失败，使用占位符
+                    std.debug.print("[CPU Backend] fillTextInternal: renderTextWithMixedFonts failed: {}, using placeholder\n", .{err});
+                    self.renderTextPlaceholder(text, x, y, font, color);
+                };
+                return;
+            }
+        } else if (cjk_language == 2) {
+            // 日文：优先尝试加载日文字体，如果失败则回退到中文字体（因为中文字体通常也支持日文汉字）
+            std.debug.print("[CPU Backend] fillTextInternal: detected Japanese, attempting to load Japanese font\n", .{});
+            font_face = self.font_manager.getFont("JapaneseFont");
+            if (font_face == null) {
+                font_face = self.tryLoadJapaneseFont() catch null;
+            }
+            // 如果日文字体加载失败，回退到中文字体
+            if (font_face == null) {
+                std.debug.print("[CPU Backend] fillTextInternal: Japanese font failed, falling back to Chinese font\n", .{});
+                font_face = self.font_manager.getFont("ChineseFont");
+                if (font_face == null) {
+                    font_face = self.tryLoadChineseFont() catch null;
+                }
+            }
+        } else if (cjk_language == 1) {
+            // 中文：优先尝试加载中文字体
+            std.debug.print("[CPU Backend] fillTextInternal: detected Chinese, attempting to load Chinese font\n", .{});
+            font_face = self.font_manager.getFont("ChineseFont");
+            if (font_face == null) {
+                font_face = self.tryLoadChineseFont() catch null;
+            }
+        }
+        
+        // 如果特定语言字体加载失败，或者不包含CJK字符，尝试加载默认字体
         if (font_face == null) {
-            font_face = self.tryLoadDefaultFont(font.family) catch null;
+            font_face = self.font_manager.getFont(font.family);
+            if (font_face == null) {
+                font_face = self.tryLoadDefaultFont(font.family) catch null;
+            }
         }
         
         if (font_face) |face| {
@@ -387,18 +683,148 @@ pub const CpuRenderBackend = struct {
         }
     }
 
+    /// 尝试加载中文字体
+    /// 优先尝试加载支持中文的字体（包括简体、繁体）
+    fn tryLoadChineseFont(self: *CpuRenderBackend) !?*font_module.FontFace {
+        // 中文字体路径（按优先级排序）
+        // 注意：这些字体通常也支持繁体中文
+        const chinese_font_paths = [_][]const u8{
+            "C:\\Windows\\Fonts\\msyh.ttc",        // 微软雅黑（支持简体+繁体）
+            "C:\\Windows\\Fonts\\MSYH.ttc",
+            "C:\\Windows\\Fonts\\msyhbd.ttc",       // 微软雅黑 Bold
+            "C:\\Windows\\Fonts\\MSYHBD.ttc",
+            "C:\\Windows\\Fonts\\simsun.ttc",      // 宋体（支持简体+繁体）
+            "C:\\Windows\\Fonts\\SimSun.ttc",
+            "C:\\Windows\\Fonts\\simhei.ttf",      // 黑体
+            "C:\\Windows\\Fonts\\SimHei.ttf",
+            "C:\\Windows\\Fonts\\simkai.ttf",       // 楷体
+            "C:\\Windows\\Fonts\\SimKai.ttf",
+            // 本地路径
+            "fonts/msyh.ttc",
+            "fonts/simsun.ttc",
+            "fonts/simhei.ttf",
+            "msyh.ttc",
+            "simsun.ttc",
+            "simhei.ttf",
+        };
+
+        // 尝试加载中文字体
+        for (chinese_font_paths) |path| {
+            if (self.font_manager.loadFont(path, "ChineseFont")) |face| {
+                std.debug.print("[CPU Backend] Successfully loaded Chinese font from: {s}\n", .{path});
+                return face;
+            } else |_| {
+                // 继续尝试下一个路径
+                continue;
+            }
+        }
+
+        return null;
+    }
+
+    /// 尝试加载日文字体
+    /// 优先尝试加载支持日文的字体
+    fn tryLoadJapaneseFont(self: *CpuRenderBackend) !?*font_module.FontFace {
+        // 日文字体路径（按优先级排序）
+        const japanese_font_paths = [_][]const u8{
+            "C:\\Windows\\Fonts\\msgothic.ttc",     // MS Gothic
+            "C:\\Windows\\Fonts\\MSGothic.ttc",
+            "C:\\Windows\\Fonts\\msmincho.ttc",     // MS Mincho
+            "C:\\Windows\\Fonts\\MSMincho.ttc",
+            "C:\\Windows\\Fonts\\yugothic.ttf",    // Yu Gothic
+            "C:\\Windows\\Fonts\\YuGothic.ttf",
+            // 中文字体通常也支持日文汉字
+            "C:\\Windows\\Fonts\\msyh.ttc",
+            "C:\\Windows\\Fonts\\MSYH.ttc",
+            // 本地路径
+            "fonts/msgothic.ttc",
+            "fonts/msmincho.ttc",
+            "msgothic.ttc",
+            "msmincho.ttc",
+        };
+
+        // 尝试加载日文字体
+        for (japanese_font_paths) |path| {
+            if (self.font_manager.loadFont(path, "JapaneseFont")) |face| {
+                std.debug.print("[CPU Backend] Successfully loaded Japanese font from: {s}\n", .{path});
+                return face;
+            } else |_| {
+                // 继续尝试下一个路径
+                continue;
+            }
+        }
+
+        return null;
+    }
+
+    /// 尝试加载韩文字体
+    /// 优先尝试加载支持韩文的字体
+    fn tryLoadKoreanFont(self: *CpuRenderBackend) !?*font_module.FontFace {
+        // 韩文字体路径（按优先级排序）
+        const korean_font_paths = [_][]const u8{
+            "C:\\Windows\\Fonts\\malgun.ttf",       // Malgun Gothic（맑은 고딕）
+            "C:\\Windows\\Fonts\\Malgun.ttf",
+            "C:\\Windows\\Fonts\\malgunbd.ttf",    // Malgun Gothic Bold
+            "C:\\Windows\\Fonts\\MalgunBD.ttf",
+            "C:\\Windows\\Fonts\\gulim.ttc",       // Gulim（굴림）
+            "C:\\Windows\\Fonts\\Gulim.ttc",
+            "C:\\Windows\\Fonts\\batang.ttc",       // Batang（바탕）
+            "C:\\Windows\\Fonts\\Batang.ttc",
+            // 本地路径
+            "fonts/malgun.ttf",
+            "fonts/gulim.ttc",
+            "fonts/batang.ttc",
+            "malgun.ttf",
+            "gulim.ttc",
+            "batang.ttc",
+        };
+
+        // 尝试加载韩文字体
+        for (korean_font_paths) |path| {
+            if (self.font_manager.loadFont(path, "KoreanFont")) |face| {
+                std.debug.print("[CPU Backend] Successfully loaded Korean font from: {s}\n", .{path});
+                return face;
+            } else |err| {
+                // 输出错误信息以便调试
+                std.debug.print("[CPU Backend] Failed to load Korean font from {s}: {}\n", .{ path, err });
+                // 继续尝试下一个路径
+                continue;
+            }
+        }
+
+        std.debug.print("[CPU Backend] Warning: No Korean font found, Korean text may not display correctly\n", .{});
+        return null;
+    }
+
     /// 尝试加载默认字体
     /// 从常见路径查找并加载字体文件
     fn tryLoadDefaultFont(self: *CpuRenderBackend, font_family: []const u8) !?*font_module.FontFace {
         // 常见的字体文件路径（Windows）
+        // 优先尝试中文字体
         const font_paths = [_][]const u8{
+            // 中文字体（优先）
+            "C:\\Windows\\Fonts\\simsun.ttc",      // 宋体
+            "C:\\Windows\\Fonts\\SimSun.ttc",
+            "C:\\Windows\\Fonts\\msyh.ttc",        // 微软雅黑
+            "C:\\Windows\\Fonts\\MSYH.ttc",
+            "C:\\Windows\\Fonts\\msyhbd.ttc",     // 微软雅黑 Bold
+            "C:\\Windows\\Fonts\\MSYHBD.ttc",
+            "C:\\Windows\\Fonts\\simhei.ttf",     // 黑体
+            "C:\\Windows\\Fonts\\SimHei.ttf",
+            "C:\\Windows\\Fonts\\simkai.ttf",     // 楷体
+            "C:\\Windows\\Fonts\\SimKai.ttf",
+            // 英文字体（回退）
             "C:\\Windows\\Fonts\\arial.ttf",
             "C:\\Windows\\Fonts\\Arial.ttf",
-            "C:\\Windows\\Fonts\\arial.ttf",
             "C:\\Windows\\Fonts\\calibri.ttf",
             "C:\\Windows\\Fonts\\Calibri.ttf",
+            // 本地路径
+            "fonts/simsun.ttc",
+            "fonts/msyh.ttc",
             "fonts/arial.ttf",
             "fonts/Arial.ttf",
+            "simsun.ttc",
+            "msyh.ttc",
             "arial.ttf",
             "Arial.ttf",
         };
@@ -451,7 +877,114 @@ pub const CpuRenderBackend = struct {
         return null;
     }
 
+    /// 使用混合字体渲染文本（支持按字符切换字体）
+    /// 参数：
+    /// - primary_font: 主字体（用于大部分字符）
+    /// - fallback_font: 备用字体（用于主字体不支持的字符，如中文汉字）
+    fn renderTextWithMixedFonts(
+        self: *CpuRenderBackend,
+        primary_font: *font_module.FontFace,
+        fallback_font: ?*font_module.FontFace,
+        text: []const u8,
+        x: f32,
+        y: f32,
+        font_size: f32,
+        color: backend.Color,
+    ) !void {
+        // 获取主字体度量信息
+        const font_metrics = try primary_font.getFontMetrics();
+        const units_per_em = font_metrics.units_per_em;
+        const scale = font_size / @as(f32, @floatFromInt(units_per_em));
+
+        // 当前X位置
+        var current_x = x;
+        var is_first_char = true;
+
+        // 遍历文本中的每个字符
+        var i: usize = 0;
+        while (i < text.len) {
+            const decode_result = self.decodeUtf8Codepoint(text[i..]) catch {
+                i += 1;
+                continue;
+            };
+            const codepoint = decode_result.codepoint;
+            i += decode_result.bytes_consumed;
+
+            // 确定使用哪个字体
+            var font_to_use = primary_font;
+            var font_metrics_to_use = font_metrics;
+            var scale_to_use = scale;
+            
+            // 尝试从主字体获取字形索引
+            const glyph_index_opt = try primary_font.getGlyphIndex(codepoint);
+            if (glyph_index_opt == null) {
+                // 主字体不支持，尝试使用备用字体
+                if (fallback_font) |fallback| {
+                    const fallback_glyph_index_opt = try fallback.getGlyphIndex(codepoint);
+                    if (fallback_glyph_index_opt) |fallback_glyph_index| {
+                        font_to_use = fallback;
+                        font_metrics_to_use = try fallback.getFontMetrics();
+                        scale_to_use = font_size / @as(f32, @floatFromInt(font_metrics_to_use.units_per_em));
+                        
+                        // 使用备用字体渲染
+                        const h_metrics = try fallback.getHorizontalMetrics(fallback_glyph_index);
+                        var glyph = try fallback.getGlyph(fallback_glyph_index);
+                        defer glyph.deinit(self.allocator);
+
+                        const glyph_x = if (is_first_char) current_x else current_x + @as(f32, @floatFromInt(h_metrics.left_side_bearing)) * scale_to_use;
+                        is_first_char = false;
+
+                        self.glyph_renderer.renderGlyph(
+                            &glyph,
+                            self.pixels,
+                            self.width,
+                            self.height,
+                            glyph_x,
+                            y,
+                            font_size,
+                            font_metrics_to_use.units_per_em,
+                            color,
+                        );
+
+                        const advance_width = @as(f32, @floatFromInt(h_metrics.advance_width));
+                        current_x += advance_width * scale_to_use;
+                        continue;
+                    }
+                }
+                // 如果备用字体也不支持，跳过这个字符
+                const placeholder_width = font_size * 0.6;
+                current_x += placeholder_width;
+                continue;
+            }
+
+            // 使用主字体渲染
+            const glyph_index = glyph_index_opt.?;
+            const h_metrics = try primary_font.getHorizontalMetrics(glyph_index);
+            var glyph = try primary_font.getGlyph(glyph_index);
+            defer glyph.deinit(self.allocator);
+
+            const glyph_x = if (is_first_char) current_x else current_x + @as(f32, @floatFromInt(h_metrics.left_side_bearing)) * scale;
+            is_first_char = false;
+
+            self.glyph_renderer.renderGlyph(
+                &glyph,
+                self.pixels,
+                self.width,
+                self.height,
+                glyph_x,
+                y,
+                font_size,
+                units_per_em,
+                color,
+            );
+
+            const advance_width = @as(f32, @floatFromInt(h_metrics.advance_width));
+            current_x += advance_width * scale;
+        }
+    }
+
     /// 使用字体渲染真正的文本
+    /// 如果字体不支持某个字符，返回error.GlyphNotFound
     fn renderTextWithFont(
         self: *CpuRenderBackend,
         font_face: *font_module.FontFace,
@@ -474,6 +1007,7 @@ pub const CpuRenderBackend = struct {
 
         // 遍历文本中的每个字符
         var i: usize = 0;
+        var is_first_char = true; // 标记是否是第一个字符
         while (i < text.len) {
             const decode_result = self.decodeUtf8Codepoint(text[i..]) catch {
                 // 如果解码失败，跳过这个字节
@@ -486,6 +1020,10 @@ pub const CpuRenderBackend = struct {
             // 获取字符的字形索引
             const glyph_index_opt = try font_face.getGlyphIndex(codepoint);
             if (glyph_index_opt) |glyph_index| {
+                // 调试：检查"韩"字（U+97E9）的字形索引
+                if (codepoint == 0x97E9) {
+                    std.debug.print("[CPU Backend] renderTextWithFont: found glyph for '韩' (U+97E9), glyph_index={d}\n", .{glyph_index});
+                }
                 // 获取字形的水平度量
                 const h_metrics = try font_face.getHorizontalMetrics(glyph_index);
                 
@@ -493,8 +1031,15 @@ pub const CpuRenderBackend = struct {
                 var glyph = try font_face.getGlyph(glyph_index);
                 defer glyph.deinit(self.allocator);
 
-                // 计算字形的X位置（考虑左边界）
-                const glyph_x = current_x + @as(f32, @floatFromInt(h_metrics.left_side_bearing)) * scale;
+                // 计算字形的X位置
+                // 注意：对于第一个字符，不应该使用left_side_bearing，因为它会改变文本的起始位置
+                // left_side_bearing主要用于调整字符之间的间距，而不是文本的起始位置
+                const glyph_x = if (is_first_char) 
+                    current_x  // 第一个字符直接使用current_x，不使用left_side_bearing
+                else 
+                    current_x + @as(f32, @floatFromInt(h_metrics.left_side_bearing)) * scale;
+                
+                is_first_char = false; // 后续字符不再是第一个
 
                 // 渲染字形
                 self.glyph_renderer.renderGlyph(
@@ -513,9 +1058,12 @@ pub const CpuRenderBackend = struct {
                 const advance_width = @as(f32, @floatFromInt(h_metrics.advance_width));
                 current_x += advance_width * scale;
             } else {
-                // 如果找不到字形，使用占位符宽度
-                const placeholder_width = font_size * 0.6;
-                current_x += placeholder_width;
+                // 如果找不到字形，返回错误，让调用者回退到其他字体
+                // 调试：检查"韩"字（U+97E9）是否找不到字形
+                if (codepoint == 0x97E9) {
+                    std.debug.print("[CPU Backend] renderTextWithFont: glyph not found for '韩' (U+97E9), will fallback to Chinese font\n", .{});
+                }
+                return error.GlyphNotFound;
             }
         }
     }

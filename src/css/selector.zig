@@ -134,7 +134,9 @@ pub const Matcher = struct {
                 if (elem.attributes.get("class")) |class_attr| {
                     var iter = std.mem.splitSequence(u8, class_attr, " ");
                     while (iter.next()) |class_name| {
-                        if (std.mem.eql(u8, class_name, selector.value)) {
+                        // 去除前导和尾随空格
+                        const trimmed = std.mem.trim(u8, class_name, " \t\n\r");
+                        if (trimmed.len > 0 and std.mem.eql(u8, trimmed, selector.value)) {
                             return true;
                         }
                     }

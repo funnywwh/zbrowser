@@ -38,3 +38,4 @@ if ($ACTUAL_VERSION -ne $REQUIRED_VERSION) {
     Write-Host "[OK] Zig version verified: $ACTUAL_VERSION" -ForegroundColor Green
 }
 
+

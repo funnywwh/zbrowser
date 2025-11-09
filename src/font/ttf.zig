@@ -67,6 +67,8 @@ pub const TtfParser = struct {
         points: std.ArrayList(Point),
         /// 轮廓指令列表
         instructions: std.ArrayList(u8),
+        /// 每个轮廓的结束点索引（相对于points数组）
+        contour_end_points: std.ArrayList(usize),
 
         pub const Point = struct {
             x: i16,
@@ -78,6 +80,7 @@ pub const TtfParser = struct {
         pub fn deinit(self: *Glyph, allocator: std.mem.Allocator) void {
             self.points.deinit(allocator);
             self.instructions.deinit(allocator);
+            self.contour_end_points.deinit(allocator);
         }
     };
 
@@ -370,10 +373,13 @@ pub const TtfParser = struct {
             errdefer points.deinit(self.allocator);
             var instructions = std.ArrayList(u8){};
             errdefer instructions.deinit(self.allocator);
+            var contour_end_points = std.ArrayList(usize){};
+            errdefer contour_end_points.deinit(self.allocator);
             return Glyph{
                 .glyph_index = glyph_index,
                 .points = points,
                 .instructions = instructions,
+                .contour_end_points = contour_end_points,
             };
         };
 
@@ -383,10 +389,13 @@ pub const TtfParser = struct {
             errdefer points.deinit(self.allocator);
             var instructions = std.ArrayList(u8){};
             errdefer instructions.deinit(self.allocator);
+            var contour_end_points = std.ArrayList(usize){};
+            errdefer contour_end_points.deinit(self.allocator);
             return Glyph{
                 .glyph_index = glyph_index,
                 .points = points,
                 .instructions = instructions,
+                .contour_end_points = contour_end_points,
             };
         };
 
@@ -395,10 +404,13 @@ pub const TtfParser = struct {
             errdefer points.deinit(self.allocator);
             var instructions = std.ArrayList(u8){};
             errdefer instructions.deinit(self.allocator);
+            var contour_end_points = std.ArrayList(usize){};
+            errdefer contour_end_points.deinit(self.allocator);
             return Glyph{
                 .glyph_index = glyph_index,
                 .points = points,
                 .instructions = instructions,
+                .contour_end_points = contour_end_points,
             };
         }
 
@@ -430,10 +442,13 @@ pub const TtfParser = struct {
             errdefer points.deinit(self.allocator);
             var instructions = std.ArrayList(u8){};
             errdefer instructions.deinit(self.allocator);
+            var contour_end_points = std.ArrayList(usize){};
+            errdefer contour_end_points.deinit(self.allocator);
             return Glyph{
                 .glyph_index = glyph_index,
                 .points = points,
                 .instructions = instructions,
+                .contour_end_points = contour_end_points,
             };
         };
 
@@ -459,10 +474,13 @@ pub const TtfParser = struct {
             errdefer points.deinit(self.allocator);
             var instructions = std.ArrayList(u8){};
             errdefer instructions.deinit(self.allocator);
+            var contour_end_points = std.ArrayList(usize){};
+            errdefer contour_end_points.deinit(self.allocator);
             return Glyph{
                 .glyph_index = glyph_index,
                 .points = points,
                 .instructions = instructions,
+                .contour_end_points = contour_end_points,
             };
         };
 
@@ -471,10 +489,13 @@ pub const TtfParser = struct {
             errdefer points.deinit(self.allocator);
             var instructions = std.ArrayList(u8){};
             errdefer instructions.deinit(self.allocator);
+            var contour_end_points = std.ArrayList(usize){};
+            errdefer contour_end_points.deinit(self.allocator);
             return Glyph{
                 .glyph_index = glyph_index,
                 .points = points,
                 .instructions = instructions,
+                .contour_end_points = contour_end_points,
             };
         }
 
@@ -491,10 +512,13 @@ pub const TtfParser = struct {
             errdefer points.deinit(self.allocator);
             var instructions = std.ArrayList(u8){};
             errdefer instructions.deinit(self.allocator);
+            var contour_end_points = std.ArrayList(usize){};
+            errdefer contour_end_points.deinit(self.allocator);
             return Glyph{
                 .glyph_index = glyph_index,
                 .points = points,
                 .instructions = instructions,
+                .contour_end_points = contour_end_points,
             };
         }
 
@@ -509,10 +533,13 @@ pub const TtfParser = struct {
             errdefer points.deinit(self.allocator);
             var instructions = std.ArrayList(u8){};
             errdefer instructions.deinit(self.allocator);
+            var contour_end_points = std.ArrayList(usize){};
+            errdefer contour_end_points.deinit(self.allocator);
             return Glyph{
                 .glyph_index = glyph_index,
                 .points = points,
                 .instructions = instructions,
+                .contour_end_points = contour_end_points,
             };
         }
 
@@ -533,10 +560,13 @@ pub const TtfParser = struct {
             errdefer points.deinit(self.allocator);
             var instructions = std.ArrayList(u8){};
             errdefer instructions.deinit(self.allocator);
+            var contour_end_points = std.ArrayList(usize){};
+            errdefer contour_end_points.deinit(self.allocator);
             return Glyph{
                 .glyph_index = glyph_index,
                 .points = points,
                 .instructions = instructions,
+                .contour_end_points = contour_end_points,
             };
         }
 
@@ -546,10 +576,13 @@ pub const TtfParser = struct {
             errdefer points.deinit(self.allocator);
             var instructions = std.ArrayList(u8){};
             errdefer instructions.deinit(self.allocator);
+            var contour_end_points = std.ArrayList(usize){};
+            errdefer contour_end_points.deinit(self.allocator);
             return Glyph{
                 .glyph_index = glyph_index,
                 .points = points,
                 .instructions = instructions,
+                .contour_end_points = contour_end_points,
             };
         }
 
@@ -572,10 +605,13 @@ pub const TtfParser = struct {
         // 读取endPtsOfContours数组
         const num_contours = @as(u16, @intCast(number_of_contours));
         if (offset + @as(usize, num_contours) * 2 > glyph_data.len) {
+            var contour_end_points = std.ArrayList(usize){};
+            errdefer contour_end_points.deinit(self.allocator);
             return Glyph{
                 .glyph_index = glyph_index,
                 .points = points,
                 .instructions = instructions,
+                .contour_end_points = contour_end_points,
             };
         }
 
@@ -586,10 +622,13 @@ pub const TtfParser = struct {
 
         // 读取instructionLength
         if (offset + 2 > glyph_data.len) {
+            var contour_end_points = std.ArrayList(usize){};
+            errdefer contour_end_points.deinit(self.allocator);
             return Glyph{
                 .glyph_index = glyph_index,
                 .points = points,
                 .instructions = instructions,
+                .contour_end_points = contour_end_points,
             };
         }
 
@@ -598,10 +637,13 @@ pub const TtfParser = struct {
 
         // 读取instructions
         if (offset + @as(usize, instruction_length) > glyph_data.len) {
+            var contour_end_points = std.ArrayList(usize){};
+            errdefer contour_end_points.deinit(self.allocator);
             return Glyph{
                 .glyph_index = glyph_index,
                 .points = points,
                 .instructions = instructions,
+                .contour_end_points = contour_end_points,
             };
         }
 
@@ -716,7 +758,7 @@ pub const TtfParser = struct {
         // 构建点列表
         // 确定每个轮廓的结束点
         var contour_end_points = std.ArrayList(usize){};
-        defer contour_end_points.deinit(self.allocator);
+        errdefer contour_end_points.deinit(self.allocator);
 
         var temp_offset: usize = 10;
         var contour_idx: u16 = 0;
@@ -753,6 +795,7 @@ pub const TtfParser = struct {
             .glyph_index = glyph_index,
             .points = points,
             .instructions = instructions,
+            .contour_end_points = contour_end_points,
         };
     }
 

@@ -8,6 +8,9 @@ const box = @import("box");
 const cpu_backend = @import("cpu_backend");
 const renderer = @import("renderer");
 const png = @import("png");
+const cascade = @import("cascade");
+const style_utils = @import("style_utils");
+const backend = @import("backend");
 
 /// Headless浏览器主入口
 pub const Browser = struct {
@@ -118,7 +121,28 @@ pub fn main() !void {
     var browser = try Browser.init(allocator);
     defer browser.deinit();
 
-    // 定义HTML内容 - 演示字体无极放大和中文支持
+    // 定义HTML body内容（用于输出到文件）
+    const html_body_content =
+        \\  <div class="diagonal-layout">
+        \\    <p class="size-12" style="position: absolute; left: 50px; top: 50px;">12px: Hello World! 你好世界！</p>
+        \\    <p class="size-16" style="position: absolute; left: 100px; top: 120px;">16px: Hello World! 你好世界！</p>
+        \\    <p class="size-24" style="position: absolute; left: 150px; top: 220px;">24px: Hello World! 你好世界！</p>
+        \\    <p class="size-32" style="position: absolute; left: 200px; top: 360px;">32px: Hello World! 你好世界！</p>
+        \\    <p class="size-48" style="position: absolute; left: 250px; top: 550px;">48px: Hello World! 你好世界！</p>
+        \\    <p class="size-64" style="position: absolute; left: 300px; top: 800px;">64px: Hello World! 你好世界！</p>
+        \\    <p class="size-96" style="position: absolute; left: 350px; top: 1150px;">96px: Hello World! 你好世界！</p>
+        \\    <p class="size-128" style="position: absolute; left: 400px; top: 1600px;">128px: Hello World! 你好世界！</p>
+        \\  </div>
+        \\  <div class="chinese-demo" style="position: absolute; left: 600px; top: 100px;">
+        \\    <p style="position: absolute; left: 0px; top: 0px;">简体中文：这是一个测试页面，展示中文字符的渲染效果。</p>
+        \\    <p style="position: absolute; left: 0px; top: 50px;">繁體中文：這是一個測試頁面，展示繁體中文字符的渲染效果。</p>
+        \\    <p style="position: absolute; left: 0px; top: 100px;">日文：これはテストページです。日本語の文字を表示します。</p>
+        \\    <p style="position: absolute; left: 0px; top: 150px;">韩文：이것은 테스트 페이지입니다. 한국어 문자를 표시합니다.</p>
+        \\    <p style="position: absolute; left: 0px; top: 200px;">数字和符号：0123456789 !@#$%^&*()</p>
+        \\  </div>
+    ;
+    
+    // 定义完整的HTML内容 - 演示字体无极放大和中文支持（沿对角线排列）
     const html_content =
         \\<!DOCTYPE html>
         \\<html>
@@ -126,25 +150,7 @@ pub fn main() !void {
         \\  <title>字体无极放大与中文支持演示</title>
         \\</head>
         \\<body>
-        \\  <h1>字体无极放大演示</h1>
-        \\  <div class="font-demo">
-        \\    <p class="size-12">12px: Hello World! 你好世界！</p>
-        \\    <p class="size-16">16px: Hello World! 你好世界！</p>
-        \\    <p class="size-24">24px: Hello World! 你好世界！</p>
-        \\    <p class="size-32">32px: Hello World! 你好世界！</p>
-        \\    <p class="size-48">48px: Hello World! 你好世界！</p>
-        \\    <p class="size-64">64px: Hello World! 你好世界！</p>
-        \\    <p class="size-96">96px: Hello World! 你好世界！</p>
-        \\    <p class="size-128">128px: Hello World! 你好世界！</p>
-        \\  </div>
-        \\  <h2>中文支持演示</h2>
-        \\  <div class="chinese-demo">
-        \\    <p>简体中文：这是一个测试页面，展示中文字符的渲染效果。</p>
-        \\    <p>繁體中文：這是一個測試頁面，展示繁體中文字符的渲染效果。</p>
-        \\    <p>日文：これはテストページです。日本語の文字を表示します。</p>
-        \\    <p>韩文：이것은 테스트 페이지입니다. 한국어 문자를 표시합니다.</p>
-        \\    <p>数字和符号：0123456789 !@#$%^&*()</p>
-        \\  </div>
+    ++ html_body_content ++
         \\</body>
         \\</html>
     ;
@@ -153,26 +159,18 @@ pub fn main() !void {
     const css_content =
         \\body {
         \\  font-family: Arial, sans-serif;
-        \\  margin: 20px;
+        \\  margin: 0;
+        \\  padding: 0;
         \\  background-color: #ffffff;
         \\  color: #000000;
         \\}
-        \\h1 {
-        \\  color: #333333;
-        \\  font-size: 36px;
-        \\  margin-bottom: 20px;
+        \\.diagonal-layout {
+        \\  position: static;
         \\}
-        \\h2 {
-        \\  color: #666666;
-        \\  font-size: 28px;
-        \\  margin-top: 30px;
-        \\  margin-bottom: 15px;
-        \\}
-        \\.font-demo p {
-        \\  margin: 10px 0;
-        \\  padding: 5px;
-        \\  border-left: 3px solid #4CAF50;
-        \\  padding-left: 10px;
+        \\.diagonal-layout p {
+        \\  margin: 0;
+        \\  padding: 0;
+        \\  white-space: nowrap;
         \\}
         \\.size-12 { font-size: 12px; }
         \\.size-16 { font-size: 16px; }
@@ -182,14 +180,37 @@ pub fn main() !void {
         \\.size-64 { font-size: 64px; }
         \\.size-96 { font-size: 96px; }
         \\.size-128 { font-size: 128px; }
+        \\.chinese-demo {
+        \\  /* position: static; removed - use inline style instead */
+        \\}
         \\.chinese-demo p {
-        \\  margin: 8px 0;
-        \\  padding: 8px;
-        \\  background-color: #f9f9f9;
-        \\  border-radius: 4px;
+        \\  margin: 0;
+        \\  padding: 0;
         \\  font-size: 18px;
+        \\  white-space: nowrap;
         \\}
     ;
+
+    // 输出HTML内容到文件（用于在浏览器中验证）
+    const html_output_file = try std.fs.cwd().createFile("parsed_html.html", .{});
+    defer html_output_file.close();
+    const html_with_css = try std.fmt.allocPrint(allocator, 
+        \\<!DOCTYPE html>
+        \\<html>
+        \\<head>
+        \\  <title>字体无极放大与中文支持演示</title>
+        \\  <style>
+        \\{s}
+        \\  </style>
+        \\</head>
+        \\<body>
+        \\{s}
+        \\</body>
+        \\</html>
+    , .{ css_content, html_body_content });
+    defer allocator.free(html_with_css);
+    try html_output_file.writeAll(html_with_css);
+    std.debug.print("HTML content written to: parsed_html.html\n", .{});
 
     // 加载HTML
     try browser.loadHTML(html_content);
@@ -206,12 +227,125 @@ pub fn main() !void {
         std.debug.print("Warning: Body element not found\n", .{});
     }
 
-    // 渲染页面为PNG（更大的尺寸以容纳大字体）
-    const width: u32 = 1200;
-    const height: u32 = 2000;
+    // 先进行一次布局计算，获取所有文本的实际位置和宽度
+    // 使用一个较大的初始尺寸进行布局
+    const initial_width: u32 = 5000;
+    const initial_height: u32 = 2500;
+    const initial_viewport = box.Size{ .width = @as(f32, @floatFromInt(initial_width)), .height = @as(f32, @floatFromInt(initial_height)) };
+    
+    // 获取DOM根节点
+    const html_node = browser.document.getDocumentElement() orelse return error.NoDocumentElement;
+    
+    // 构建布局树
+    var layout_engine_instance = layout_engine.LayoutEngine.init(allocator);
+    const layout_tree = try layout_engine_instance.buildLayoutTree(html_node, browser.stylesheets.items);
+    defer layout_tree.deinitAndDestroyChildren();
+    defer allocator.destroy(layout_tree);
+    
+    // 执行布局计算
+    try layout_engine_instance.layout(layout_tree, initial_viewport, browser.stylesheets.items);
+    
+    // 创建临时的CPU渲染后端用于计算文本宽度
+    const temp_backend = try cpu_backend.CpuRenderBackend.init(allocator, initial_width, initial_height);
+    defer temp_backend.deinit();
+    
+    // 遍历布局树，计算所有文本的实际结束位置
+    var max_x: f32 = 0;
+    var max_y: f32 = 0;
+    try calculateMaxBounds(layout_tree, temp_backend, browser.stylesheets.items, &max_x, &max_y);
+    
+    // 根据实际边界计算页面尺寸（加上一些边距）
+    const margin: f32 = 50;
+    const calculated_width = @as(u32, @intFromFloat(max_x + margin));
+    const calculated_height = @as(u32, @intFromFloat(max_y + margin));
+    
+    std.debug.print("Calculated page size: {d}x{d} (max_x={d:.1}, max_y={d:.1})\n", .{ calculated_width, calculated_height, max_x, max_y });
+    
+    // 使用计算出的尺寸进行实际渲染
     const output_path = "output.png";
-
-    std.debug.print("Rendering page to PNG ({d}x{d})...\n", .{ width, height });
-    try browser.renderToPNG(width, height, output_path);
+    std.debug.print("Rendering page to PNG ({d}x{d})...\n", .{ calculated_width, calculated_height });
+    try browser.renderToPNG(calculated_width, calculated_height, output_path);
     std.debug.print("Page rendered successfully to: {s}\n", .{output_path});
+}
+
+/// 计算布局树中所有文本节点的最大边界
+fn calculateMaxBounds(
+    layout_box: *box.LayoutBox,
+    temp_backend: *cpu_backend.CpuRenderBackend,
+    stylesheets: []const css_parser.Stylesheet,
+    max_x: *f32,
+    max_y: *f32,
+) !void {
+    // 如果是文本节点，计算文本宽度
+    if (layout_box.node.node_type == .text) {
+        const text_content = layout_box.node.data.text;
+        
+        // 跳过空白文本
+        if (text_content.len == 0) return;
+        var is_whitespace_only = true;
+        for (text_content) |c| {
+            if (c != ' ' and c != '\n' and c != '\r' and c != '\t') {
+                is_whitespace_only = false;
+                break;
+            }
+        }
+        if (is_whitespace_only) return;
+        
+        // 计算文本的样式和字体
+        var cascade_engine = cascade.Cascade.init(temp_backend.allocator);
+        var computed_style = try cascade_engine.computeStyle(layout_box.node, stylesheets);
+        defer computed_style.deinit();
+        
+        // 如果文本节点没有font-size，尝试从父元素获取
+        var text_computed_style: *cascade.ComputedStyle = &computed_style;
+        var parent_computed_style: cascade.ComputedStyle = undefined;
+        var use_parent_style = false;
+        if (layout_box.parent) |parent| {
+            var parent_cascade_engine = cascade.Cascade.init(temp_backend.allocator);
+            parent_computed_style = try parent_cascade_engine.computeStyle(parent.node, stylesheets);
+            if (computed_style.getProperty("font-size") == null) {
+                use_parent_style = true;
+                text_computed_style = &parent_computed_style;
+            } else {
+                parent_computed_style.deinit();
+            }
+        }
+        defer if (use_parent_style) parent_computed_style.deinit();
+        
+        // 获取字体
+        var font = backend.Font{
+            .family = "Arial",
+            .size = 16,
+            .weight = .normal,
+            .style = .normal,
+        };
+        const containing_width: f32 = 800;
+        if (style_utils.getPropertyLength(text_computed_style, "font-size", containing_width)) |size| {
+            font.size = size;
+        }
+        
+        // 计算文本的实际宽度
+        const text_end_x = temp_backend.calculateTextWidth(text_content, layout_box.box_model.content.x, font) catch |err| {
+            std.debug.print("[calculateMaxBounds] Failed to calculate text width: {}\n", .{err});
+            // 如果计算失败，使用估算值
+            const char_width = font.size * 0.7;
+            const text_width = char_width * @as(f32, @floatFromInt(text_content.len));
+            const text_end_x = layout_box.box_model.content.x + text_width;
+            max_x.* = @max(max_x.*, text_end_x);
+            return;
+        };
+        
+        // 更新最大x坐标
+        max_x.* = @max(max_x.*, text_end_x);
+        
+        // 计算文本高度（考虑字体大小和行高）
+        const text_height = font.size * 1.5; // 行高约为字体大小的1.5倍
+        const text_bottom = layout_box.box_model.content.y + text_height;
+        max_y.* = @max(max_y.*, text_bottom);
+    }
+    
+    // 递归处理子节点（只处理子节点，不计算容器本身的宽度）
+    for (layout_box.children.items) |child| {
+        try calculateMaxBounds(child, temp_backend, stylesheets, max_x, max_y);
+    }
 }

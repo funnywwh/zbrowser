@@ -78,36 +78,84 @@ fn layoutRelative(layout_box: *box.LayoutBox) void {
 /// Absolute定位：相对于最近的定位祖先
 /// TODO: 简化实现 - 当前假设相对于父元素定位
 fn layoutAbsolute(layout_box: *box.LayoutBox, containing_block: box.Size) void {
-    // TODO: 找到最近的定位祖先（position != static）
-    // 当前简化实现：假设相对于包含块定位
+    std.debug.print("[Position] layoutAbsolute: start, position_left={?}, position_top={?}, containing_block=({d:.1}x{d:.1})\n", 
+        .{ layout_box.position_left, layout_box.position_top, containing_block.width, containing_block.height });
+    
+    // 找到定位祖先，获取其内容区域的位置
+    // 如果找不到定位祖先，使用传入的containing_block（通常是视口或初始包含块）
+    var containing_block_x: f32 = 0;
+    var containing_block_y: f32 = 0;
+    var positioned_ancestor: ?*box.LayoutBox = null;
+    var ancestor = layout_box.parent;
+    while (ancestor) |anc| {
+        if (anc.position != .static) {
+            // 找到定位祖先，使用其内容区域的位置
+            // 注意：对于relative定位的元素，内容区域位置就是正常流位置（relative只是偏移，不影响包含块）
+            containing_block_x = anc.box_model.content.x;
+            containing_block_y = anc.box_model.content.y;
+            positioned_ancestor = anc;
+            const node_type_str = switch (anc.node.node_type) {
+                .element => if (anc.node.asElement()) |elem| elem.tag_name else "unknown",
+                .text => "text",
+                .comment => "comment",
+                .document => "document",
+                .doctype => "doctype",
+            };
+            std.debug.print("[Position] layoutAbsolute: found positioned ancestor '{s}' (position={}) at ({d:.1}, {d:.1})\n", 
+                .{ node_type_str, anc.position, containing_block_x, containing_block_y });
+            break;
+        }
+        ancestor = anc.parent;
+    }
+    
+    if (positioned_ancestor == null) {
+        std.debug.print("[Position] layoutAbsolute: no positioned ancestor found, using viewport (0, 0)\n", .{});
+    }
+    
+    // 如果找不到定位祖先，使用传入的containing_block（相对于视口或初始包含块）
+    // 此时containing_block_x和containing_block_y已经是0，这是正确的
 
     // 计算水平位置（left优先，如果未设置则使用right）
     if (layout_box.position_left) |left| {
-        layout_box.box_model.content.x = left;
+        layout_box.box_model.content.x = containing_block_x + left;
+        std.debug.print("[Position] layoutAbsolute: set x = {d:.1} + {d:.1} = {d:.1}\n", .{ containing_block_x, left, layout_box.box_model.content.x });
     } else if (layout_box.position_right) |right| {
         // right值相对于包含块的右边缘
         const total_width = layout_box.box_model.content.width +
             layout_box.box_model.padding.horizontal() +
             layout_box.box_model.border.horizontal();
-        layout_box.box_model.content.x = containing_block.width - total_width - right;
+        const block_width = if (positioned_ancestor) |anc| 
+            anc.box_model.content.width
+        else 
+            containing_block.width;
+        layout_box.box_model.content.x = containing_block_x + block_width - total_width - right;
     } else {
         // 如果left和right都未设置，使用默认值0
-        layout_box.box_model.content.x = 0;
+        layout_box.box_model.content.x = containing_block_x;
+        std.debug.print("[Position] layoutAbsolute: no left/right, set x = {d:.1}\n", .{containing_block_x});
     }
 
     // 计算垂直位置（top优先，如果未设置则使用bottom）
     if (layout_box.position_top) |top| {
-        layout_box.box_model.content.y = top;
+        layout_box.box_model.content.y = containing_block_y + top;
+        std.debug.print("[Position] layoutAbsolute: set y = {d:.1} + {d:.1} = {d:.1}\n", .{ containing_block_y, top, layout_box.box_model.content.y });
     } else if (layout_box.position_bottom) |bottom| {
         // bottom值相对于包含块的下边缘
         const total_height = layout_box.box_model.content.height +
             layout_box.box_model.padding.vertical() +
             layout_box.box_model.border.vertical();
-        layout_box.box_model.content.y = containing_block.height - total_height - bottom;
+        const block_height = if (positioned_ancestor) |anc| 
+            anc.box_model.content.height
+        else 
+            containing_block.height;
+        layout_box.box_model.content.y = containing_block_y + block_height - total_height - bottom;
     } else {
         // 如果top和bottom都未设置，使用默认值0
-        layout_box.box_model.content.y = 0;
+        layout_box.box_model.content.y = containing_block_y;
+        std.debug.print("[Position] layoutAbsolute: no top/bottom, set y = {d:.1}\n", .{containing_block_y});
     }
+    
+    std.debug.print("[Position] layoutAbsolute: final position = ({d:.1}, {d:.1})\n", .{ layout_box.box_model.content.x, layout_box.box_model.content.y });
 }
 
 /// Fixed定位：相对于视口

@@ -31,6 +31,11 @@ pub fn layoutBlock(layout_box: *box.LayoutBox, containing_block: box.Size) !void
             continue;
         }
 
+        // 跳过absolute和fixed定位的元素（它们不参与正常流布局）
+        if (child.position == .absolute or child.position == .fixed) {
+            continue;
+        }
+
         // 布局子元素（递归调用，暂时简化处理）
         // TODO: 根据子元素的display类型选择不同的布局算法
         // 先布局子元素，无论是否有子元素
@@ -46,10 +51,13 @@ pub fn layoutBlock(layout_box: *box.LayoutBox, containing_block: box.Size) !void
 
         // 对于文本节点，需要设置最小高度
         if (child.node.node_type == .text) {
-            // 文本节点的最小高度应该是字体大小
-            // 简化：使用默认字体大小16px
-            if (child.box_model.content.height == 0) {
-                child.box_model.content.height = 16.0;
+            // 文本节点的最小高度应该足够容纳 ascent + descent
+            // 简化：使用字体大小的1.5倍（典型值：ascent约75%，descent约25%）
+            // 如果高度未设置，使用默认字体大小16px的1.5倍
+            // 增加高度以确保descender（如'p'的尾巴）有足够空间显示
+            // 注意：对于绝对定位的文本节点，高度计算应该在position.zig中处理
+            if (child.position == .static and child.box_model.content.height == 0) {
+                child.box_model.content.height = 16.0 * 1.5;
             }
         }
 

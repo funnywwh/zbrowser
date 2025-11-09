@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>字体无极放大与中文支持演示</title>
+  <style>
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+  background-color: #ffffff;
+  color: #000000;
+}
+.diagonal-layout {
+  position: static;
+}
+.diagonal-layout p {
+  margin: 0;
+  padding: 0;
+  white-space: nowrap;
+}
+.size-12 { font-size: 12px; }
+.size-16 { font-size: 16px; }
+.size-24 { font-size: 24px; }
+.size-32 { font-size: 32px; }
+.size-48 { font-size: 48px; }
+.size-64 { font-size: 64px; }
+.size-96 { font-size: 96px; }
+.size-128 { font-size: 128px; }
+.chinese-demo {
+  /* position: static; removed - use inline style instead */
+}
+.chinese-demo p {
+  margin: 0;
+  padding: 0;
+  font-size: 18px;
+  white-space: nowrap;
+}
+  </style>
+</head>
+<body>
+  <div class="diagonal-layout">
+    <p class="size-12" style="position: absolute; left: 50px; top: 50px;">12px: Hello World! 你好世界！</p>
+    <p class="size-16" style="position: absolute; left: 100px; top: 120px;">16px: Hello World! 你好世界！</p>
+    <p class="size-24" style="position: absolute; left: 150px; top: 220px;">24px: Hello World! 你好世界！</p>
+    <p class="size-32" style="position: absolute; left: 200px; top: 360px;">32px: Hello World! 你好世界！</p>
+    <p class="size-48" style="position: absolute; left: 250px; top: 550px;">48px: Hello World! 你好世界！</p>
+    <p class="size-64" style="position: absolute; left: 300px; top: 800px;">64px: Hello World! 你好世界！</p>
+    <p class="size-96" style="position: absolute; left: 350px; top: 1150px;">96px: Hello World! 你好世界！</p>
+    <p class="size-128" style="position: absolute; left: 400px; top: 1600px;">128px: Hello World! 你好世界！</p>
+  </div>
+  <div class="chinese-demo" style="position: absolute; left: 600px; top: 100px;">
+    <p style="position: absolute; left: 0px; top: 0px;">简体中文：这是一个测试页面，展示中文字符的渲染效果。</p>
+    <p style="position: absolute; left: 0px; top: 50px;">繁體中文：這是一個測試頁面，展示繁體中文字符的渲染效果。</p>
+    <p style="position: absolute; left: 0px; top: 100px;">日文：これはテストページです。日本語の文字を表示します。</p>
+    <p style="position: absolute; left: 0px; top: 150px;">韩文：이것은 테스트 페이지입니다. 한국어 문자를 표시합니다.</p>
+    <p style="position: absolute; left: 0px; top: 200px;">数字和符号：0123456789 !@#$%^&*()</p>
+  </div>
+</body>
+</html>
