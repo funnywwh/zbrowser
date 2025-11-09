@@ -44,11 +44,11 @@ pub fn layoutGrid(layout_box: *box.LayoutBox, containing_block: box.Size, styles
         return;
     };
     defer grid_template_columns.deinit(layout_box.allocator);
-    
+
     // 获取gap属性
     const row_gap = style_utils.getRowGap(&computed_style, containing_block.height);
     const column_gap = style_utils.getColumnGap(&computed_style, containing_block.width);
-    
+
     // 获取对齐属性
     const justify_items = style_utils.getGridJustifyItems(&computed_style);
     const align_items = style_utils.getGridAlignItems(&computed_style);
@@ -84,7 +84,7 @@ pub fn layoutGrid(layout_box: *box.LayoutBox, containing_block: box.Size, styles
     defer row_positions.deinit(layout_box.allocator);
 
     // 计算列位置（考虑gap）
-    // column_positions存储每列的起始位置（不包括gap）
+    // column_positions存储每列的起始位置（包括gap的累积位置）
     var x_offset: f32 = 0;
     column_positions.append(layout_box.allocator, 0) catch {
         layoutGridDefault(layout_box, containing_block);
@@ -120,7 +120,7 @@ pub fn layoutGrid(layout_box: *box.LayoutBox, containing_block: box.Size, styles
     }
 
     // 计算行位置（考虑gap）
-    // row_positions存储每行的起始位置（不包括gap）
+    // row_positions存储每行的起始位置（包括gap的累积位置）
     var y_offset: f32 = 0;
     row_positions.append(layout_box.allocator, 0) catch {
         layoutGridDefault(layout_box, containing_block);
@@ -175,15 +175,15 @@ pub fn layoutGrid(layout_box: *box.LayoutBox, containing_block: box.Size, styles
         // 计算网格cell的位置和尺寸
         const cell_x = container_x + column_positions.items[col] + grid_offset.x;
         const cell_y = container_y + row_positions.items[row] + grid_offset.y;
-        
+
         // 计算cell尺寸
-        // column_positions存储每列的起始位置（不包括gap）
+        // column_positions存储每列的起始位置（包括gap的累积位置）
         // 宽度 = 下一列的起始位置 - 当前列的起始位置 - gap（如果有下一列）
         const cell_width = if (col + 1 < column_positions.items.len)
             column_positions.items[col + 1] - column_positions.items[col] - column_gap
         else
             layout_box.box_model.content.width - column_positions.items[col] - grid_offset.x;
-        // row_positions存储每行的起始位置（不包括gap）
+        // row_positions存储每行的起始位置（包括gap的累积位置）
         // 高度 = 下一行的起始位置 - 当前行的起始位置 - gap（如果有下一行）
         const cell_height = if (row + 1 < row_positions.items.len)
             row_positions.items[row + 1] - row_positions.items[row] - row_gap
@@ -249,7 +249,7 @@ fn applyGridContentAlignment(
     _: std.mem.Allocator, // allocator暂时未使用
 ) std.mem.Allocator.Error!GridOffset {
     var offset = GridOffset{ .x = 0, .y = 0 };
-    
+
     // 计算grid的总宽度和总高度
     const grid_width = if (column_positions.items.len > 0)
         column_positions.items[column_positions.items.len - 1]
@@ -259,11 +259,11 @@ fn applyGridContentAlignment(
         row_positions.items[row_positions.items.len - 1]
     else
         0;
-    
+
     // 计算剩余空间
     const free_width = container_width - grid_width;
     const free_height = container_height - grid_height;
-    
+
     // 应用justify-content
     switch (justify_content) {
         .start => offset.x = 0,
@@ -283,7 +283,7 @@ fn applyGridContentAlignment(
             offset.x = 0;
         },
     }
-    
+
     // 应用align-content
     switch (align_content) {
         .start => offset.y = 0,
@@ -303,7 +303,7 @@ fn applyGridContentAlignment(
             offset.y = 0;
         },
     }
-    
+
     return offset;
 }
 
@@ -318,7 +318,7 @@ fn applyGridItemAlignment(
     align_items: style_utils.GridAlignItems,
 ) GridOffset {
     var offset = GridOffset{ .x = 0, .y = 0 };
-    
+
     // 应用justify-items
     switch (justify_items) {
         .start => offset.x = 0,
@@ -329,7 +329,7 @@ fn applyGridItemAlignment(
             offset.x = 0;
         },
     }
-    
+
     // 应用align-items
     switch (align_items) {
         .start => offset.y = 0,
@@ -340,7 +340,7 @@ fn applyGridItemAlignment(
             offset.y = 0;
         },
     }
-    
+
     return offset;
 }
 

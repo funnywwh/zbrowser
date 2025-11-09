@@ -107,9 +107,10 @@ pub fn applyStyleToLayoutBox(layout_box: *box.LayoutBox, computed_style: *const 
             .document => "document",
             .doctype => "doctype",
         };
-        const class_name = if (layout_box.node.node_type == .element) 
+        const class_name = if (layout_box.node.node_type == .element)
             if (layout_box.node.asElement()) |elem| elem.attributes.get("class") else null
-        else null;
+        else
+            null;
         if (class_name) |class| {
             std.log.debug("[StyleUtils] applyStyleToLayoutBox: node='{s}.{s}', position={s} -> {}", .{ node_type_str, class, position_value, layout_box.position });
         } else {
@@ -377,10 +378,12 @@ pub fn getGridTemplateColumns(computed_style: *const cascade.ComputedStyle, allo
 
 /// 从ComputedStyle获取row-gap值
 pub fn getRowGap(computed_style: *const cascade.ComputedStyle, containing_size: f32) f32 {
+    // 先查找 row-gap
     if (getPropertyLength(computed_style, "row-gap", containing_size)) |gap| {
         return gap;
     }
-    // 检查gap简写属性
+    // 检查gap简写属性（如果gap有两个值，row-gap是第一个值）
+    // TODO: 简化实现 - 当前只支持gap简写属性的单个值，需要支持两个值（row-gap column-gap）
     if (getPropertyLength(computed_style, "gap", containing_size)) |gap| {
         return gap;
     }
@@ -389,10 +392,12 @@ pub fn getRowGap(computed_style: *const cascade.ComputedStyle, containing_size: 
 
 /// 从ComputedStyle获取column-gap值
 pub fn getColumnGap(computed_style: *const cascade.ComputedStyle, containing_size: f32) f32 {
+    // 先查找 column-gap
     if (getPropertyLength(computed_style, "column-gap", containing_size)) |gap| {
         return gap;
     }
-    // 检查gap简写属性
+    // 检查gap简写属性（如果gap有两个值，column-gap是第二个值）
+    // TODO: 简化实现 - 当前只支持gap简写属性的单个值，需要支持两个值（row-gap column-gap）
     if (getPropertyLength(computed_style, "gap", containing_size)) |gap| {
         return gap;
     }

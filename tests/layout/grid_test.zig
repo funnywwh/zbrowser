@@ -215,21 +215,21 @@ test "layoutGrid with gap - row-gap and column-gap" {
     // 创建测试节点
     const container_node = try test_helpers.createTestElement(allocator, "div");
     defer test_helpers.freeNode(allocator, container_node);
-    
+
     // 设置inline style属性（通过setAttribute）
     if (container_node.asElement()) |elem| {
         try elem.setAttribute("style", "display: grid; grid-template-columns: 200px 200px; grid-template-rows: 100px 100px; row-gap: 10px; column-gap: 20px;", allocator);
     }
-    
+
     const item1_node = try test_helpers.createTestElement(allocator, "div");
     defer test_helpers.freeNode(allocator, item1_node);
-    
+
     const item2_node = try test_helpers.createTestElement(allocator, "div");
     defer test_helpers.freeNode(allocator, item2_node);
-    
+
     const item3_node = try test_helpers.createTestElement(allocator, "div");
     defer test_helpers.freeNode(allocator, item3_node);
-    
+
     const item4_node = try test_helpers.createTestElement(allocator, "div");
     defer test_helpers.freeNode(allocator, item4_node);
 
@@ -244,13 +244,13 @@ test "layoutGrid with gap - row-gap and column-gap" {
 
     var item1_box = box.LayoutBox.init(item1_node, allocator);
     defer item1_box.deinit();
-    
+
     var item2_box = box.LayoutBox.init(item2_node, allocator);
     defer item2_box.deinit();
-    
+
     var item3_box = box.LayoutBox.init(item3_node, allocator);
     defer item3_box.deinit();
-    
+
     var item4_box = box.LayoutBox.init(item4_node, allocator);
     defer item4_box.deinit();
 
@@ -263,7 +263,7 @@ test "layoutGrid with gap - row-gap and column-gap" {
     item2_box.parent = &container_box;
     item3_box.parent = &container_box;
     item4_box.parent = &container_box;
-    
+
     // 执行Grid布局
     const containing_block = box.Size{ .width = 440, .height = 210 };
     grid.layoutGrid(&container_box, containing_block, &[_]css.Stylesheet{});
@@ -274,19 +274,19 @@ test "layoutGrid with gap - row-gap and column-gap" {
     try testing.expect(item2_box.is_layouted);
     try testing.expect(item3_box.is_layouted);
     try testing.expect(item4_box.is_layouted);
-    
+
     // 检查位置：item1应该在(0, 0)
     try testing.expectEqual(@as(f32, 0), item1_box.box_model.content.x);
     try testing.expectEqual(@as(f32, 0), item1_box.box_model.content.y);
-    
+
     // item2应该在(200 + 20, 0) = (220, 0)
     try testing.expectEqual(@as(f32, 220), item2_box.box_model.content.x);
     try testing.expectEqual(@as(f32, 0), item2_box.box_model.content.y);
-    
+
     // item3应该在(0, 100 + 10) = (0, 110)
     try testing.expectEqual(@as(f32, 0), item3_box.box_model.content.x);
     try testing.expectEqual(@as(f32, 110), item3_box.box_model.content.y);
-    
+
     // item4应该在(220, 110)
     try testing.expectEqual(@as(f32, 220), item4_box.box_model.content.x);
     try testing.expectEqual(@as(f32, 110), item4_box.box_model.content.y);

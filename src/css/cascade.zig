@@ -126,31 +126,40 @@ pub const Cascade = struct {
                 }
                 declarations.deinit(self.allocator);
             }
-            
+
             // 应用内联样式（覆盖之前的样式）
             for (declarations.items) |decl| {
                 // 复制 name 和 value（因为 decl 会在 defer 中被释放）
                 const name = try self.allocator.dupe(u8, decl.name);
                 errdefer self.allocator.free(name);
-                
+
                 const value = try self.copyValue(decl.value);
                 errdefer {
                     var mutable_value = value;
                     mutable_value.deinit(self.allocator);
                 }
-                
+
                 const new_decl = parser.Declaration{
                     .name = name,
                     .value = value,
                     .important = false, // 内联样式不支持important
                     .allocator = self.allocator,
                 };
-                
+
                 // 内联样式总是覆盖之前的样式
                 // 注意：使用复制的 name 作为 key，而不是 decl.name（可能已被释放）
-                if (computed.properties.getPtr(name)) |existing| {
-                    existing.deinitValueOnly(); // 只释放value，不释放name（name是HashMap的key）
-                    existing.* = new_decl;
+                if (computed.properties.fetchRemove(name)) |entry| {
+                    // 属性已存在，先释放旧的
+                    self.allocator.free(entry.key); // 释放旧的 key
+                    var old_value = entry.value;
+                    old_value.deinitValueOnly(); // 只释放value，name已经释放
+                    // 添加新的属性
+                    computed.properties.put(name, new_decl) catch |err| {
+                        self.allocator.free(name);
+                        var mutable_value = value;
+                        mutable_value.deinit(self.allocator);
+                        return err;
+                    };
                     std.log.debug("[Cascade] computeStyle: inline style '{s}' overwrote existing property", .{name});
                 } else {
                     computed.properties.put(name, new_decl) catch |err| {
@@ -219,20 +228,26 @@ pub const Cascade = struct {
         while (iter.next()) |decl_str| {
             const trimmed = std.mem.trim(u8, decl_str, " \t\n\r");
             if (trimmed.len == 0) continue;
-            
+
             // 查找冒号
             const colon_pos = std.mem.indexOfScalar(u8, trimmed, ':') orelse continue;
             const property_name = std.mem.trim(u8, trimmed[0..colon_pos], " \t\n\r");
-            const value_str = std.mem.trim(u8, trimmed[colon_pos + 1..], " \t\n\r");
-            
+            const value_str = std.mem.trim(u8, trimmed[colon_pos + 1 ..], " \t\n\r");
+
             if (property_name.len == 0 or value_str.len == 0) continue;
-            
+
             // 复制属性名
             const name = try self.allocator.dupe(u8, property_name);
-            
+
             // 解析值（简化：只支持关键字和长度值）
             var value: parser.Value = undefined;
-            if (std.mem.indexOfScalar(u8, value_str, 'p') != null and std.mem.indexOfScalar(u8, value_str, 'x') != null) {
+            // 检查是否包含空格（多值属性，如 grid-template-columns: 200px 200px）
+            if (std.mem.indexOfScalar(u8, value_str, ' ') != null) {
+                // 多值属性，作为关键字存储
+                const keyword = try self.allocator.dupe(u8, value_str);
+                value = parser.Value{ .keyword = keyword };
+                std.log.debug("[Cascade] parseInlineStyle: parsed multi-value property '{s}' = '{s}'", .{ property_name, keyword });
+            } else if (std.mem.indexOfScalar(u8, value_str, 'p') != null and std.mem.indexOfScalar(u8, value_str, 'x') != null) {
                 // 可能是长度值（如 "50px"）
                 const px_pos = std.mem.indexOfScalar(u8, value_str, 'p') orelse {
                     self.allocator.free(name);
@@ -264,14 +279,14 @@ pub const Cascade = struct {
                 value = parser.Value{ .keyword = keyword };
                 std.log.debug("[Cascade] parseInlineStyle: parsed keyword property '{s}' = '{s}'", .{ property_name, keyword });
             }
-            
+
             const decl = parser.Declaration{
                 .name = name,
                 .value = value,
                 .important = false,
                 .allocator = self.allocator,
             };
-            
+
             try declarations.append(self.allocator, decl);
         }
 
