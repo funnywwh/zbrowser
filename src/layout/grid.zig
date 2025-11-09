@@ -25,6 +25,7 @@ const style_utils = @import("style_utils");
 pub fn layoutGrid(layout_box: *box.LayoutBox, containing_block: box.Size, stylesheets: []const css_parser.Stylesheet) void {
     // 计算样式以获取Grid属性
     var cascade_engine = cascade.Cascade.init(layout_box.allocator);
+    defer cascade_engine.deinit();
     var computed_style = cascade_engine.computeStyle(layout_box.node, stylesheets) catch {
         // 如果计算样式失败，使用默认值
         layoutGridDefault(layout_box, containing_block);
@@ -44,6 +45,10 @@ pub fn layoutGrid(layout_box: *box.LayoutBox, containing_block: box.Size, styles
         return;
     };
     defer grid_template_columns.deinit(layout_box.allocator);
+    
+    // 获取gap属性
+    const row_gap = style_utils.getRowGap(&computed_style, containing_block.height);
+    const column_gap = style_utils.getColumnGap(&computed_style, containing_block.width);
 
     // 标记容器为已布局
     layout_box.is_layouted = true;
@@ -73,52 +78,70 @@ pub fn layoutGrid(layout_box: *box.LayoutBox, containing_block: box.Size, styles
     };
     defer row_positions.deinit(layout_box.allocator);
 
-    // 计算列位置
+    // 计算列位置（考虑gap）
+    // column_positions存储每列的起始位置（不包括gap）
     var x_offset: f32 = 0;
     column_positions.append(layout_box.allocator, 0) catch {
         layoutGridDefault(layout_box, containing_block);
         return;
     };
     if (grid_template_columns.items.len > 0) {
-        for (grid_template_columns.items) |col_width| {
-            x_offset += col_width;
+        for (grid_template_columns.items, 0..) |col_width, i| {
+            // 下一列的起始位置 = 当前列的起始位置 + 当前列宽 + gap
+            if (i < grid_template_columns.items.len - 1) {
+                x_offset += col_width + column_gap;
+            } else {
+                // 最后一列后不加gap
+                x_offset += col_width;
+            }
             column_positions.append(layout_box.allocator, x_offset) catch {
                 layoutGridDefault(layout_box, containing_block);
                 return;
             };
         }
     } else {
-        // 默认：平均分配
-        const cell_width = layout_box.box_model.content.width / @as(f32, @floatFromInt(columns));
+        // 默认：平均分配（考虑gap）
+        const total_gap = column_gap * @as(f32, @floatFromInt(columns - 1));
+        const available_width = layout_box.box_model.content.width - total_gap;
+        const cell_width = available_width / @as(f32, @floatFromInt(columns));
         var i: usize = 1;
         while (i <= columns) : (i += 1) {
-            column_positions.append(layout_box.allocator, @as(f32, @floatFromInt(i)) * cell_width) catch {
+            x_offset = @as(f32, @floatFromInt(i - 1)) * (cell_width + column_gap) + cell_width;
+            column_positions.append(layout_box.allocator, x_offset) catch {
                 layoutGridDefault(layout_box, containing_block);
                 return;
             };
         }
     }
 
-    // 计算行位置
+    // 计算行位置（考虑gap）
+    // row_positions存储每行的起始位置（不包括gap）
     var y_offset: f32 = 0;
     row_positions.append(layout_box.allocator, 0) catch {
         layoutGridDefault(layout_box, containing_block);
         return;
     };
     if (grid_template_rows.items.len > 0) {
-        for (grid_template_rows.items) |row_height| {
-            y_offset += row_height;
+        for (grid_template_rows.items, 0..) |row_height, i| {
+            // 下一行的起始位置 = 当前行的起始位置 + 当前行高 + gap
+            if (i < grid_template_rows.items.len - 1) {
+                y_offset += row_height + row_gap;
+            } else {
+                // 最后一行后不加gap
+                y_offset += row_height;
+            }
             row_positions.append(layout_box.allocator, y_offset) catch {
                 layoutGridDefault(layout_box, containing_block);
                 return;
             };
         }
     } else {
-        // 默认：固定高度100px
+        // 默认：固定高度100px（考虑gap）
         const cell_height: f32 = 100;
         var i: usize = 1;
         while (i <= rows) : (i += 1) {
-            row_positions.append(layout_box.allocator, @as(f32, @floatFromInt(i)) * cell_height) catch {
+            y_offset = @as(f32, @floatFromInt(i - 1)) * (cell_height + row_gap) + cell_height;
+            row_positions.append(layout_box.allocator, y_offset) catch {
                 layoutGridDefault(layout_box, containing_block);
                 return;
             };

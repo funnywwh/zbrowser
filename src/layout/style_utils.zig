@@ -374,3 +374,27 @@ pub fn getGridTemplateColumns(computed_style: *const cascade.ComputedStyle, allo
         .capacity = 0,
     };
 }
+
+/// 从ComputedStyle获取row-gap值
+pub fn getRowGap(computed_style: *const cascade.ComputedStyle, containing_size: f32) f32 {
+    if (getPropertyLength(computed_style, "row-gap", containing_size)) |gap| {
+        return gap;
+    }
+    // 检查gap简写属性
+    if (getPropertyLength(computed_style, "gap", containing_size)) |gap| {
+        return gap;
+    }
+    return 0.0; // 默认值
+}
+
+/// 从ComputedStyle获取column-gap值
+pub fn getColumnGap(computed_style: *const cascade.ComputedStyle, containing_size: f32) f32 {
+    if (getPropertyLength(computed_style, "column-gap", containing_size)) |gap| {
+        return gap;
+    }
+    // 检查gap简写属性
+    if (getPropertyLength(computed_style, "gap", containing_size)) |gap| {
+        return gap;
+    }
+    return 0.0; // 默认值
+}
