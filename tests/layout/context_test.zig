@@ -329,3 +329,196 @@ test "InlineFormattingContext multiple line boxes" {
     try testing.expectEqual(@as(f32, 0), ifc.line_boxes.items[0].rect.y);
     try testing.expectEqual(@as(f32, 20), ifc.line_boxes.items[1].rect.y);
 }
+
+test "BlockFormattingContext boundary_case - empty floats and clear elements" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 创建容器节点
+    const container_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, container_node);
+
+    // 创建布局框
+    var container_box = box.LayoutBox.init(container_node, allocator);
+    defer container_box.deinit();
+
+    // 创建BFC（空的floats和clear_elements）
+    var bfc = context.BlockFormattingContext.init(&container_box, allocator);
+    defer bfc.deinit();
+
+    // 检查初始值
+    try testing.expectEqual(@as(usize, 0), bfc.floats.items.len);
+    try testing.expectEqual(@as(usize, 0), bfc.clear_elements.items.len);
+
+    // deinit应该不会崩溃
+    bfc.deinit();
+}
+
+test "InlineFormattingContext boundary_case - empty line boxes" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 创建容器节点
+    const container_node = try test_helpers.createTestElement(allocator, "span");
+    defer test_helpers.freeNode(allocator, container_node);
+
+    // 创建布局框
+    var container_box = box.LayoutBox.init(container_node, allocator);
+    defer container_box.deinit();
+
+    // 创建IFC（空的line_boxes）
+    var ifc = context.InlineFormattingContext.init(&container_box, allocator);
+    defer ifc.deinit();
+
+    // 检查初始值
+    try testing.expectEqual(@as(usize, 0), ifc.line_boxes.items.len);
+
+    // deinit应该不会崩溃
+    ifc.deinit();
+}
+
+test "LineBox boundary_case - zero size rect" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 创建行框（零尺寸）
+    var line_box = context.LineBox{
+        .rect = box.Rect{ .x = 0, .y = 0, .width = 0, .height = 0 },
+        .inline_boxes = std.ArrayList(*box.LayoutBox){},
+        .baseline = 0,
+        .line_height = 0,
+    };
+    defer line_box.inline_boxes.deinit(allocator);
+
+    // 检查初始值
+    try testing.expectEqual(@as(f32, 0), line_box.rect.width);
+    try testing.expectEqual(@as(f32, 0), line_box.rect.height);
+    try testing.expectEqual(@as(f32, 0), line_box.baseline);
+    try testing.expectEqual(@as(f32, 0), line_box.line_height);
+    try testing.expectEqual(@as(usize, 0), line_box.inline_boxes.items.len);
+}
+
+test "LineBox boundary_case - negative baseline" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 创建行框（负基线）
+    var line_box = context.LineBox{
+        .rect = box.Rect{ .x = 0, .y = 0, .width = 100, .height = 20 },
+        .inline_boxes = std.ArrayList(*box.LayoutBox){},
+        .baseline = -5,
+        .line_height = 20,
+    };
+    defer line_box.inline_boxes.deinit(allocator);
+
+    // 检查值（即使为负也应该正确存储）
+    try testing.expectEqual(@as(f32, -5), line_box.baseline);
+    try testing.expectEqual(@as(f32, 20), line_box.line_height);
+}
+
+test "BlockFormattingContext boundary_case - deinit after multiple operations" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 创建容器节点
+    const container_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, container_node);
+
+    // 创建多个浮动元素节点
+    const float1_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, float1_node);
+    const float2_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, float2_node);
+    const clear_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, clear_node);
+
+    // 创建布局框
+    var container_box = box.LayoutBox.init(container_node, allocator);
+    defer container_box.deinit();
+
+    var float1_box = box.LayoutBox.init(float1_node, allocator);
+    float1_box.float = .left;
+    defer float1_box.deinit();
+
+    var float2_box = box.LayoutBox.init(float2_node, allocator);
+    float2_box.float = .right;
+    defer float2_box.deinit();
+
+    var clear_box = box.LayoutBox.init(clear_node, allocator);
+    defer clear_box.deinit();
+
+    // 创建BFC并添加多个元素
+    var bfc = context.BlockFormattingContext.init(&container_box, allocator);
+    try bfc.floats.append(allocator, &float1_box);
+    try bfc.floats.append(allocator, &float2_box);
+    try bfc.clear_elements.append(allocator, &clear_box);
+
+    // 检查
+    try testing.expectEqual(@as(usize, 2), bfc.floats.items.len);
+    try testing.expectEqual(@as(usize, 1), bfc.clear_elements.items.len);
+
+    // deinit应该正确清理所有资源
+    bfc.deinit();
+}
+
+test "InlineFormattingContext boundary_case - deinit after multiple line boxes with inline boxes" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 创建容器节点
+    const container_node = try test_helpers.createTestElement(allocator, "p");
+    defer test_helpers.freeNode(allocator, container_node);
+
+    // 创建行内元素节点
+    const inline1_node = try test_helpers.createTestElement(allocator, "span");
+    defer test_helpers.freeNode(allocator, inline1_node);
+    const inline2_node = try test_helpers.createTestElement(allocator, "span");
+    defer test_helpers.freeNode(allocator, inline2_node);
+
+    // 创建布局框
+    var container_box = box.LayoutBox.init(container_node, allocator);
+    defer container_box.deinit();
+
+    var inline1_box = box.LayoutBox.init(inline1_node, allocator);
+    defer inline1_box.deinit();
+
+    var inline2_box = box.LayoutBox.init(inline2_node, allocator);
+    defer inline2_box.deinit();
+
+    // 创建IFC并添加多个行框，每个行框包含inline boxes
+    var ifc = context.InlineFormattingContext.init(&container_box, allocator);
+
+    // 创建第一个行框并添加inline box
+    var line_box1 = context.LineBox{
+        .rect = box.Rect{ .x = 0, .y = 0, .width = 100, .height = 20 },
+        .inline_boxes = std.ArrayList(*box.LayoutBox){},
+        .baseline = 15,
+        .line_height = 20,
+    };
+    try line_box1.inline_boxes.append(allocator, &inline1_box);
+    try ifc.line_boxes.append(allocator, line_box1);
+
+    // 创建第二个行框并添加inline box
+    var line_box2 = context.LineBox{
+        .rect = box.Rect{ .x = 0, .y = 20, .width = 100, .height = 20 },
+        .inline_boxes = std.ArrayList(*box.LayoutBox){},
+        .baseline = 35,
+        .line_height = 20,
+    };
+    try line_box2.inline_boxes.append(allocator, &inline2_box);
+    try ifc.line_boxes.append(allocator, line_box2);
+
+    // 检查
+    try testing.expectEqual(@as(usize, 2), ifc.line_boxes.items.len);
+    try testing.expectEqual(@as(usize, 1), ifc.line_boxes.items[0].inline_boxes.items.len);
+    try testing.expectEqual(@as(usize, 1), ifc.line_boxes.items[1].inline_boxes.items.len);
+
+    // deinit应该正确清理所有行框中的inline_boxes
+    ifc.deinit();
+}
