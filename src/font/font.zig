@@ -155,7 +155,10 @@ pub const FontFace = struct {
     /// - glyph_index: 字形索引
     /// 返回：字形数据
     pub fn getGlyph(self: *Self, glyph_index: u16) !ttf.TtfParser.Glyph {
-        return try self.ttf_parser.getGlyph(glyph_index);
+        std.log.warn("[FontFace] getGlyph: calling ttf_parser.getGlyph for glyph_index={d}", .{glyph_index});
+        const result = try self.ttf_parser.getGlyph(glyph_index);
+        std.log.warn("[FontFace] getGlyph: result points.len={d}", .{result.points.items.len});
+        return result;
     }
 
     /// 获取字形的水平度量（宽度、左边界等）

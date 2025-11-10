@@ -367,8 +367,22 @@ pub const TtfParser = struct {
     /// - glyph_index: 字形索引
     /// 返回：字形数据
     pub fn getGlyph(self: *Self, glyph_index: u16) !Glyph {
+        std.log.warn("[TTF] getGlyph: called for glyph_index={d}", .{glyph_index});
+        
+        // 先检查CFF表（OTF字体使用CFF表，不需要loca表）
+        const cff_table = self.findTable("CFF ");
+        if (cff_table) |cff_data| {
+            std.log.warn("[TTF] getGlyph: found CFF table, parsing glyph_index={d}", .{glyph_index});
+            // 使用CFF解析器解析PostScript轮廓
+            const result = try self.parseCffGlyph(cff_data, glyph_index);
+            std.log.warn("[TTF] getGlyph: parseCffGlyph result: points.len={d}", .{result.points.items.len});
+            return result;
+        }
+        
+        // 对于TrueType字体（使用glyf表），需要loca表
         // 解析loca表获取字形偏移量
         const loca_table = self.findTable("loca") orelse {
+            std.log.warn("[TTF] getGlyph: no loca table found, returning empty glyph", .{});
             // 如果没有loca表，返回空字形
             var points = std.ArrayList(Glyph.Point){};
             errdefer points.deinit(self.allocator);
@@ -386,6 +400,7 @@ pub const TtfParser = struct {
 
         // 获取head表以确定loca格式
         const head_table = self.findTable("head") orelse {
+            std.log.warn("[TTF] getGlyph: no head table found, returning empty glyph", .{});
             var points = std.ArrayList(Glyph.Point){};
             errdefer points.deinit(self.allocator);
             var instructions = std.ArrayList(u8){};
@@ -459,21 +474,18 @@ pub const TtfParser = struct {
         // 2. CFF表（PostScript轮廓，三次贝塞尔曲线）- 待实现
         // 3. CFF2表（PostScript轮廓v2）- 待实现
 
-        // 优先尝试glyf表（TrueType轮廓）
+        // 使用glyf表（TrueType轮廓）
         const glyf_table = self.findTable("glyf");
         if (glyf_table) |glyf| {
+            std.log.warn("[TTF] getGlyph: found glyf table, parsing glyph_index={d}, glyph_offset={d}", .{ glyph_index, glyph_offset_value });
             // 使用TrueType轮廓解析
-            return self.parseGlyfGlyph(glyf, glyph_index, glyph_offset_value);
-        }
-
-        // 如果找不到glyf表，尝试CFF表（PostScript轮廓）
-        const cff_table = self.findTable("CFF ");
-        if (cff_table) |cff_data| {
-            // 使用CFF解析器解析PostScript轮廓
-            return self.parseCffGlyph(cff_data, glyph_index);
+            const result = try self.parseGlyfGlyph(glyf, glyph_index, glyph_offset_value);
+            std.log.warn("[TTF] getGlyph: parseGlyfGlyph result: points.len={d}", .{result.points.items.len});
+            return result;
         }
 
         // 如果都找不到，返回空字形
+        std.log.warn("[TTF] getGlyph: no glyf or CFF table found, returning empty glyph for glyph_index={d}", .{glyph_index});
         var points = std.ArrayList(Glyph.Point){};
         errdefer points.deinit(self.allocator);
         var instructions = std.ArrayList(u8){};
@@ -491,6 +503,7 @@ pub const TtfParser = struct {
     /// 解析glyf表中的字形（TrueType轮廓）
     fn parseGlyfGlyph(self: *Self, glyf_table: []const u8, glyph_index: u16, glyph_offset: u32) !Glyph {
         if (glyph_offset >= glyf_table.len) {
+            std.log.warn("[TTF] parseGlyfGlyph: glyph_offset ({d}) >= glyf_table.len ({d}), returning empty glyph", .{ glyph_offset, glyf_table.len });
             var points = std.ArrayList(Glyph.Point){};
             errdefer points.deinit(self.allocator);
             var instructions = std.ArrayList(u8){};
@@ -504,16 +517,21 @@ pub const TtfParser = struct {
                 .contour_end_points = contour_end_points,
             };
         }
-        return self.parseGlyphOutline(glyf_table[@intCast(glyph_offset)..], glyph_index);
+        std.log.warn("[TTF] parseGlyfGlyph: calling parseGlyphOutline with glyph_offset={d}, glyf_table.len={d}", .{ glyph_offset, glyf_table.len });
+        const result = try self.parseGlyphOutline(glyf_table[@intCast(glyph_offset)..], glyph_index);
+        std.log.warn("[TTF] parseGlyfGlyph: parseGlyphOutline result: points.len={d}", .{result.points.items.len});
+        return result;
     }
 
     /// 解析CFF表中的字形（PostScript轮廓）
     fn parseCffGlyph(self: *Self, cff_data: []const u8, glyph_index: u16) !Glyph {
+        std.log.warn("[TTF] parseCffGlyph: parsing glyph_index={d}, cff_data.len={d}", .{ glyph_index, cff_data.len });
         var cff_parser = try cff.CffParser.init(self.allocator, cff_data);
         defer cff_parser.deinit();
 
         // 获取CharString数据
-        const charstring_data = cff_parser.getCharString(glyph_index) catch {
+        const charstring_data = cff_parser.getCharString(glyph_index) catch |err| {
+            std.log.warn("[TTF] parseCffGlyph: getCharString failed for glyph_index={d}, error={}", .{ glyph_index, err });
             // 如果获取失败，返回空字形
             var points = std.ArrayList(Glyph.Point){};
             errdefer points.deinit(self.allocator);
@@ -528,12 +546,14 @@ pub const TtfParser = struct {
                 .contour_end_points = contour_end_points,
             };
         };
+        std.log.warn("[TTF] parseCffGlyph: got charstring_data, len={d}", .{charstring_data.len});
 
         // 解码CharString
         var decoder = cff.CharStringDecoder.init(self.allocator, charstring_data);
         defer decoder.deinit();
 
-        decoder.decode() catch {
+        decoder.decode() catch |err| {
+            std.log.warn("[TTF] parseCffGlyph: decode failed for glyph_index={d}, error={}", .{ glyph_index, err });
             // 如果解码失败，返回空字形
             var points = std.ArrayList(Glyph.Point){};
             errdefer points.deinit(self.allocator);
@@ -548,6 +568,7 @@ pub const TtfParser = struct {
                 .contour_end_points = contour_end_points,
             };
         };
+        std.log.warn("[TTF] parseCffGlyph: decode succeeded, decoder.points.items.len={d}", .{decoder.points.items.len});
 
         // 转换PostScript点（f32）到TrueType点（i16）
         // 注意：需要获取units_per_em来正确缩放

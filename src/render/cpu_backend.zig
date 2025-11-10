@@ -771,30 +771,40 @@ pub const CpuRenderBackend = struct {
     fn tryLoadChineseFont(self: *CpuRenderBackend) !?*font_module.FontFace {
         // 中文字体路径（按优先级排序）
         // 注意：这些字体通常也支持繁体中文
+        // 优先使用TTF字体（使用glyf表），然后是OTF字体（使用CFF表）
+        // 注意：TTC格式（TrueType Collection）暂不支持，需要先解析TTC头部
         const chinese_font_paths = [_][]const u8{
-            // 本地项目字体（优先）
-            "fonts/SourceHanSansSC-Regular.otf", // 思源黑体简体中文（支持中文、日文、韩文）
-            "fonts/SourceHanSansSC-Medium.otf", // 思源黑体简体中文（支持中文、日文、韩文）
-            "fonts/wqy-zenhei.ttc", // 文泉驿正黑（支持中文）
-            "fonts/wqy-microhei.ttc", // 文泉驿微米黑（支持中文）
-            // Windows系统字体
-            "C:\\Windows\\Fonts\\msyh.ttc", // 微软雅黑（支持简体+繁体）
-            "C:\\Windows\\Fonts\\MSYH.ttc",
-            "C:\\Windows\\Fonts\\msyhbd.ttc", // 微软雅黑 Bold
-            "C:\\Windows\\Fonts\\MSYHBD.ttc",
-            "C:\\Windows\\Fonts\\simsun.ttc", // 宋体（支持简体+繁体）
-            "C:\\Windows\\Fonts\\SimSun.ttc",
-            "C:\\Windows\\Fonts\\simhei.ttf", // 黑体
+            // 优先使用支持中文的TrueType字体（TTF格式，使用glyf表）
+            "fonts/NotoSansCJKSC-Regular.ttf", // Noto Sans CJK SC（TrueType格式，支持简体中文）
+            // Windows系统字体（TrueType格式，仅Windows）
+            "C:\\Windows\\Fonts\\simhei.ttf", // 黑体（TrueType格式）
             "C:\\Windows\\Fonts\\SimHei.ttf",
-            "C:\\Windows\\Fonts\\simkai.ttf", // 楷体
+            "C:\\Windows\\Fonts\\simkai.ttf", // 楷体（TrueType格式）
             "C:\\Windows\\Fonts\\SimKai.ttf",
-            // 本地路径（旧路径，保持兼容）
-            "fonts/msyh.ttc",
-            "fonts/simsun.ttc",
+            // 本地路径（TrueType格式）
             "fonts/simhei.ttf",
-            "msyh.ttc",
-            "simsun.ttc",
             "simhei.ttf",
+            // 注意：TTC格式（TrueType Collection）暂不支持，需要先解析TTC头部
+            // "fonts/wqy-zenhei.ttc", // 文泉驿正黑（TTC格式，暂不支持）
+            // "fonts/wqy-microhei.ttc", // 文泉驿微米黑（TTC格式，暂不支持）
+            // "C:\\Windows\\Fonts\\msyh.ttc", // 微软雅黑（TTC格式，暂不支持）
+            // "C:\\Windows\\Fonts\\simsun.ttc", // 宋体（TTC格式，暂不支持）
+            // 备选：使用支持中文的OTF字体（CFF格式），因为CFF子程序调用功能未完全实现，可能导致某些复杂字形无法正确渲染
+            "fonts/SourceHanSansSC-Regular.otf", // 思源黑体简体中文（OTF格式，CFF表，支持中文）
+            "fonts/SourceHanSansSC-Medium.otf", // 思源黑体简体中文（OTF格式，CFF表，支持中文）
+            // 本地路径（TrueType格式）
+            "fonts/simhei.ttf",
+            "simhei.ttf",
+            // 注意：TTC格式（TrueType Collection）暂不支持，需要先解析TTC头部
+            // "fonts/wqy-zenhei.ttc", // 文泉驿正黑（TTC格式，暂不支持）
+            // "fonts/wqy-microhei.ttc", // 文泉驿微米黑（TTC格式，暂不支持）
+            // "C:\\Windows\\Fonts\\msyh.ttc", // 微软雅黑（TTC格式，暂不支持）
+            // "C:\\Windows\\Fonts\\simsun.ttc", // 宋体（TTC格式，暂不支持）
+            // 以下字体不支持中文，仅作为最后备选
+            // "fonts/NotoSansArabic-Regular.ttf", // Noto Sans（TrueType格式，不支持中文）
+            // "fonts/NotoSansArabic-Bold.ttf",
+            // "fonts/NotoSansThai-Regular.ttf",
+            // "fonts/NotoSansThai-Bold.ttf",
         };
 
         // 尝试加载中文字体
@@ -816,24 +826,17 @@ pub const CpuRenderBackend = struct {
     fn tryLoadJapaneseFont(self: *CpuRenderBackend) !?*font_module.FontFace {
         // 日文字体路径（按优先级排序）
         const japanese_font_paths = [_][]const u8{
-            // 本地项目字体（优先，支持CJK）
-            "fonts/SourceHanSansSC-Regular.otf", // 思源黑体（支持中文、日文、韩文）
-            "fonts/SourceHanSansSC-Medium.otf", // 思源黑体（支持中文、日文、韩文）
-            // Windows系统字体
-            "C:\\Windows\\Fonts\\msgothic.ttc", // MS Gothic
-            "C:\\Windows\\Fonts\\MSGothic.ttc",
-            "C:\\Windows\\Fonts\\msmincho.ttc", // MS Mincho
-            "C:\\Windows\\Fonts\\MSMincho.ttc",
-            "C:\\Windows\\Fonts\\yugothic.ttf", // Yu Gothic
+            // 优先使用TrueType字体（TTF格式，使用glyf表）
+            // Windows系统字体（TrueType格式）
+            "C:\\Windows\\Fonts\\yugothic.ttf", // Yu Gothic（TrueType格式）
             "C:\\Windows\\Fonts\\YuGothic.ttf",
-            // 中文字体通常也支持日文汉字
-            "C:\\Windows\\Fonts\\msyh.ttc",
-            "C:\\Windows\\Fonts\\MSYH.ttc",
-            // 本地路径（旧路径，保持兼容）
-            "fonts/msgothic.ttc",
-            "fonts/msmincho.ttc",
-            "msgothic.ttc",
-            "msmincho.ttc",
+            // 注意：TTC格式（TrueType Collection）暂不支持
+            // "C:\\Windows\\Fonts\\msgothic.ttc", // MS Gothic（TTC格式，暂不支持）
+            // "C:\\Windows\\Fonts\\msmincho.ttc", // MS Mincho（TTC格式，暂不支持）
+            // "C:\\Windows\\Fonts\\msyh.ttc", // 微软雅黑（TTC格式，暂不支持）
+            // 暂时不使用OTF字体（CFF格式），因为CFF子程序调用功能未完全实现
+            // "fonts/SourceHanSansSC-Regular.otf", // 思源黑体（OTF格式，CFF表）
+            // "fonts/SourceHanSansSC-Medium.otf", // 思源黑体（OTF格式，CFF表）
         };
 
         // 尝试加载日文字体
@@ -855,25 +858,21 @@ pub const CpuRenderBackend = struct {
     fn tryLoadKoreanFont(self: *CpuRenderBackend) !?*font_module.FontFace {
         // 韩文字体路径（按优先级排序）
         const korean_font_paths = [_][]const u8{
-            // 本地项目字体（优先，支持CJK）
-            "fonts/SourceHanSansSC-Regular.otf", // 思源黑体（支持中文、日文、韩文）
-            "fonts/SourceHanSansSC-Medium.otf", // 思源黑体（支持中文、日文、韩文）
-            // Windows系统字体
-            "C:\\Windows\\Fonts\\malgun.ttf", // Malgun Gothic（맑은 고딕）
+            // 优先使用TrueType字体（TTF格式，使用glyf表）
+            // Windows系统字体（TrueType格式）
+            "C:\\Windows\\Fonts\\malgun.ttf", // Malgun Gothic（맑은 고딕，TrueType格式）
             "C:\\Windows\\Fonts\\Malgun.ttf",
-            "C:\\Windows\\Fonts\\malgunbd.ttf", // Malgun Gothic Bold
+            "C:\\Windows\\Fonts\\malgunbd.ttf", // Malgun Gothic Bold（TrueType格式）
             "C:\\Windows\\Fonts\\MalgunBD.ttf",
-            "C:\\Windows\\Fonts\\gulim.ttc", // Gulim（굴림）
-            "C:\\Windows\\Fonts\\Gulim.ttc",
-            "C:\\Windows\\Fonts\\batang.ttc", // Batang（바탕）
-            "C:\\Windows\\Fonts\\Batang.ttc",
-            // 本地路径（旧路径，保持兼容）
+            // 本地路径（TrueType格式）
             "fonts/malgun.ttf",
-            "fonts/gulim.ttc",
-            "fonts/batang.ttc",
             "malgun.ttf",
-            "gulim.ttc",
-            "batang.ttc",
+            // 注意：TTC格式（TrueType Collection）暂不支持
+            // "C:\\Windows\\Fonts\\gulim.ttc", // Gulim（TTC格式，暂不支持）
+            // "C:\\Windows\\Fonts\\batang.ttc", // Batang（TTC格式，暂不支持）
+            // 暂时不使用OTF字体（CFF格式），因为CFF子程序调用功能未完全实现
+            // "fonts/SourceHanSansSC-Regular.otf", // 思源黑体（OTF格式，CFF表）
+            // "fonts/SourceHanSansSC-Medium.otf", // 思源黑体（OTF格式，CFF表）
         };
 
         // 尝试加载韩文字体
@@ -1008,16 +1007,17 @@ pub const CpuRenderBackend = struct {
         // 对于其他Unicode字符，尝试加载通用Unicode字体
         // 注意：Arial Unicode MS可能不在所有Windows系统上，所以作为最后尝试
         const unicode_font_paths = [_][]const u8{
-            // 本地项目字体（优先，支持CJK）
-            "fonts/SourceHanSansSC-Regular.otf", // 思源黑体（支持中文、日文、韩文）
-            "fonts/SourceHanSansSC-Medium.otf", // 思源黑体（支持中文、日文、韩文）
-            // Windows系统字体
-            "C:\\Windows\\Fonts\\arialuni.ttf", // Arial Unicode MS
+            // 优先使用TrueType字体（TTF格式，使用glyf表）
+            // Windows系统字体（TrueType格式）
+            "C:\\Windows\\Fonts\\arialuni.ttf", // Arial Unicode MS（TrueType格式）
             "C:\\Windows\\Fonts\\ArialUni.ttf",
-            "C:\\Windows\\Fonts\\calibri.ttf", // Calibri（支持一些Unicode字符）
+            "C:\\Windows\\Fonts\\calibri.ttf", // Calibri（TrueType格式，支持一些Unicode字符）
             "C:\\Windows\\Fonts\\Calibri.ttf",
-            "C:\\Windows\\Fonts\\segoeui.ttf", // Segoe UI（支持一些Unicode字符）
+            "C:\\Windows\\Fonts\\segoeui.ttf", // Segoe UI（TrueType格式，支持一些Unicode字符）
             "C:\\Windows\\Fonts\\SegoeUI.ttf",
+            // 暂时不使用OTF字体（CFF格式），因为CFF子程序调用功能未完全实现
+            // "fonts/SourceHanSansSC-Regular.otf", // 思源黑体（OTF格式，CFF表）
+            // "fonts/SourceHanSansSC-Medium.otf", // 思源黑体（OTF格式，CFF表）
         };
         for (unicode_font_paths) |path| {
             if (self.font_manager.loadFont(path, "UnicodeFont")) |face| {
@@ -1041,36 +1041,35 @@ pub const CpuRenderBackend = struct {
         // 常见的字体文件路径（Windows）
         // 优先尝试中文字体
         const font_paths = [_][]const u8{
-            // 本地项目字体（优先）
-            "fonts/SourceHanSansSC-Regular.otf", // 思源黑体（支持CJK）
-            "fonts/SourceHanSansSC-Medium.otf", // 思源黑体（支持CJK）
-            "fonts/wqy-zenhei.ttc", // 文泉驿正黑（支持中文）
-            "fonts/wqy-microhei.ttc", // 文泉驿微米黑（支持中文）
-            // Windows系统字体（中文字体）
-            "C:\\Windows\\Fonts\\simsun.ttc", // 宋体
-            "C:\\Windows\\Fonts\\SimSun.ttc",
-            "C:\\Windows\\Fonts\\msyh.ttc", // 微软雅黑
-            "C:\\Windows\\Fonts\\MSYH.ttc",
-            "C:\\Windows\\Fonts\\msyhbd.ttc", // 微软雅黑 Bold
-            "C:\\Windows\\Fonts\\MSYHBD.ttc",
-            "C:\\Windows\\Fonts\\simhei.ttf", // 黑体
+            // 优先使用TrueType字体（TTF格式，使用glyf表）
+            // 本地项目字体（TrueType格式）
+            "fonts/NotoSansArabic-Regular.ttf", // Noto Sans（TrueType格式）
+            "fonts/NotoSansArabic-Bold.ttf",
+            "fonts/NotoSansThai-Regular.ttf",
+            "fonts/NotoSansThai-Bold.ttf",
+            // Windows系统字体（TrueType格式，仅Windows）
+            "C:\\Windows\\Fonts\\simhei.ttf", // 黑体（TrueType格式）
             "C:\\Windows\\Fonts\\SimHei.ttf",
-            "C:\\Windows\\Fonts\\simkai.ttf", // 楷体
+            "C:\\Windows\\Fonts\\simkai.ttf", // 楷体（TrueType格式）
             "C:\\Windows\\Fonts\\SimKai.ttf",
-            // 英文字体（回退）
+            // 英文字体（TrueType格式，回退）
             "C:\\Windows\\Fonts\\arial.ttf",
             "C:\\Windows\\Fonts\\Arial.ttf",
             "C:\\Windows\\Fonts\\calibri.ttf",
             "C:\\Windows\\Fonts\\Calibri.ttf",
-            // 本地路径（旧路径，保持兼容）
-            "fonts/simsun.ttc",
-            "fonts/msyh.ttc",
+            // 本地路径（TrueType格式）
+            "fonts/simhei.ttf",
             "fonts/arial.ttf",
             "fonts/Arial.ttf",
-            "simsun.ttc",
-            "msyh.ttc",
+            "simhei.ttf",
             "arial.ttf",
             "Arial.ttf",
+            // 注意：TTC格式（TrueType Collection）暂不支持
+            // "C:\\Windows\\Fonts\\simsun.ttc", // 宋体（TTC格式，暂不支持）
+            // "C:\\Windows\\Fonts\\msyh.ttc", // 微软雅黑（TTC格式，暂不支持）
+            // 暂时不使用OTF字体（CFF格式），因为CFF子程序调用功能未完全实现
+            // "fonts/SourceHanSansSC-Regular.otf", // 思源黑体（OTF格式，CFF表）
+            // "fonts/SourceHanSansSC-Medium.otf", // 思源黑体（OTF格式，CFF表）
         };
 
         // 根据字体名称选择可能的路径
@@ -1303,12 +1302,15 @@ pub const CpuRenderBackend = struct {
                 const units_per_em = found_units_per_em;
 
                 // 获取字形数据
-                var glyph = font_face.getGlyph(glyph_index) catch {
+                std.log.warn("[CpuBackend] renderTextWithFontFallback: calling getGlyph for glyph_index={d}", .{glyph_index});
+                var glyph = font_face.getGlyph(glyph_index) catch |err| {
+                    std.log.warn("[CpuBackend] renderTextWithFontFallback: getGlyph failed for glyph_index={d}, error={}", .{ glyph_index, err });
                     // 如果获取字形失败，跳过这个字符
                     const placeholder_width = font_size * 0.6;
                     current_x += placeholder_width;
                     continue;
                 };
+                std.log.warn("[CpuBackend] renderTextWithFontFallback: got glyph, points.len={d}", .{glyph.points.items.len});
                 defer glyph.deinit(self.allocator);
 
                 // 计算字形的X位置

@@ -259,7 +259,17 @@ pub const CharStringDecoder = struct {
             self.offset += 1;
 
             // Type 2 CharString指令
-            if (byte >= 0 and byte <= 27) {
+            if (byte == 12) {
+                // 两字节转义序列（12.XX）
+                if (self.offset >= self.charstring_data.len) {
+                    return error.InvalidFormat;
+                }
+                const escape_byte = self.charstring_data[self.offset];
+                self.offset += 1;
+                std.log.warn("[CFF] CharStringDecoder: encountered escape command 12.{d}", .{escape_byte});
+                // 处理转义命令（12.XX）
+                try self.handleEscapeCommand(escape_byte, &current_x, &current_y);
+            } else if (byte >= 0 and byte <= 27) {
                 // 单字节指令（0-27）
                 try self.handleCommand(byte, &current_x, &current_y);
             } else if (byte == 28) {
@@ -298,8 +308,16 @@ pub const CharStringDecoder = struct {
             } else if (byte == 255) {
                 // 四字节浮点数（暂不支持，简化实现）
                 // TODO: 实现浮点数解码
-                return error.Unsupported;
+                std.log.warn("[CFF] CharStringDecoder: encountered float (byte 255) at offset {d}, skipping", .{self.offset - 1});
+                // 跳过4字节浮点数
+                if (self.offset + 4 > self.charstring_data.len) {
+                    return error.InvalidFormat;
+                }
+                self.offset += 4;
+                // 不添加到栈中，因为当前实现不支持浮点数
+                // 这可能导致某些字形无法正确渲染，但至少不会崩溃
             } else {
+                std.log.warn("[CFF] CharStringDecoder: unknown byte {d} at offset {d}, charstring_data.len={d}", .{ byte, self.offset - 1, self.charstring_data.len });
                 return error.InvalidFormat;
             }
         }
@@ -307,7 +325,12 @@ pub const CharStringDecoder = struct {
 
     /// 处理CharString指令
     fn handleCommand(self: *Self, command: u8, current_x: *f32, current_y: *f32) !void {
+        std.log.warn("[CFF] CharStringDecoder: handleCommand command={d}, offset={d}, stack.len={d}", .{ command, self.offset - 1, self.stack.items.len });
         switch (command) {
+            0 => {
+                // reserved - 保留命令，忽略
+                std.log.warn("[CFF] CharStringDecoder: encountered reserved command 0, ignoring", .{});
+            },
             1 => {
                 // hstem - 水平stem提示（忽略）
                 _ = try self.popStack();
@@ -430,11 +453,25 @@ pub const CharStringDecoder = struct {
             10 => {
                 // callsubr - 调用局部子程序（暂不支持）
                 // TODO: 实现子程序调用
-                return error.Unsupported;
+                std.log.warn("[CFF] CharStringDecoder: encountered callsubr (command 10) at offset {d}, stack.len={d}, skipping", .{ self.offset - 1, self.stack.items.len });
+                // 从栈中弹出子程序编号（如果存在）
+                if (self.stack.items.len > 0) {
+                    const subr_num = try self.popStack();
+                    std.log.warn("[CFF] CharStringDecoder: callsubr subr_num={d}, skipping call", .{subr_num});
+                } else {
+                    std.log.warn("[CFF] CharStringDecoder: callsubr with empty stack", .{});
+                }
+                // 不执行子程序调用，这可能导致某些字形无法正确渲染，但至少不会崩溃
             },
             11 => {
                 // return - 从子程序返回（暂不支持）
-                return error.Unsupported;
+                std.log.warn("[CFF] CharStringDecoder: encountered return (command 11) at offset {d}, stack.len={d}, skipping", .{ self.offset - 1, self.stack.items.len });
+                // 不执行返回操作，这可能导致某些字形无法正确渲染，但至少不会崩溃
+                // 注意：如果在主程序中遇到return，可能是格式错误
+                if (self.stack.items.len > 0) {
+                    std.log.warn("[CFF] CharStringDecoder: return with non-empty stack, clearing", .{});
+                    self.stack.clearRetainingCapacity();
+                }
             },
             14 => {
                 // endchar - 结束字符
@@ -753,7 +790,12 @@ pub const CharStringDecoder = struct {
             29 => {
                 // callgsubr - 调用全局子程序（暂不支持）
                 // TODO: 实现全局子程序调用
-                return error.Unsupported;
+                std.log.warn("[CFF] CharStringDecoder: encountered callgsubr (command 29) at offset {d}, skipping", .{self.offset - 1});
+                // 从栈中弹出子程序编号（如果存在）
+                if (self.stack.items.len > 0) {
+                    _ = self.stack.pop();
+                }
+                // 不执行子程序调用，这可能导致某些字形无法正确渲染，但至少不会崩溃
             },
             30 => {
                 // vhcurveto - 垂直水平曲线
@@ -928,6 +970,30 @@ pub const CharStringDecoder = struct {
             else => {
                 // 未知指令，忽略
                 std.log.warn("Unknown CharString command: {d}\n", .{command});
+            },
+        }
+    }
+
+    /// 处理转义命令（12.XX）
+    fn handleEscapeCommand(self: *Self, escape_byte: u8, _: *f32, _: *f32) !void {
+        std.log.warn("[CFF] CharStringDecoder: handleEscapeCommand escape_byte={d}", .{escape_byte});
+        switch (escape_byte) {
+            0 => {
+                // dotsection - 点部分（忽略）
+                std.log.warn("[CFF] CharStringDecoder: encountered dotsection (12.0), ignoring", .{});
+            },
+            23 => {
+                // mul - 乘法
+                std.log.warn("[CFF] CharStringDecoder: encountered mul (12.23), skipping", .{});
+                if (self.stack.items.len >= 2) {
+                    const b = try self.popStack();
+                    const a = try self.popStack();
+                    try self.stack.append(self.allocator, a * b);
+                }
+            },
+            else => {
+                std.log.warn("[CFF] CharStringDecoder: unknown escape command 12.{d}, ignoring", .{escape_byte});
+                // 未知的转义命令，忽略
             },
         }
     }
