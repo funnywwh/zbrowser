@@ -1157,9 +1157,9 @@ test "layoutGrid with justify-content flex-start" {
     const container_node = try test_helpers.createTestElement(allocator, "div");
     defer test_helpers.freeNode(allocator, container_node);
 
-    // 设置inline style属性
+    // 设置inline style属性（使用2列，这样2个items会在同一行的不同列）
     if (container_node.asElement()) |elem| {
-        try elem.setAttribute("style", "display: grid; grid-template-columns: 100px; grid-template-rows: 50px; justify-content: flex-start;", allocator);
+        try elem.setAttribute("style", "display: grid; grid-template-columns: 100px 100px; grid-template-rows: 50px; justify-content: flex-start;", allocator);
     }
 
     const item1_node = try test_helpers.createTestElement(allocator, "div");
@@ -1173,7 +1173,7 @@ test "layoutGrid with justify-content flex-start" {
     container_box.display = .grid;
     container_box.box_model.content.x = 0;
     container_box.box_model.content.y = 0;
-    container_box.box_model.content.width = 300;
+    container_box.box_model.content.width = 300; // 容器宽度300，grid宽度200，flex-start应该在0位置
     container_box.box_model.content.height = 100;
     defer container_box.deinit();
 
@@ -1213,9 +1213,9 @@ test "layoutGrid with justify-content flex-end" {
     const container_node = try test_helpers.createTestElement(allocator, "div");
     defer test_helpers.freeNode(allocator, container_node);
 
-    // 设置inline style属性
+    // 设置inline style属性（使用2列，这样2个items会在同一行的不同列）
     if (container_node.asElement()) |elem| {
-        try elem.setAttribute("style", "display: grid; grid-template-columns: 100px; grid-template-rows: 50px; justify-content: flex-end;", allocator);
+        try elem.setAttribute("style", "display: grid; grid-template-columns: 100px 100px; grid-template-rows: 50px; justify-content: flex-end;", allocator);
     }
 
     const item1_node = try test_helpers.createTestElement(allocator, "div");
@@ -1229,7 +1229,7 @@ test "layoutGrid with justify-content flex-end" {
     container_box.display = .grid;
     container_box.box_model.content.x = 0;
     container_box.box_model.content.y = 0;
-    container_box.box_model.content.width = 300; // 容器宽度300，grid宽度100，flex-end应该在200位置
+    container_box.box_model.content.width = 300; // 容器宽度300，grid宽度200，flex-end应该在100位置
     container_box.box_model.content.height = 100;
     defer container_box.deinit();
 
