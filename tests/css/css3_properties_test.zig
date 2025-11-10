@@ -2756,25 +2756,45 @@ test "CSS3 - 样式优先级详细测试" {
     }
     try testing.expect(div_node != null);
 
-    // 测试ID选择器优先级高于类选择器
+    // 测试ID选择器优先级高于类选择器，以及!important优先级
+    // CSS规则：.container { color: blue; } #test { color: red !important; }
+    // 期望：ID选择器匹配，且!important生效，最终color应该是red且important=true
     const css_input = ".container { color: blue; } #test { color: red !important; }";
     var css_parser_instance = css.Parser.init(css_input, allocator);
     defer css_parser_instance.deinit();
     var stylesheet = try css_parser_instance.parse();
     defer stylesheet.deinit();
 
+    // 验证样式表解析正确
+    try testing.expectEqual(@as(usize, 2), stylesheet.rules.items.len);
+    
+    // 验证第一个规则是类选择器
+    const rule1 = stylesheet.rules.items[0];
+    try testing.expect(rule1.selectors.items.len > 0);
+    try testing.expect(rule1.declarations.items.len > 0);
+    try testing.expectEqualStrings("color", rule1.declarations.items[0].name);
+    try testing.expect(rule1.declarations.items[0].important == false);
+    
+    // 验证第二个规则是ID选择器且!important
+    const rule2 = stylesheet.rules.items[1];
+    try testing.expect(rule2.selectors.items.len > 0);
+    try testing.expect(rule2.declarations.items.len > 0);
+    try testing.expectEqualStrings("color", rule2.declarations.items[0].name);
+    try testing.expect(rule2.declarations.items[0].important == true);
+
     var cascade_engine = cascade.Cascade.init(allocator);
-    // 如果选择器匹配失败，测试仍然通过（容错处理）
-    if (cascade_engine.computeStyle(div_node.?, &[_]css.Stylesheet{stylesheet})) |computed_style| {
-        var style_mut = computed_style;
-        defer style_mut.deinit();
-        const color_decl = style_mut.getProperty("color");
-        if (color_decl) |decl| {
-            // 如果解析成功且有color属性，检查important标志
-            try testing.expect(decl.important == true);
-        }
-    } else |_| {
-        // 如果计算失败（选择器可能不支持），测试通过
+    var computed_style = try cascade_engine.computeStyle(div_node.?, &[_]css.Stylesheet{stylesheet});
+    defer computed_style.deinit();
+
+    // 验证计算后的样式
+    const color_decl = computed_style.getProperty("color");
+    try testing.expect(color_decl != null);
+    if (color_decl) |decl| {
+        // ID选择器应该匹配，且!important应该生效
+        try testing.expect(decl.important == true);
+        // 验证颜色值是red（keyword类型）
+        try testing.expect(decl.value == .keyword);
+        try testing.expectEqualStrings("red", decl.value.keyword);
     }
 }
 

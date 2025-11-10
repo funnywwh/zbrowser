@@ -75,48 +75,57 @@ pub const Cascade = struct {
             // 遍历所有规则
             for (stylesheet.rules.items) |rule| {
                 // 检查选择器是否匹配
+                var rule_matched = false;
                 for (rule.selectors.items) |sel| {
                     if (self.matchesSelector(element, &sel)) {
-                        // 匹配，添加声明
-                        for (rule.declarations.items) |decl| {
-                            // 检查 decl.name 是否有效（防止使用已释放的内存）
-                            if (decl.name.len == 0) continue;
-                            const name = try self.allocator.dupe(u8, decl.name);
-
-                            // 复制值
-                            const value = try self.copyValue(decl.value);
-
-                            const new_decl = parser.Declaration{
-                                .name = name,
-                                .value = value,
-                                .important = decl.important,
-                                .allocator = self.allocator,
-                            };
-
-                            // 如果已存在，根据优先级决定是否覆盖
-                            // 注意：使用复制的 name 作为 key，而不是 decl.name（可能已被释放）
-                            if (computed.properties.getPtr(name)) |existing| {
-                                // 简化：如果新声明是important，覆盖；否则不覆盖
-                                if (decl.important and !existing.important) {
-                                    existing.deinit();
-                                    existing.* = new_decl;
-                                } else {
-                                    // 不覆盖，释放新声明的资源
-                                    self.allocator.free(name);
-                                    var mutable_value = value;
-                                    mutable_value.deinit(self.allocator);
-                                }
-                            } else {
-                                // put 失败时会清理
-                                computed.properties.put(name, new_decl) catch |err| {
-                                    self.allocator.free(name);
-                                    var mutable_value = value;
-                                    mutable_value.deinit(self.allocator);
-                                    return err;
-                                };
-                            }
-                        }
+                        rule_matched = true;
                         break; // 一个选择器匹配就够了
+                    }
+                }
+
+                if (!rule_matched) continue;
+
+                // 匹配，添加声明
+                for (rule.declarations.items) |decl| {
+                    // 检查 decl.name 是否有效（防止使用已释放的内存）
+                    if (decl.name.len == 0) continue;
+                    const name = try self.allocator.dupe(u8, decl.name);
+
+                    // 复制值
+                    const value = try self.copyValue(decl.value);
+
+                    const new_decl = parser.Declaration{
+                        .name = name,
+                        .value = value,
+                        .important = decl.important,
+                        .allocator = self.allocator,
+                    };
+
+                    // 如果已存在，根据优先级决定是否覆盖
+                    // 注意：使用复制的 name 作为 key，而不是 decl.name（可能已被释放）
+                    if (computed.properties.getPtr(name)) |existing| {
+                        // 如果新声明是important，覆盖；否则不覆盖（保持后定义的规则）
+                        if (decl.important and !existing.important) {
+                            existing.deinit();
+                            existing.* = new_decl;
+                        } else if (!decl.important and existing.important) {
+                            // 新声明不是important，但已存在的是important，不覆盖
+                            self.allocator.free(name);
+                            var mutable_value = value;
+                            mutable_value.deinit(self.allocator);
+                        } else {
+                            // 两者都是important或都不是important，后定义的覆盖先定义的
+                            existing.deinit();
+                            existing.* = new_decl;
+                        }
+                    } else {
+                        // put 失败时会清理
+                        computed.properties.put(name, new_decl) catch |err| {
+                            self.allocator.free(name);
+                            var mutable_value = value;
+                            mutable_value.deinit(self.allocator);
+                            return err;
+                        };
                     }
                 }
             }
