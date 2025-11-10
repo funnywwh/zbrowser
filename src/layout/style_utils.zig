@@ -715,30 +715,63 @@ pub fn parseGridTemplate(value: []const u8, allocator: std.mem.Allocator) !std.A
         return tracks;
     }
 
-    // 解析每个轨道值（按空格分割）
-    var iter = std.mem.splitSequence(u8, trimmed, " ");
-    while (iter.next()) |track_str| {
-        const trimmed_track = std.mem.trim(u8, track_str, " \t\n\r");
-        if (trimmed_track.len == 0) continue;
+    // 解析每个轨道值
+    // 注意：repeat()函数内部可能包含空格（如"repeat(3, 1fr)"），需要特殊处理
+    var i: usize = 0;
+    while (i < trimmed.len) {
+        // 跳过空白字符
+        while (i < trimmed.len and (trimmed[i] == ' ' or trimmed[i] == '\t' or trimmed[i] == '\n' or trimmed[i] == '\r')) {
+            i += 1;
+        }
+        if (i >= trimmed.len) break;
 
         // 检查是否是repeat()函数
-        if (std.mem.startsWith(u8, trimmed_track, "repeat(")) {
-            var repeat_tracks = parseRepeatFunction(trimmed_track, allocator) catch {
-                std.log.warn("[StyleUtils] parseGridTemplate - failed to parse repeat: '{s}'", .{trimmed_track});
-                continue;
-            };
-            defer repeat_tracks.deinit(allocator);
-            // 将repeat的结果添加到tracks
-            for (repeat_tracks.items) |track| {
-                try tracks.append(allocator, track);
+        if (i + 7 <= trimmed.len and std.mem.eql(u8, trimmed[i..i+7], "repeat(")) {
+            // 找到repeat()函数的结束位置（匹配的右括号）
+            var depth: usize = 0;
+            var j = i;
+            while (j < trimmed.len) {
+                if (trimmed[j] == '(') {
+                    depth += 1;
+                } else if (trimmed[j] == ')') {
+                    depth -= 1;
+                    if (depth == 0) {
+                        // 找到匹配的右括号
+                        const repeat_str = trimmed[i..j+1];
+                        var repeat_tracks = parseRepeatFunction(repeat_str, allocator) catch {
+                            std.log.warn("[StyleUtils] parseGridTemplate - failed to parse repeat: '{s}'", .{repeat_str});
+                            i = j + 1;
+                            continue;
+                        };
+                        defer repeat_tracks.deinit(allocator);
+                        // 将repeat的结果添加到tracks
+                        for (repeat_tracks.items) |track| {
+                            try tracks.append(allocator, track);
+                        }
+                        i = j + 1;
+                        break;
+                    }
+                }
+                j += 1;
+            }
+            if (j >= trimmed.len) {
+                // 没有找到匹配的右括号，跳过
+                std.log.warn("[StyleUtils] parseGridTemplate - unmatched repeat() function", .{});
+                break;
             }
         } else {
-            // 解析单个轨道值
-            if (parseGridTrackValue(trimmed_track)) |track| {
+            // 解析单个轨道值（找到下一个空格或字符串结束）
+            var j = i;
+            while (j < trimmed.len and trimmed[j] != ' ' and trimmed[j] != '\t' and trimmed[j] != '\n' and trimmed[j] != '\r') {
+                j += 1;
+            }
+            const track_str = trimmed[i..j];
+            if (parseGridTrackValue(track_str)) |track| {
                 try tracks.append(allocator, track);
             } else {
-                std.log.warn("[StyleUtils] parseGridTemplate - failed to parse track: '{s}'", .{trimmed_track});
+                std.log.warn("[StyleUtils] parseGridTemplate - failed to parse track: '{s}'", .{track_str});
             }
+            i = j;
         }
     }
     std.log.warn("[StyleUtils] parseGridTemplate - tracks.len={d}", .{tracks.items.len});
