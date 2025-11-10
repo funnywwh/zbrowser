@@ -440,8 +440,100 @@ pub const Parser = struct {
         return node;
     }
 
+    /// 解码HTML实体
+    /// 支持命名实体（&lt;, &gt;, &amp;, &quot;, &apos;）和数字实体（&#123;, &#x1F;）
+    fn decodeHtmlEntities(self: *Self, input: []const u8) ![]u8 {
+        var result = std.ArrayList(u8){
+            .items = &[_]u8{},
+            .capacity = 0,
+        };
+        errdefer result.deinit(self.allocator);
+        
+        var i: usize = 0;
+        while (i < input.len) {
+            if (input[i] == '&') {
+                // 查找实体结束符 ';'
+                var j = i + 1;
+                while (j < input.len and input[j] != ';' and input[j] != '&') {
+                    j += 1;
+                }
+                
+                if (j < input.len and input[j] == ';') {
+                    // 找到完整的实体
+                    const entity = input[i + 1..j];
+                    
+                    // 解析实体
+                    if (parseHtmlEntity(entity)) |decoded_char| {
+                        try result.append(self.allocator, decoded_char);
+                        i = j + 1; // 跳过整个实体包括 ';'
+                        continue;
+                    } else {
+                        // 无法解析的实体，保留整个实体（包括&和;）
+                        const full_entity = input[i..j + 1];
+                        for (full_entity) |char| {
+                            try result.append(self.allocator, char);
+                        }
+                        i = j + 1;
+                        continue;
+                    }
+                } else {
+                    // 没有找到 ';'，不是有效的实体，保留原样
+                    try result.append(self.allocator, '&');
+                    i += 1;
+                    continue;
+                }
+            } else {
+                try result.append(self.allocator, input[i]);
+                i += 1;
+            }
+        }
+        
+        return result.toOwnedSlice(self.allocator);
+    }
+    
+    /// 解析HTML实体
+    /// 返回解码后的字符，如果无法解析则返回null
+    fn parseHtmlEntity(entity: []const u8) ?u8 {
+        // 命名实体
+        if (std.mem.eql(u8, entity, "lt")) return '<';
+        if (std.mem.eql(u8, entity, "gt")) return '>';
+        if (std.mem.eql(u8, entity, "amp")) return '&';
+        if (std.mem.eql(u8, entity, "quot")) return '"';
+        if (std.mem.eql(u8, entity, "apos")) return '\'';
+        
+        // 数字实体：&#123; (十进制)
+        if (entity.len > 1 and entity[0] == '#') {
+            const num_str = entity[1..];
+            if (std.fmt.parseInt(u21, num_str, 10)) |code_point| {
+                if (code_point <= 0xFF) {
+                    return @as(u8, @intCast(code_point));
+                }
+            } else |_| {
+                // 解析失败，尝试十六进制
+            }
+        }
+        
+        // 十六进制实体：&#x1F; 或 &#X1F;
+        if (entity.len > 2 and entity[0] == '#' and (entity[1] == 'x' or entity[1] == 'X')) {
+            const hex_str = entity[2..];
+            if (std.fmt.parseInt(u21, hex_str, 16)) |code_point| {
+                if (code_point <= 0xFF) {
+                    return @as(u8, @intCast(code_point));
+                }
+            } else |_| {
+                // 解析失败
+            }
+        }
+        
+        return null;
+    }
+
     fn createTextNode(self: *Self, text: []const u8) !*dom.Node {
-        const text_owned = try self.allocator.dupe(u8, text);
+        // 解码HTML实体
+        const decoded_text = try self.decodeHtmlEntities(text);
+        defer self.allocator.free(decoded_text);
+        
+        const text_owned = try self.allocator.dupe(u8, decoded_text);
         const node = try self.allocator.create(dom.Node);
         node.* = .{
             .node_type = .text,

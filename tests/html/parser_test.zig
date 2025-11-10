@@ -1851,21 +1851,35 @@ test "parse HTML5 entity encoding comprehensive" {
     defer parser.deinit();
     try parser.parse();
 
-    // 验证实体编码被解析（即使可能不会被解码）
+    // 验证实体编码被解析（已实现的实体会被解码，未实现的实体会被保留）
     const divs = try doc_ptr.getElementsByTagName("div", allocator);
     defer allocator.free(divs);
     try std.testing.expect(divs.len == 1);
 
-    if (divs[0].first_child) |text_node| {
-        const text_content = text_node.asText();
-        try std.testing.expect(text_content != null);
-        if (text_content) |content| {
-            // 验证文本内容存在（实体编码可能不会被解码，但应该被解析为文本）
-            try std.testing.expect(content.len > 0);
-            // 验证包含实体编码字符（&符号应该存在）
-            try std.testing.expect(std.mem.indexOf(u8, content, "&") != null);
+    // 收集所有文本节点的内容
+    var all_text = std.ArrayList(u8){
+        .items = &[_]u8{},
+        .capacity = 0,
+    };
+    defer all_text.deinit(allocator);
+    
+    var node = divs[0].first_child;
+    while (node) |n| {
+        if (n.asText()) |text_content| {
+            try all_text.appendSlice(allocator, text_content);
         }
+        node = n.next_sibling;
     }
+    
+    const combined_text = try all_text.toOwnedSlice(allocator);
+    defer allocator.free(combined_text);
+    
+    // 验证文本内容存在
+    try std.testing.expect(combined_text.len > 0);
+    
+    // 验证已实现的实体被正确解码
+    try std.testing.expect(std.mem.indexOf(u8, combined_text, "<div>") != null); // &lt;div&gt; 被解码
+    try std.testing.expect(std.mem.indexOf(u8, combined_text, "&") != null); // 未实现的实体（如&nbsp;）被保留
 }
 
 test "parse HTML5 CDATA section" {
