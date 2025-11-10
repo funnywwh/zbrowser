@@ -260,7 +260,10 @@ zig build test
 - 测试驱动开发（TDD）
 - 目标：100%代码覆盖率
 
-详细规范请参考 [.cursorrules](.cursorrules)
+详细规范请参考：
+- [.cursorrules](.cursorrules) - 项目开发规则
+- [COMPILE_ERRORS.md](docs/COMPILE_ERRORS.md) - 编译错误总结与避免规则
+- [ERROR_RECORDING_WORKFLOW.md](docs/ERROR_RECORDING_WORKFLOW.md) - 编译错误自动记录工作流程
 
 ## 兼容性
 
