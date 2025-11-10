@@ -254,6 +254,7 @@ pub const CpuRenderBackend = struct {
         .getPixels = getPixelsImpl,
         .getWidth = getWidthImpl,
         .getHeight = getHeightImpl,
+        .calculateTextWidth = calculateTextWidthImpl,
         .deinit = deinitImpl,
     };
 
@@ -2254,6 +2255,21 @@ pub const CpuRenderBackend = struct {
     fn getHeightImpl(self_ptr: *const backend.RenderBackend) u32 {
         const self = fromRenderBackendConst(self_ptr);
         return self.getHeight();
+    }
+
+    fn calculateTextWidthImpl(self_ptr: *backend.RenderBackend, text: []const u8, x: f32, font: backend.Font) std.mem.Allocator.Error!f32 {
+        const self = fromRenderBackend(self_ptr);
+        // 调用calculateTextWidth，如果失败则使用估算值
+        const result = self.calculateTextWidth(text, x, font) catch |err| {
+            // 如果是OutOfMemory错误，向上传播
+            if (err == error.OutOfMemory) {
+                return error.OutOfMemory;
+            }
+            // 其他错误使用估算值
+            const char_width = font.size * 0.7;
+            return x + char_width * @as(f32, @floatFromInt(text.len));
+        };
+        return result;
     }
 
     fn deinitImpl(self_ptr: *backend.RenderBackend) void {

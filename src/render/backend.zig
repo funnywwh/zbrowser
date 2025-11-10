@@ -109,6 +109,9 @@ pub const RenderBackend = struct {
         getWidth: *const fn (self: *const RenderBackend) u32,
         getHeight: *const fn (self: *const RenderBackend) u32,
 
+        // 文本宽度计算
+        calculateTextWidth: *const fn (self: *RenderBackend, text: []const u8, x: f32, font: Font) std.mem.Allocator.Error!f32,
+
         // 清理
         deinit: *const fn (self: *RenderBackend) void,
     };
