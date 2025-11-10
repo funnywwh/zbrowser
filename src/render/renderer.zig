@@ -98,17 +98,28 @@ pub const Renderer = struct {
             total_size.height,
         );
 
-        // 1. 绘制背景（只对非文本节点绘制，避免覆盖文本）
+        // 1. 应用opacity（如果小于1.0，需要设置全局透明度）
+        const needs_opacity = layout_box.opacity < 1.0;
+        if (needs_opacity) {
+            // 保存当前状态（包括透明度）
+            self.render_backend.save();
+            // 设置全局透明度（opacity会影响整个元素及其子元素）
+            self.render_backend.setGlobalAlpha(layout_box.opacity);
+        }
+
+        // 2. 绘制背景（只对非文本节点绘制，避免覆盖文本）
         // 注意：对于包含文本节点的元素（如<p>），背景应该只绘制到内容区域，不覆盖descender
         if (layout_box.node.node_type != .text) {
             try self.renderBackground(layout_box, &computed_style, border_rect);
         }
 
-        // 2. 处理overflow属性（如果为hidden、scroll或auto，需要裁剪）
+        // 3. 处理overflow属性（如果为hidden、scroll或auto，需要裁剪）
         const needs_clip = layout_box.overflow != .visible;
         if (needs_clip) {
-            // 保存当前状态
-            self.render_backend.save();
+            // 保存当前状态（如果还没有保存）
+            if (!needs_opacity) {
+                self.render_backend.save();
+            }
             // 设置裁剪区域为内容区域（包含padding）
             const clip_rect = backend.Rect.init(
                 content_box_rect.x,
@@ -119,21 +130,21 @@ pub const Renderer = struct {
             self.render_backend.clip(clip_rect);
         }
 
-        // 3. 递归渲染子节点（先渲染子节点，确保文本在背景之上）
+        // 4. 递归渲染子节点（先渲染子节点，确保文本在背景之上）
         for (layout_box.children.items) |child| {
             try self.renderLayoutBox(child);
         }
 
-        // 4. 绘制内容（文本）- 在子节点之后绘制，确保文本在最上层
+        // 5. 绘制内容（文本）- 在子节点之后绘制，确保文本在最上层
         try self.renderContent(layout_box, &computed_style, content_rect);
-
-        // 5. 恢复裁剪状态（如果设置了）
-        if (needs_clip) {
-            self.render_backend.restore();
-        }
 
         // 6. 绘制边框（最后绘制，确保边框在最上层）
         try self.renderBorder(layout_box, &computed_style, border_rect);
+
+        // 7. 恢复状态（如果应用了opacity或clip）
+        if (needs_opacity or needs_clip) {
+            self.render_backend.restore();
+        }
     }
 
     /// 绘制圆角矩形路径

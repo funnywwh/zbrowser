@@ -235,6 +235,11 @@ pub const LayoutBox = struct {
     /// 如果为null，表示使用默认字符间距（0）
     letter_spacing: ?f32,
 
+    /// 透明度（opacity属性）
+    /// 范围：0.0（完全透明）到1.0（完全不透明）
+    /// 默认值：1.0（完全不透明）
+    opacity: f32,
+
     /// 子布局框列表
     children: std.ArrayList(*LayoutBox),
 
@@ -281,6 +286,7 @@ pub const LayoutBox = struct {
             .line_height = .normal, // 默认行高
             .overflow = .visible, // 默认不裁剪
             .letter_spacing = null, // 默认无额外字符间距
+            .opacity = 1.0, // 默认完全不透明
             .children = std.ArrayList(*LayoutBox){
                 .items = &[_]*LayoutBox{},
                 .capacity = 0,

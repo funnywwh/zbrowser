@@ -59,6 +59,7 @@ pub const LayoutEngine = struct {
         layout_box.line_height = .normal; // 默认行高
         layout_box.overflow = .visible; // 默认不裁剪
         layout_box.letter_spacing = null; // 默认无额外字符间距
+        layout_box.opacity = 1.0; // 默认完全不透明
         layout_box.children = std.ArrayList(*box.LayoutBox){
             .items = &[_]*box.LayoutBox{},
             .capacity = 0,

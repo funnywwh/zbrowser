@@ -427,6 +427,17 @@ pub fn applyStyleToLayoutBox(layout_box: *box.LayoutBox, computed_style: *const 
         }
     }
 
+    // 解析opacity
+    if (getPropertyKeyword(computed_style, "opacity")) |opacity_value| {
+        // 尝试解析为数字（0.0到1.0）
+        if (std.fmt.parseFloat(f32, opacity_value)) |opacity| {
+            // 限制在0.0到1.0范围内
+            layout_box.opacity = @max(0.0, @min(1.0, opacity));
+        } else |_| {
+            // 解析失败，使用默认值1.0
+        }
+    }
+
     // 解析border-radius
     if (getPropertyLength(computed_style, "border-radius", createUnitContext(containing_size.width))) |border_radius_value| {
         layout_box.box_model.border_radius = border_radius_value;
