@@ -10,6 +10,42 @@ pub const GlyphRenderer = struct {
     /// Hinting解释器
     hinting_interpreter: hinting_module.HintingInterpreter,
 
+    /// 渲染参数配置（可调整以优化字体渲染效果）
+    const RenderParams = struct {
+        /// MSDF范围（像素）：控制边缘平滑过渡的范围
+        /// 较小值：更精确的边缘，笔画更清晰，但可能略硬
+        /// 较大值：更平滑的边缘，但可能过度平滑导致笔画变粗
+        /// 推荐范围：0.5 - 1.0
+        const msdf_range: f32 = 0.5;
+
+        /// 边缘覆盖度：边缘像素的最小覆盖度
+        /// 较小值：边缘更柔和，但可能模糊
+        /// 较大值：边缘更清晰，笔画更粗
+        /// 推荐范围：0.6 - 0.9
+        const edge_coverage: f32 = 0.3;
+
+        /// 是否启用Hinting
+        /// true：启用hinting，提高小字体清晰度，但可能导致粗细不均匀
+        /// false：禁用hinting，保持原始精度，确保一致性
+        const enable_hinting: bool = true;
+
+        /// Hinting强度：根据字号动态调整Hinting强度
+        /// 小字号（<20px）下减弱Hinting强度，避免过度网格对齐
+        /// 范围：0.0 - 1.0，1.0表示完全对齐，0.5表示50%强度
+        const hinting_strength: f32 = 0.5;
+
+        /// 小字号阈值：小于此值的字号使用减弱的Hinting强度
+        const small_font_threshold: f32 = 20.0;
+
+        /// 是否启用Gamma校正
+        /// true：应用sRGB Gamma校正（2.2），改善视觉感知亮度
+        /// false：使用线性空间，可能导致暗部笔画对比度不足
+        const enable_gamma_correction: bool = true;
+
+        /// Gamma值：用于sRGB校正
+        const gamma: f32 = 2.2;
+    };
+
     const Self = @This();
 
     /// 初始化字形渲染器
@@ -24,7 +60,7 @@ pub const GlyphRenderer = struct {
     pub fn deinit(self: *Self) void {
         self.hinting_interpreter.deinit();
     }
-    
+
     /// 初始化Hinting（加载fpgm、prep、cvt表）
     pub fn initHinting(
         self: *Self,
@@ -36,12 +72,12 @@ pub const GlyphRenderer = struct {
         if (cvt_data) |cvt| {
             try self.hinting_interpreter.loadCvt(cvt);
         }
-        
+
         // 加载fpgm表
         if (fpgm_data) |fpgm| {
             try self.hinting_interpreter.loadFpgm(fpgm);
         }
-        
+
         // 加载prep表
         if (prep_data) |prep| {
             try self.hinting_interpreter.loadPrep(prep);
@@ -86,7 +122,7 @@ pub const GlyphRenderer = struct {
 
         // 计算缩放因子
         const scale = font_size / @as(f32, @floatFromInt(units_per_em));
-        
+
         // 应用Hinting指令（如果存在）
         if (glyph.instructions.items.len > 0) {
             _ = self.hinting_interpreter.executeGlyphInstructions(
@@ -102,7 +138,7 @@ pub const GlyphRenderer = struct {
         // 将轮廓点转换为像素坐标，并处理二次贝塞尔曲线
         var pixel_points = std.ArrayList(Point){};
         defer pixel_points.deinit(self.allocator);
-        
+
         // 记录每个轮廓在pixel_points中的结束索引
         var pixel_contour_end_points = std.ArrayList(usize){};
         defer pixel_contour_end_points.deinit(self.allocator);
@@ -116,7 +152,7 @@ pub const GlyphRenderer = struct {
                 const point = glyph.points.items[i];
                 var px = x + @as(f32, @floatFromInt(point.x)) * scale;
                 var py = y - @as(f32, @floatFromInt(point.y)) * scale;
-                
+
                 // 应用字体Hinting（字体提示）：将坐标对齐到像素网格
                 px = self.applyHinting(px, font_size);
                 py = self.applyHinting(py, font_size);
@@ -129,7 +165,7 @@ pub const GlyphRenderer = struct {
                         var prev_py = y - @as(f32, @floatFromInt(prev_point.y)) * scale;
                         var next_px = x + @as(f32, @floatFromInt(next_point.x)) * scale;
                         var next_py = y - @as(f32, @floatFromInt(next_point.y)) * scale;
-                        
+
                         // 应用字体Hinting
                         prev_px = self.applyHinting(prev_px, font_size);
                         prev_py = self.applyHinting(prev_py, font_size);
@@ -161,16 +197,16 @@ pub const GlyphRenderer = struct {
             var contour_idx: usize = 0;
             while (contour_idx < glyph.contour_end_points.items.len) : (contour_idx += 1) {
                 const contour_end = glyph.contour_end_points.items[contour_idx];
-                
+
                 // 处理当前轮廓的点
                 var i = contour_start;
                 while (i <= contour_end) : (i += 1) {
                     if (i >= glyph.points.items.len) break;
-                    
+
                     const point = glyph.points.items[i];
                     var px = x + @as(f32, @floatFromInt(point.x)) * scale;
                     var py = y - @as(f32, @floatFromInt(point.y)) * scale; // Y轴翻转：字体坐标系y向上，屏幕坐标系y向下
-                    
+
                     // 应用字体Hinting（字体提示）：将坐标对齐到像素网格
                     // 这可以改善小尺寸文本的清晰度，确保笔画对齐到像素边界
                     px = self.applyHinting(px, font_size);
@@ -180,7 +216,7 @@ pub const GlyphRenderer = struct {
                         // 控制点：需要与前一个点和后一个点形成二次贝塞尔曲线
                         const prev_i = if (i > contour_start) i - 1 else contour_end;
                         const next_i = if (i < contour_end) i + 1 else contour_start;
-                        
+
                         if (prev_i < glyph.points.items.len and next_i < glyph.points.items.len) {
                             const prev_point = glyph.points.items[prev_i];
                             const next_point = glyph.points.items[next_i];
@@ -188,12 +224,17 @@ pub const GlyphRenderer = struct {
                             var prev_py = y - @as(f32, @floatFromInt(prev_point.y)) * scale;
                             var next_px = x + @as(f32, @floatFromInt(next_point.x)) * scale;
                             var next_py = y - @as(f32, @floatFromInt(next_point.y)) * scale;
-                            
-                            // 应用字体Hinting
-                            prev_px = self.applyHinting(prev_px, font_size);
-                            prev_py = self.applyHinting(prev_py, font_size);
-                            next_px = self.applyHinting(next_px, font_size);
-                            next_py = self.applyHinting(next_py, font_size);
+
+                            // 应用字体Hinting（只对端点应用，保持曲线形状一致）
+                            // 控制点不应用hinting，避免曲线形状不一致
+                            if (!prev_point.is_control) {
+                                prev_px = self.applyHinting(prev_px, font_size);
+                                prev_py = self.applyHinting(prev_py, font_size);
+                            }
+                            if (!next_point.is_control) {
+                                next_px = self.applyHinting(next_px, font_size);
+                                next_py = self.applyHinting(next_py, font_size);
+                            }
 
                             // 将二次贝塞尔曲线细分为多个点
                             const num_segments = 8; // 每个曲线段细分为8个点
@@ -213,7 +254,7 @@ pub const GlyphRenderer = struct {
                         pixel_points.append(self.allocator, Point{ .x = px, .y = py }) catch return;
                     }
                 }
-                
+
                 // 记录当前轮廓的结束索引
                 pixel_contour_end_points.append(self.allocator, pixel_points.items.len - 1) catch return;
                 contour_start = contour_end + 1;
@@ -261,7 +302,7 @@ pub const GlyphRenderer = struct {
         while (scanline < end_scanline) : (scanline += 1) {
             // 检查扫描线是否在画布范围内
             if (scanline < 0 or scanline >= @as(i32, @intCast(height))) continue;
-            
+
             const y = @as(f32, @floatFromInt(scanline)) + 0.5; // 扫描线中心
 
             // 计算与所有轮廓的交点（使用非零填充规则）
@@ -278,12 +319,12 @@ pub const GlyphRenderer = struct {
             var contour_idx: usize = 0;
             while (contour_idx < contour_end_points.len) : (contour_idx += 1) {
                 const contour_end = contour_end_points[contour_idx];
-                
+
                 // 计算当前轮廓与扫描线的交点（使用非零填充规则）
                 var i = contour_start;
                 while (i <= contour_end) : (i += 1) {
                     if (i >= points.len) break;
-                    
+
                     const p1 = points[i];
                     const next_i = if (i < contour_end) i + 1 else contour_start;
                     if (next_i >= points.len) break;
@@ -300,7 +341,7 @@ pub const GlyphRenderer = struct {
                         }
                     }
                 }
-                
+
                 contour_start = contour_end + 1;
             }
 
@@ -314,13 +355,13 @@ pub const GlyphRenderer = struct {
             // 使用非零填充规则：从左边开始，累加方向值，当累加值不为0时填充
             var winding: i32 = 0;
             var fill_start_x: ?f32 = null;
-            
+
             var j: usize = 0;
             while (j < intersections.items.len) : (j += 1) {
                 const intersection = intersections.items[j];
                 const prev_winding = winding;
                 winding += intersection.direction;
-                
+
                 // 当winding从0变为非0时，开始填充区间
                 if (prev_winding == 0 and winding != 0) {
                     fill_start_x = intersection.x;
@@ -329,74 +370,69 @@ pub const GlyphRenderer = struct {
                 else if (prev_winding != 0 and winding == 0) {
                     if (fill_start_x) |x1| {
                         const x2 = intersection.x;
-                        
+
                         // 填充从x1到x2的区间（非零填充规则）
-                        // 扩展X范围以处理边缘抗锯齿
-                        const start_x = @as(i32, @intFromFloat(x1)) - 3;
-                        const end_x = @as(i32, @intFromFloat(x2)) + 4;
+                        // 使用精确的像素范围，确保边缘抗锯齿
+                        // 扩展范围基于MSDF范围（1.0像素），确保覆盖所有需要抗锯齿的像素
+                        const start_x = @as(i32, @intFromFloat(x1)) - 1;
+                        const end_x = @as(i32, @intFromFloat(x2)) + 1;
 
                         var px = start_x;
                         while (px < end_x) : (px += 1) {
                             // 检查像素是否在画布范围内
                             if (px < 0 or px >= @as(i32, @intCast(width))) continue;
-                            
+
                             const pixel_x = @as(f32, @floatFromInt(px)) + 0.5;
-                            
-                            // 使用子像素渲染（RGB子像素）和MSDF（多通道有符号距离场）
-                            // 计算每个RGB子像素的覆盖度，获得3倍的水平分辨率
-                            const subpixel_offsets = [_]f32{ -1.0/3.0, 0.0, 1.0/3.0 }; // R, G, B子像素偏移
-                            var subpixel_coverages = [_]f32{ 0.0, 0.0, 0.0 };
-                            
-                            // 计算每个子像素的覆盖度（传入字体大小以调整小字体的抗锯齿参数）
-                            var i: usize = 0;
-                            while (i < 3) : (i += 1) {
-                                const subpixel_x = pixel_x + subpixel_offsets[i];
-                                subpixel_coverages[i] = self.calculateCoverageWithMSDF(subpixel_x, y, x1, x2, font_size);
+
+                            // 使用统一的覆盖度计算，确保字体粗细一致
+                            // 关键改进：使用更精确的边缘检测，确保相同位置总是产生相同的覆盖度
+                            var coverage = self.calculateCoverageWithMSDF(pixel_x, y, x1, x2, font_size);
+
+                            // 应用Gamma校正（如果启用）
+                            // Gamma校正将线性空间转换为感知空间，改善视觉感知亮度
+                            // 这可以解决暗部笔画对比度不足的问题
+                            if (RenderParams.enable_gamma_correction) {
+                                // sRGB Gamma校正：coverage^(1/gamma)
+                                // 线性空间coverage转换为感知空间
+                                const gamma = RenderParams.gamma;
+                                coverage = std.math.pow(f32, coverage, 1.0 / gamma);
                             }
-                            
-                            // 使用子像素覆盖度渲染
-                            if (subpixel_coverages[0] > 0.0 or subpixel_coverages[1] > 0.0 or subpixel_coverages[2] > 0.0) {
+
+                            // 只有当覆盖度大于0时才渲染
+                            if (coverage > 0.0) {
                                 const index = (@as(usize, @intCast(scanline)) * width + @as(usize, @intCast(px))) * 4;
                                 if (index + 3 < pixels.len) {
                                     const alpha = @as(f32, @floatFromInt(color.a)) / 255.0;
-                                    
-                                    // 分别处理RGB三个通道，使用对应的子像素覆盖度
-                                    const r_coverage = subpixel_coverages[0] * alpha;
-                                    const g_coverage = subpixel_coverages[1] * alpha;
-                                    const b_coverage = subpixel_coverages[2] * alpha;
-                                    
-                                    // 计算最终alpha（使用最大覆盖度）
-                                    const max_coverage = @max(@max(subpixel_coverages[0], subpixel_coverages[1]), subpixel_coverages[2]);
-                                    const final_alpha = max_coverage * alpha;
+                                    const final_alpha = coverage * alpha;
                                     const final_alpha_u8 = @as(u8, @intFromFloat(final_alpha * 255.0));
-                                    
+
                                     // 如果像素已有内容，进行alpha混合
+                                    // 使用叠加混合，但限制最大alpha值避免过度叠加
                                     if (pixels[index + 3] > 0) {
                                         const existing_alpha = @as(f32, @floatFromInt(pixels[index + 3])) / 255.0;
-                                        const combined_alpha = existing_alpha + final_alpha * (1.0 - existing_alpha);
-                                        
+                                        // 使用叠加混合，但限制最大alpha值为1.0
+                                        const combined_alpha = @min(1.0, existing_alpha + final_alpha * (1.0 - existing_alpha));
+
                                         if (combined_alpha > 0.0) {
-                                            // 分别混合RGB通道
-                                            const r_t = r_coverage / combined_alpha;
-                                            const g_t = g_coverage / combined_alpha;
-                                            const b_t = b_coverage / combined_alpha;
-                                            
-                                            pixels[index] = @as(u8, @intFromFloat(@as(f32, @floatFromInt(pixels[index])) * (1.0 - r_t) + @as(f32, @floatFromInt(color.r)) * r_t));
-                                            pixels[index + 1] = @as(u8, @intFromFloat(@as(f32, @floatFromInt(pixels[index + 1])) * (1.0 - g_t) + @as(f32, @floatFromInt(color.g)) * g_t));
-                                            pixels[index + 2] = @as(u8, @intFromFloat(@as(f32, @floatFromInt(pixels[index + 2])) * (1.0 - b_t) + @as(f32, @floatFromInt(color.b)) * b_t));
+                                            const blend_factor = final_alpha / combined_alpha;
+
+                                            // 使用统一的覆盖度混合RGB通道，确保一致性
+                                            pixels[index] = @as(u8, @intFromFloat(@as(f32, @floatFromInt(pixels[index])) * (1.0 - blend_factor) + @as(f32, @floatFromInt(color.r)) * blend_factor));
+                                            pixels[index + 1] = @as(u8, @intFromFloat(@as(f32, @floatFromInt(pixels[index + 1])) * (1.0 - blend_factor) + @as(f32, @floatFromInt(color.g)) * blend_factor));
+                                            pixels[index + 2] = @as(u8, @intFromFloat(@as(f32, @floatFromInt(pixels[index + 2])) * (1.0 - blend_factor) + @as(f32, @floatFromInt(color.b)) * blend_factor));
                                             pixels[index + 3] = @as(u8, @intFromFloat(combined_alpha * 255.0));
                                         }
                                     } else {
-                                        // 直接设置像素，使用子像素覆盖度
-                                        pixels[index] = @as(u8, @intFromFloat(@as(f32, @floatFromInt(color.r)) * r_coverage));
-                                        pixels[index + 1] = @as(u8, @intFromFloat(@as(f32, @floatFromInt(color.g)) * g_coverage));
-                                        pixels[index + 2] = @as(u8, @intFromFloat(@as(f32, @floatFromInt(color.b)) * b_coverage));
+                                        // 直接设置像素，使用统一的覆盖度
+                                        pixels[index] = @as(u8, @intFromFloat(@as(f32, @floatFromInt(color.r)) * final_alpha));
+                                        pixels[index + 1] = @as(u8, @intFromFloat(@as(f32, @floatFromInt(color.g)) * final_alpha));
+                                        pixels[index + 2] = @as(u8, @intFromFloat(@as(f32, @floatFromInt(color.b)) * final_alpha));
                                         pixels[index + 3] = final_alpha_u8;
                                     }
                                 }
                             }
                         }
-                        
+
                         fill_start_x = null; // 重置填充起始点
                     }
                 }
@@ -410,169 +446,106 @@ pub const GlyphRenderer = struct {
         return self.calculateCoverageWithMSDF(pixel_x, pixel_y, x1, x2, 16.0);
     }
 
-    /// 计算像素的覆盖度（使用MSDF - 多通道有符号距离场）
-    /// 使用子像素采样和距离场方法获得更平滑的边缘
-    /// 参考Chrome的高质量抗锯齿算法和MSDF技术
-    /// font_size: 字体大小（像素），用于调整小字体的抗锯齿参数
+    /// 计算像素的覆盖度（使用精确的距离场方法）
+    /// 使用统一的距离场方法获得一致且平滑的边缘
+    /// 关键：确保相同位置总是产生相同的覆盖度，避免笔画粗细不均匀
+    /// font_size: 字体大小（像素），保留用于未来扩展
     fn calculateCoverageWithMSDF(_: *Self, pixel_x: f32, pixel_y: f32, x1: f32, x2: f32, font_size: f32) f32 {
-        const pixel_left = pixel_x - 0.5;
-        const pixel_top = pixel_y - 0.5;
-        
-        // 使用32x32子像素采样（1024个采样点）获得更精确和平滑的覆盖度
-        // 更高的采样精度可以获得更接近Chrome的丝滑效果
-        const sub_samples = 32;
-        var covered: f32 = 0.0;
-        const sample_step = 1.0 / @as(f32, @floatFromInt(sub_samples));
-        
-        var sy: usize = 0;
-        while (sy < sub_samples) : (sy += 1) {
-            var sx: usize = 0;
-            while (sx < sub_samples) : (sx += 1) {
-                const sample_x = pixel_left + (@as(f32, @floatFromInt(sx)) + 0.5) * sample_step;
-                _ = pixel_top + (@as(f32, @floatFromInt(sy)) + 0.5) * sample_step; // Y坐标用于未来扩展
-                
-                // 检查采样点是否在轮廓内
-                if (sample_x >= x1 and sample_x < x2) {
-                    covered += 1.0;
-                }
-            }
-        }
-        
-        var coverage = covered / @as(f32, @floatFromInt(sub_samples * sub_samples));
-        
-        // 使用改进的距离场方法增强边缘平滑度
+        _ = pixel_y; // Y坐标用于未来扩展
+        _ = font_size; // 字体大小保留用于未来扩展
+
+        // 使用统一的距离场方法，确保相同距离产生相同的覆盖度
+        // 这是修复字体粗细不均匀的关键：使用纯距离场计算，避免采样不一致
         const center_x = pixel_x;
-        
-        // 计算到边缘的距离（使用更精确的距离计算）
+
+        // 判断是否在轮廓内部（使用精确的边界检查）
+        // 注意：使用 >= 和 < 确保边界的一致性，与扫描线算法保持一致
+        const is_inside = center_x >= x1 and center_x < x2;
+
+        // 计算到边缘的距离（使用精确的距离计算）
+        // 关键：使用像素中心到边缘的精确距离，确保一致性
         const dist_to_left = center_x - x1;
         const dist_to_right = x2 - center_x;
-        const min_x_dist = @min(@abs(dist_to_left), @abs(dist_to_right));
-        
-        // 判断是否在轮廓内部（完全覆盖）
-        const is_inside = center_x >= x1 and center_x < x2;
-        
-        // 根据字体大小调整抗锯齿参数
-        // 小字体需要更低的覆盖度以避免笔画过粗
-        const is_small_font = font_size < 20.0;
-        const min_coverage: f32 = if (is_small_font) 0.75 else 0.95; // 小字体降低最小覆盖度
-        const edge_coverage: f32 = if (is_small_font) 0.7 else 0.9; // 小字体降低边缘覆盖度
-        const internal_threshold: f32 = if (is_small_font) 0.6 else 0.8; // 小字体降低内部阈值
-        
-        // 使用更平滑的距离场算法，参考Chrome的实现
+
+        // 计算到最近边缘的距离
+        const min_dist_to_edge = @min(@abs(dist_to_left), @abs(dist_to_right));
+
+        // 使用可配置的MSDF范围，确保一致性
+        // 使用RenderParams中的配置值，方便调整优化
+        const msdf_range = RenderParams.msdf_range;
+        const edge_coverage = RenderParams.edge_coverage;
+
+        // 使用统一的smoothstep函数计算覆盖度
+        // 这确保了相同距离总是产生相同的覆盖度
+        // 关键优化：使用可配置的参数，确保笔画粗细一致
         if (is_inside) {
-            // 在轮廓内部
-            if (min_x_dist > internal_threshold) {
-                // 完全在内部，根据字体大小调整覆盖度
-                coverage = @max(coverage, min_coverage);
+            // 内部像素
+            if (min_dist_to_edge >= msdf_range) {
+                // 距离边缘足够远，完全覆盖
+                return 1.0;
             } else {
-                // 在边缘附近，使用平滑过渡
-                const smooth_range: f32 = 1.2;
-                if (min_x_dist < smooth_range) {
-                    // 使用更平滑的插值函数
-                    const t = min_x_dist / smooth_range;
-                    // 使用改进的smootherstep：提供更平滑的过渡
-                    const t2 = t * t;
-                    const t3 = t2 * t;
-                    const t4 = t3 * t;
-                    // 使用四次平滑函数，提供更平滑的过渡
-                    const smooth = t4 * (t * (t * 10.0 - 20.0) + 15.0) - t4 * 4.0 + 1.0;
-                    // 根据字体大小调整边缘覆盖度
-                    const edge_factor: f32 = if (is_small_font) 0.65 else 0.75;
-                    const smooth_factor: f32 = if (is_small_font) 0.15 else 0.2;
-                    coverage = coverage * (edge_factor + smooth * smooth_factor);
-                } else {
-                    // 距离边缘较远，根据字体大小调整覆盖度
-                    coverage = @max(coverage, edge_coverage);
-                }
-            }
-        } else {
-            // 在轮廓外部，使用平滑衰减
-            const smooth_range: f32 = 1.2;
-            if (min_x_dist < smooth_range) {
-                const t = min_x_dist / smooth_range;
+                // 在边缘附近，使用smoothstep平滑过渡
+                // 使用更精确的过渡，确保笔画粗细一致
+                const t = min_dist_to_edge / msdf_range; // 归一化到[0, 1]
                 const t2 = t * t;
-                const t3 = t2 * t;
-                const t4 = t3 * t;
-                const smooth = t4 * (t * (t * 10.0 - 20.0) + 15.0) - t4 * 4.0 + 1.0;
-                coverage = coverage * (1.0 - smooth);
-            } else {
-                coverage = 0.0;
+                const smooth = t2 * (3.0 - 2.0 * t); // smoothstep函数
+                // 覆盖度从edge_coverage（边缘，t=0）到1.0（内部，t=1）
+                // 使用可配置的边缘覆盖度，确保笔画更清晰且一致
+                return edge_coverage + smooth * (1.0 - edge_coverage);
             }
-        }
-        
-        // 使用MSDF（多通道有符号距离场）方法
-        // MSDF使用有符号距离场来获得更精确的边缘检测和平滑过渡
-        const signed_distance = if (is_inside) min_x_dist else -min_x_dist;
-        
-        // 使用MSDF的平滑函数：将距离转换为覆盖度
-        // 使用更平滑的过渡函数，参考MSDF的实现
-        // 小字体使用更小的MSDF范围，避免过度平滑导致笔画变粗
-        const msdf_range_val: f32 = if (is_small_font) 0.6 else 0.75; // 小字体减小MSDF范围
-        const msdf_range = msdf_range_val;
-        
-        if (@abs(signed_distance) < msdf_range) {
-            // 在平滑范围内，使用MSDF的平滑函数
-            const t = signed_distance / msdf_range;
-            // 使用smoothstep函数：t^2 * (3 - 2t)，提供平滑过渡
-            const t2 = t * t;
-            const smooth = t2 * (3.0 - 2.0 * t);
-            // MSDF的覆盖度计算：内部为正，外部为负
-            // 将signed_distance转换为覆盖度，使用平滑函数
-            // 小字体降低MSDF覆盖度的影响
-            const msdf_coverage = if (signed_distance > 0.0) 
-                0.5 + smooth * 0.5  // 内部：0.5到1.0
-            else 
-                0.5 - smooth * 0.5; // 外部：0.5到0.0
-            
-            // 结合原有的覆盖度和MSDF覆盖度，小字体降低MSDF的权重
-            const msdf_weight: f32 = if (is_small_font) 0.2 else 0.3;
-            const base_weight: f32 = 1.0 - msdf_weight;
-            coverage = coverage * base_weight + msdf_coverage * msdf_weight;
         } else {
-            // 在平滑范围外，保持原有覆盖度
-            // 如果距离足够远，直接使用距离场结果
-            if (signed_distance > msdf_range) {
-                coverage = 1.0;
-            } else if (signed_distance < -msdf_range) {
-                coverage = 0.0;
+            // 外部像素
+            if (min_dist_to_edge >= msdf_range) {
+                // 距离边缘足够远，完全不覆盖
+                return 0.0;
+            } else {
+                // 在边缘附近，使用smoothstep平滑过渡
+                const t = min_dist_to_edge / msdf_range; // 归一化到[0, 1]
+                const t2 = t * t;
+                const smooth = t2 * (3.0 - 2.0 * t); // smoothstep函数
+                // 覆盖度从edge_coverage（边缘，t=0）到0.0（外部，t=1）
+                // 使用可配置的边缘覆盖度，确保笔画更清晰且一致
+                return edge_coverage * (1.0 - smooth);
             }
         }
-        
-        return @max(0.0, @min(1.0, coverage));
     }
 
     /// 应用字体Hinting（字体提示）
     /// Hinting用于在低分辨率下将字形坐标对齐到像素网格，提高清晰度
-    /// 
+    ///
     /// 参数：
     /// - coord: 原始坐标
     /// - font_size: 字体大小
-    /// 
+    ///
     /// 返回：对齐后的坐标
-    /// 
+    ///
     /// 实现说明：
-    /// - 对于小尺寸字体（< 20px），将坐标对齐到最近的像素边界
-    /// - 对于中等尺寸字体（20-40px），使用轻微对齐
-    /// - 对于大尺寸字体（> 40px），不应用hinting（保持平滑）
+    /// - 根据RenderParams.enable_hinting配置决定是否启用Hinting
+    /// - 禁用Hinting：保持原坐标不变，确保所有位置使用相同的精度
+    /// - 启用Hinting：根据字号动态调整Hinting强度，小字号下减弱对齐，避免过度网格化
+    /// - 引入亚像素偏移（+0.5），提高对齐精度
     fn applyHinting(_: *Self, coord: f32, font_size: f32) f32 {
-        // 如果字体很大，不需要hinting（保持平滑）
-        if (font_size > 40.0) {
-            return coord;
-        }
-        
-        // 对于小尺寸字体，应用grid fitting（网格对齐）
-        if (font_size < 20.0) {
-            // 强对齐：对齐到最近的像素边界
-            return @round(coord);
+        // 根据配置决定是否启用Hinting
+        if (RenderParams.enable_hinting) {
+            // 根据字号动态调整Hinting强度
+            // 小字号（<20px）下减弱Hinting强度，避免过度网格对齐导致笔画粗细不均
+            const hinting_amount = if (font_size < RenderParams.small_font_threshold)
+                RenderParams.hinting_strength
+            else
+                1.0;
+
+            // 应用Hinting强度：使用线性插值在原始坐标和对齐坐标之间
+            // 引入亚像素偏移（+0.5），提高对齐精度
+            const rounded = @round(coord + 0.5);
+            const original = coord;
+
+            // 线性插值：hinting_amount=0.5时，坐标在原始和对齐之间取中点
+            // 这样可以减少过度对齐，同时保持一定的清晰度
+            return original + (rounded - original) * hinting_amount;
         } else {
-            // 中等尺寸：轻微对齐，使用0.5像素的阈值
-            const rounded = @round(coord);
-            const diff = @abs(coord - rounded);
-            // 如果距离像素边界很近（< 0.3像素），对齐到边界
-            if (diff < 0.3) {
-                return rounded;
-            }
-            // 否则保持原坐标（保持平滑）
+            // 禁用Hinting：保持原坐标不变
+            // 这确保了所有位置的坐标都保持原始精度，避免对齐导致的不一致
+            // 这是修复笔画粗细不均匀的关键：避免hinting导致的不同位置对齐不一致
             return coord;
         }
     }
