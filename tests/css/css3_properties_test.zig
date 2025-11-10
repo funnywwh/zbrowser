@@ -1491,3 +1491,346 @@ test "CSS3 - word-wrap属性解析" {
         try testing.expectEqualStrings(ww_value, decl.value.keyword);
     }
 }
+
+test "CSS3 - border-style属性解析" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const border_styles = [_][]const u8{ "none", "solid", "dashed", "dotted", "double", "groove", "ridge", "inset", "outset" };
+
+    for (border_styles) |style_value| {
+        const css_input = try std.fmt.allocPrint(allocator, "div {{ border-style: {s}; }}", .{style_value});
+        defer allocator.free(css_input);
+
+        var parser_instance = css.Parser.init(css_input, allocator);
+        defer parser_instance.deinit();
+        var stylesheet = try parser_instance.parse();
+        defer stylesheet.deinit();
+
+        try testing.expectEqual(@as(usize, 1), stylesheet.rules.items.len);
+        const rule = stylesheet.rules.items[0];
+        const decl = rule.declarations.items[0];
+        try testing.expectEqualStrings("border-style", decl.name);
+        try testing.expect(decl.value == .keyword);
+        try testing.expectEqualStrings(style_value, decl.value.keyword);
+    }
+}
+
+test "CSS3 - outline属性解析" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 测试简单的outline值（none）
+    const css_input = "div { outline: none; }";
+    var parser_instance = css.Parser.init(css_input, allocator);
+    defer parser_instance.deinit();
+    var stylesheet = try parser_instance.parse();
+    defer stylesheet.deinit();
+
+    try testing.expectEqual(@as(usize, 1), stylesheet.rules.items.len);
+    const rule = stylesheet.rules.items[0];
+    const decl = rule.declarations.items[0];
+    try testing.expectEqualStrings("outline", decl.name);
+    try testing.expect(decl.value == .keyword);
+    try testing.expectEqualStrings("none", decl.value.keyword);
+}
+
+test "CSS3 - list-style-type属性解析" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const list_styles = [_][]const u8{ "none", "disc", "circle", "square", "decimal", "lower-roman", "upper-roman", "lower-alpha", "upper-alpha" };
+
+    for (list_styles) |list_style_value| {
+        const css_input = try std.fmt.allocPrint(allocator, "ul {{ list-style-type: {s}; }}", .{list_style_value});
+        defer allocator.free(css_input);
+
+        var parser_instance = css.Parser.init(css_input, allocator);
+        defer parser_instance.deinit();
+        var stylesheet = try parser_instance.parse();
+        defer stylesheet.deinit();
+
+        try testing.expectEqual(@as(usize, 1), stylesheet.rules.items.len);
+        const rule = stylesheet.rules.items[0];
+        const decl = rule.declarations.items[0];
+        try testing.expectEqualStrings("list-style-type", decl.name);
+        try testing.expect(decl.value == .keyword);
+        try testing.expectEqualStrings(list_style_value, decl.value.keyword);
+    }
+}
+
+test "CSS3 - list-style-position属性解析" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const list_positions = [_][]const u8{ "inside", "outside" };
+
+    for (list_positions) |pos_value| {
+        const css_input = try std.fmt.allocPrint(allocator, "ul {{ list-style-position: {s}; }}", .{pos_value});
+        defer allocator.free(css_input);
+
+        var parser_instance = css.Parser.init(css_input, allocator);
+        defer parser_instance.deinit();
+        var stylesheet = try parser_instance.parse();
+        defer stylesheet.deinit();
+
+        try testing.expectEqual(@as(usize, 1), stylesheet.rules.items.len);
+        const rule = stylesheet.rules.items[0];
+        const decl = rule.declarations.items[0];
+        try testing.expectEqualStrings("list-style-position", decl.name);
+        try testing.expect(decl.value == .keyword);
+        try testing.expectEqualStrings(pos_value, decl.value.keyword);
+    }
+}
+
+test "CSS3 - text-decoration属性解析" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const text_decorations = [_][]const u8{ "none", "underline", "overline", "line-through", "blink" };
+
+    for (text_decorations) |decoration_value| {
+        const css_input = try std.fmt.allocPrint(allocator, "div {{ text-decoration: {s}; }}", .{decoration_value});
+        defer allocator.free(css_input);
+
+        var parser_instance = css.Parser.init(css_input, allocator);
+        defer parser_instance.deinit();
+        var stylesheet = try parser_instance.parse();
+        defer stylesheet.deinit();
+
+        try testing.expectEqual(@as(usize, 1), stylesheet.rules.items.len);
+        const rule = stylesheet.rules.items[0];
+        const decl = rule.declarations.items[0];
+        try testing.expectEqualStrings("text-decoration", decl.name);
+        try testing.expect(decl.value == .keyword);
+        try testing.expectEqualStrings(decoration_value, decl.value.keyword);
+    }
+}
+
+test "CSS3 - text-transform属性解析" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const text_transforms = [_][]const u8{ "none", "capitalize", "uppercase", "lowercase" };
+
+    for (text_transforms) |transform_value| {
+        const css_input = try std.fmt.allocPrint(allocator, "div {{ text-transform: {s}; }}", .{transform_value});
+        defer allocator.free(css_input);
+
+        var parser_instance = css.Parser.init(css_input, allocator);
+        defer parser_instance.deinit();
+        var stylesheet = try parser_instance.parse();
+        defer stylesheet.deinit();
+
+        try testing.expectEqual(@as(usize, 1), stylesheet.rules.items.len);
+        const rule = stylesheet.rules.items[0];
+        const decl = rule.declarations.items[0];
+        try testing.expectEqualStrings("text-transform", decl.name);
+        try testing.expect(decl.value == .keyword);
+        try testing.expectEqualStrings(transform_value, decl.value.keyword);
+    }
+}
+
+test "CSS3 - font-weight属性解析" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const font_weights = [_][]const u8{ "normal", "bold", "bolder", "lighter", "100", "200", "300", "400", "500", "600", "700", "800", "900" };
+
+    for (font_weights) |weight_value| {
+        const css_input = try std.fmt.allocPrint(allocator, "div {{ font-weight: {s}; }}", .{weight_value});
+        defer allocator.free(css_input);
+
+        var parser_instance = css.Parser.init(css_input, allocator);
+        defer parser_instance.deinit();
+        var stylesheet = try parser_instance.parse();
+        defer stylesheet.deinit();
+
+        try testing.expectEqual(@as(usize, 1), stylesheet.rules.items.len);
+        const rule = stylesheet.rules.items[0];
+        const decl = rule.declarations.items[0];
+        try testing.expectEqualStrings("font-weight", decl.name);
+    }
+}
+
+test "CSS3 - font-style属性解析" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const font_styles = [_][]const u8{ "normal", "italic", "oblique" };
+
+    for (font_styles) |style_value| {
+        const css_input = try std.fmt.allocPrint(allocator, "div {{ font-style: {s}; }}", .{style_value});
+        defer allocator.free(css_input);
+
+        var parser_instance = css.Parser.init(css_input, allocator);
+        defer parser_instance.deinit();
+        var stylesheet = try parser_instance.parse();
+        defer stylesheet.deinit();
+
+        try testing.expectEqual(@as(usize, 1), stylesheet.rules.items.len);
+        const rule = stylesheet.rules.items[0];
+        const decl = rule.declarations.items[0];
+        try testing.expectEqualStrings("font-style", decl.name);
+        try testing.expect(decl.value == .keyword);
+        try testing.expectEqualStrings(style_value, decl.value.keyword);
+    }
+}
+
+test "CSS3 - vertical-align属性解析" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const vertical_aligns = [_][]const u8{ "baseline", "sub", "super", "top", "text-top", "middle", "bottom", "text-bottom" };
+
+    for (vertical_aligns) |align_value| {
+        const css_input = try std.fmt.allocPrint(allocator, "span {{ vertical-align: {s}; }}", .{align_value});
+        defer allocator.free(css_input);
+
+        var parser_instance = css.Parser.init(css_input, allocator);
+        defer parser_instance.deinit();
+        var stylesheet = try parser_instance.parse();
+        defer stylesheet.deinit();
+
+        try testing.expectEqual(@as(usize, 1), stylesheet.rules.items.len);
+        const rule = stylesheet.rules.items[0];
+        const decl = rule.declarations.items[0];
+        try testing.expectEqualStrings("vertical-align", decl.name);
+        try testing.expect(decl.value == .keyword);
+        try testing.expectEqualStrings(align_value, decl.value.keyword);
+    }
+}
+
+test "CSS3 - direction属性解析" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const directions = [_][]const u8{ "ltr", "rtl" };
+
+    for (directions) |dir_value| {
+        const css_input = try std.fmt.allocPrint(allocator, "div {{ direction: {s}; }}", .{dir_value});
+        defer allocator.free(css_input);
+
+        var parser_instance = css.Parser.init(css_input, allocator);
+        defer parser_instance.deinit();
+        var stylesheet = try parser_instance.parse();
+        defer stylesheet.deinit();
+
+        try testing.expectEqual(@as(usize, 1), stylesheet.rules.items.len);
+        const rule = stylesheet.rules.items[0];
+        const decl = rule.declarations.items[0];
+        try testing.expectEqualStrings("direction", decl.name);
+        try testing.expect(decl.value == .keyword);
+        try testing.expectEqualStrings(dir_value, decl.value.keyword);
+    }
+}
+
+test "CSS3 - unicode-bidi属性解析" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const unicode_bidis = [_][]const u8{ "normal", "embed", "bidi-override", "isolate", "plaintext" };
+
+    for (unicode_bidis) |bidi_value| {
+        const css_input = try std.fmt.allocPrint(allocator, "div {{ unicode-bidi: {s}; }}", .{bidi_value});
+        defer allocator.free(css_input);
+
+        var parser_instance = css.Parser.init(css_input, allocator);
+        defer parser_instance.deinit();
+        var stylesheet = try parser_instance.parse();
+        defer stylesheet.deinit();
+
+        try testing.expectEqual(@as(usize, 1), stylesheet.rules.items.len);
+        const rule = stylesheet.rules.items[0];
+        const decl = rule.declarations.items[0];
+        try testing.expectEqualStrings("unicode-bidi", decl.name);
+        try testing.expect(decl.value == .keyword);
+        try testing.expectEqualStrings(bidi_value, decl.value.keyword);
+    }
+}
+
+test "CSS3 - table-layout属性解析" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const table_layouts = [_][]const u8{ "auto", "fixed" };
+
+    for (table_layouts) |layout_value| {
+        const css_input = try std.fmt.allocPrint(allocator, "table {{ table-layout: {s}; }}", .{layout_value});
+        defer allocator.free(css_input);
+
+        var parser_instance = css.Parser.init(css_input, allocator);
+        defer parser_instance.deinit();
+        var stylesheet = try parser_instance.parse();
+        defer stylesheet.deinit();
+
+        try testing.expectEqual(@as(usize, 1), stylesheet.rules.items.len);
+        const rule = stylesheet.rules.items[0];
+        const decl = rule.declarations.items[0];
+        try testing.expectEqualStrings("table-layout", decl.name);
+        try testing.expect(decl.value == .keyword);
+        try testing.expectEqualStrings(layout_value, decl.value.keyword);
+    }
+}
+
+test "CSS3 - border-collapse属性解析" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const border_collapses = [_][]const u8{ "separate", "collapse" };
+
+    for (border_collapses) |collapse_value| {
+        const css_input = try std.fmt.allocPrint(allocator, "table {{ border-collapse: {s}; }}", .{collapse_value});
+        defer allocator.free(css_input);
+
+        var parser_instance = css.Parser.init(css_input, allocator);
+        defer parser_instance.deinit();
+        var stylesheet = try parser_instance.parse();
+        defer stylesheet.deinit();
+
+        try testing.expectEqual(@as(usize, 1), stylesheet.rules.items.len);
+        const rule = stylesheet.rules.items[0];
+        const decl = rule.declarations.items[0];
+        try testing.expectEqualStrings("border-collapse", decl.name);
+        try testing.expect(decl.value == .keyword);
+        try testing.expectEqualStrings(collapse_value, decl.value.keyword);
+    }
+}
+
+test "CSS3 - empty-cells属性解析" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const empty_cells = [_][]const u8{ "show", "hide" };
+
+    for (empty_cells) |cell_value| {
+        const css_input = try std.fmt.allocPrint(allocator, "table {{ empty-cells: {s}; }}", .{cell_value});
+        defer allocator.free(css_input);
+
+        var parser_instance = css.Parser.init(css_input, allocator);
+        defer parser_instance.deinit();
+        var stylesheet = try parser_instance.parse();
+        defer stylesheet.deinit();
+
+        try testing.expectEqual(@as(usize, 1), stylesheet.rules.items.len);
+        const rule = stylesheet.rules.items[0];
+        const decl = rule.declarations.items[0];
+        try testing.expectEqualStrings("empty-cells", decl.name);
+        try testing.expect(decl.value == .keyword);
+        try testing.expectEqualStrings(cell_value, decl.value.keyword);
+    }
+}

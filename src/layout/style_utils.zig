@@ -88,7 +88,7 @@ pub fn parseLength(value: css_parser.Value, context: UnitContext) f32 {
     return switch (value) {
         .length => |l| {
             const num_value = @as(f32, @floatCast(l.value));
-            
+
             // 根据单位类型计算
             if (std.mem.eql(u8, l.unit, "px")) {
                 return num_value;
@@ -146,7 +146,7 @@ pub fn getPropertyLength(computed_style: *const cascade.ComputedStyle, name: []c
         return switch (decl.value) {
             .length => |l| {
                 const num_value = @as(f32, @floatCast(l.value));
-                
+
                 // 根据单位类型计算
                 if (std.mem.eql(u8, l.unit, "px")) {
                     return num_value;
