@@ -771,6 +771,12 @@ pub const CpuRenderBackend = struct {
         // 中文字体路径（按优先级排序）
         // 注意：这些字体通常也支持繁体中文
         const chinese_font_paths = [_][]const u8{
+            // 本地项目字体（优先）
+            "fonts/SourceHanSansSC-Regular.otf",   // 思源黑体简体中文（支持中文、日文、韩文）
+            "fonts/SourceHanSansSC-Medium.otf",    // 思源黑体简体中文（支持中文、日文、韩文）
+            "fonts/wqy-zenhei.ttc",                // 文泉驿正黑（支持中文）
+            "fonts/wqy-microhei.ttc",               // 文泉驿微米黑（支持中文）
+            // Windows系统字体
             "C:\\Windows\\Fonts\\msyh.ttc",        // 微软雅黑（支持简体+繁体）
             "C:\\Windows\\Fonts\\MSYH.ttc",
             "C:\\Windows\\Fonts\\msyhbd.ttc",       // 微软雅黑 Bold
@@ -781,7 +787,7 @@ pub const CpuRenderBackend = struct {
             "C:\\Windows\\Fonts\\SimHei.ttf",
             "C:\\Windows\\Fonts\\simkai.ttf",       // 楷体
             "C:\\Windows\\Fonts\\SimKai.ttf",
-            // 本地路径
+            // 本地路径（旧路径，保持兼容）
             "fonts/msyh.ttc",
             "fonts/simsun.ttc",
             "fonts/simhei.ttf",
@@ -809,6 +815,10 @@ pub const CpuRenderBackend = struct {
     fn tryLoadJapaneseFont(self: *CpuRenderBackend) !?*font_module.FontFace {
         // 日文字体路径（按优先级排序）
         const japanese_font_paths = [_][]const u8{
+            // 本地项目字体（优先，支持CJK）
+            "fonts/SourceHanSansSC-Regular.otf",   // 思源黑体（支持中文、日文、韩文）
+            "fonts/SourceHanSansSC-Medium.otf",    // 思源黑体（支持中文、日文、韩文）
+            // Windows系统字体
             "C:\\Windows\\Fonts\\msgothic.ttc",     // MS Gothic
             "C:\\Windows\\Fonts\\MSGothic.ttc",
             "C:\\Windows\\Fonts\\msmincho.ttc",     // MS Mincho
@@ -818,7 +828,7 @@ pub const CpuRenderBackend = struct {
             // 中文字体通常也支持日文汉字
             "C:\\Windows\\Fonts\\msyh.ttc",
             "C:\\Windows\\Fonts\\MSYH.ttc",
-            // 本地路径
+            // 本地路径（旧路径，保持兼容）
             "fonts/msgothic.ttc",
             "fonts/msmincho.ttc",
             "msgothic.ttc",
@@ -844,6 +854,10 @@ pub const CpuRenderBackend = struct {
     fn tryLoadKoreanFont(self: *CpuRenderBackend) !?*font_module.FontFace {
         // 韩文字体路径（按优先级排序）
         const korean_font_paths = [_][]const u8{
+            // 本地项目字体（优先，支持CJK）
+            "fonts/SourceHanSansSC-Regular.otf",   // 思源黑体（支持中文、日文、韩文）
+            "fonts/SourceHanSansSC-Medium.otf",    // 思源黑体（支持中文、日文、韩文）
+            // Windows系统字体
             "C:\\Windows\\Fonts\\malgun.ttf",       // Malgun Gothic（맑은 고딕）
             "C:\\Windows\\Fonts\\Malgun.ttf",
             "C:\\Windows\\Fonts\\malgunbd.ttf",    // Malgun Gothic Bold
@@ -852,7 +866,7 @@ pub const CpuRenderBackend = struct {
             "C:\\Windows\\Fonts\\Gulim.ttc",
             "C:\\Windows\\Fonts\\batang.ttc",       // Batang（바탕）
             "C:\\Windows\\Fonts\\Batang.ttc",
-            // 本地路径
+            // 本地路径（旧路径，保持兼容）
             "fonts/malgun.ttf",
             "fonts/gulim.ttc",
             "fonts/batang.ttc",
@@ -936,9 +950,66 @@ pub const CpuRenderBackend = struct {
             }
         }
         
+        // 尝试加载泰文字体（U+0E00 - U+0E7F）
+        if (codepoint >= 0x0E00 and codepoint <= 0x0E7F) {
+            const thai_font_paths = [_][]const u8{
+                // 本地项目字体（优先）
+                "fonts/NotoSansThai-Regular.ttf",
+                "fonts/NotoSansThai-Bold.ttf",
+                // Windows系统字体
+                "C:\\Windows\\Fonts\\tahoma.ttf",
+                "C:\\Windows\\Fonts\\Tahoma.ttf",
+            };
+            for (thai_font_paths) |path| {
+                if (self.font_manager.loadFont(path, "ThaiFont")) |face| {
+                    const glyph_index_opt = face.getGlyphIndex(codepoint) catch null;
+                    if (glyph_index_opt != null) {
+                        log.debug("Successfully loaded Thai font from: {s} for codepoint U+{X:0>4}\n", .{ path, codepoint });
+                        return face;
+                    }
+                } else |_| {
+                    continue;
+                }
+            }
+        }
+
+        // 尝试加载阿拉伯文字体（U+0600 - U+06FF, U+0750 - U+077F, U+08A0 - U+08FF, U+FB50 - U+FDFF, U+FE70 - U+FEFF）
+        if ((codepoint >= 0x0600 and codepoint <= 0x06FF) or
+            (codepoint >= 0x0750 and codepoint <= 0x077F) or
+            (codepoint >= 0x08A0 and codepoint <= 0x08FF) or
+            (codepoint >= 0xFB50 and codepoint <= 0xFDFF) or
+            (codepoint >= 0xFE70 and codepoint <= 0xFEFF))
+        {
+            const arabic_font_paths = [_][]const u8{
+                // 本地项目字体（优先）
+                "fonts/NotoSansArabic-Regular.ttf",
+                "fonts/NotoSansArabic-Bold.ttf",
+                // Windows系统字体
+                "C:\\Windows\\Fonts\\tahoma.ttf",
+                "C:\\Windows\\Fonts\\Tahoma.ttf",
+                "C:\\Windows\\Fonts\\arial.ttf",
+                "C:\\Windows\\Fonts\\Arial.ttf",
+            };
+            for (arabic_font_paths) |path| {
+                if (self.font_manager.loadFont(path, "ArabicFont")) |face| {
+                    const glyph_index_opt = face.getGlyphIndex(codepoint) catch null;
+                    if (glyph_index_opt != null) {
+                        log.debug("Successfully loaded Arabic font from: {s} for codepoint U+{X:0>4}\n", .{ path, codepoint });
+                        return face;
+                    }
+                } else |_| {
+                    continue;
+                }
+            }
+        }
+
         // 对于其他Unicode字符，尝试加载通用Unicode字体
         // 注意：Arial Unicode MS可能不在所有Windows系统上，所以作为最后尝试
         const unicode_font_paths = [_][]const u8{
+            // 本地项目字体（优先，支持CJK）
+            "fonts/SourceHanSansSC-Regular.otf",   // 思源黑体（支持中文、日文、韩文）
+            "fonts/SourceHanSansSC-Medium.otf",    // 思源黑体（支持中文、日文、韩文）
+            // Windows系统字体
             "C:\\Windows\\Fonts\\arialuni.ttf",          // Arial Unicode MS
             "C:\\Windows\\Fonts\\ArialUni.ttf",
             "C:\\Windows\\Fonts\\calibri.ttf",           // Calibri（支持一些Unicode字符）
@@ -968,7 +1039,12 @@ pub const CpuRenderBackend = struct {
         // 常见的字体文件路径（Windows）
         // 优先尝试中文字体
         const font_paths = [_][]const u8{
-            // 中文字体（优先）
+            // 本地项目字体（优先）
+            "fonts/SourceHanSansSC-Regular.otf",   // 思源黑体（支持CJK）
+            "fonts/SourceHanSansSC-Medium.otf",    // 思源黑体（支持CJK）
+            "fonts/wqy-zenhei.ttc",                // 文泉驿正黑（支持中文）
+            "fonts/wqy-microhei.ttc",               // 文泉驿微米黑（支持中文）
+            // Windows系统字体（中文字体）
             "C:\\Windows\\Fonts\\simsun.ttc",      // 宋体
             "C:\\Windows\\Fonts\\SimSun.ttc",
             "C:\\Windows\\Fonts\\msyh.ttc",        // 微软雅黑
@@ -984,7 +1060,7 @@ pub const CpuRenderBackend = struct {
             "C:\\Windows\\Fonts\\Arial.ttf",
             "C:\\Windows\\Fonts\\calibri.ttf",
             "C:\\Windows\\Fonts\\Calibri.ttf",
-            // 本地路径
+            // 本地路径（旧路径，保持兼容）
             "fonts/simsun.ttc",
             "fonts/msyh.ttc",
             "fonts/arial.ttf",
