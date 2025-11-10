@@ -354,6 +354,54 @@ test "parseGridTemplate boundary_case - empty input" {
     try testing.expectEqual(@as(usize, 0), tracks.items.len);
 }
 
+test "parseGridTemplate with minmax() function" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 测试 minmax(100px, 1fr)
+    var tracks = try style_utils.parseGridTemplate("minmax(100px, 1fr)", allocator);
+    defer tracks.deinit(allocator);
+    try testing.expectEqual(@as(usize, 1), tracks.items.len);
+    try testing.expect(tracks.items[0] == .minmax);
+    try testing.expectEqual(@as(f32, 100.0), tracks.items[0].minmax.min);
+    try testing.expectEqual(@as(f32, 1.0), tracks.items[0].minmax.max);
+    try testing.expectEqual(false, tracks.items[0].minmax.min_is_fr);
+    try testing.expectEqual(true, tracks.items[0].minmax.max_is_fr);
+
+    // 测试 minmax(1fr, 2fr)
+    var tracks2 = try style_utils.parseGridTemplate("minmax(1fr, 2fr)", allocator);
+    defer tracks2.deinit(allocator);
+    try testing.expectEqual(@as(usize, 1), tracks2.items.len);
+    try testing.expect(tracks2.items[0] == .minmax);
+    try testing.expectEqual(@as(f32, 1.0), tracks2.items[0].minmax.min);
+    try testing.expectEqual(@as(f32, 2.0), tracks2.items[0].minmax.max);
+    try testing.expectEqual(true, tracks2.items[0].minmax.min_is_fr);
+    try testing.expectEqual(true, tracks2.items[0].minmax.max_is_fr);
+
+    // 测试 minmax(50px, 200px)
+    var tracks3 = try style_utils.parseGridTemplate("minmax(50px, 200px)", allocator);
+    defer tracks3.deinit(allocator);
+    try testing.expectEqual(@as(usize, 1), tracks3.items.len);
+    try testing.expect(tracks3.items[0] == .minmax);
+    try testing.expectEqual(@as(f32, 50.0), tracks3.items[0].minmax.min);
+    try testing.expectEqual(@as(f32, 200.0), tracks3.items[0].minmax.max);
+    try testing.expectEqual(false, tracks3.items[0].minmax.min_is_fr);
+    try testing.expectEqual(false, tracks3.items[0].minmax.max_is_fr);
+
+    // 测试混合使用：minmax() 和其他值
+    var tracks4 = try style_utils.parseGridTemplate("100px minmax(50px, 1fr) 200px", allocator);
+    defer tracks4.deinit(allocator);
+    try testing.expectEqual(@as(usize, 3), tracks4.items.len);
+    try testing.expect(tracks4.items[0] == .fixed);
+    try testing.expectEqual(@as(f32, 100.0), tracks4.items[0].fixed);
+    try testing.expect(tracks4.items[1] == .minmax);
+    try testing.expectEqual(@as(f32, 50.0), tracks4.items[1].minmax.min);
+    try testing.expectEqual(@as(f32, 1.0), tracks4.items[1].minmax.max);
+    try testing.expect(tracks4.items[2] == .fixed);
+    try testing.expectEqual(@as(f32, 200.0), tracks4.items[2].fixed);
+}
+
 test "applyStyleToLayoutBox with width and height" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();

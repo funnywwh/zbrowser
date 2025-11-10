@@ -1111,6 +1111,13 @@ pub const GridTrackValue = union(enum) {
     fixed: f32,
     /// fr单位（fractional unit）
     fr: f32,
+    /// minmax()函数：minmax(min, max)
+    minmax: struct {
+        min: f32, // 最小值（固定值或fr单位）
+        max: f32, // 最大值（固定值或fr单位）
+        min_is_fr: bool, // min是否为fr单位
+        max_is_fr: bool, // max是否为fr单位
+    },
 };
 
 /// Grid属性解析
@@ -1178,6 +1185,35 @@ pub fn parseGridTemplate(value: []const u8, allocator: std.mem.Allocator) !std.A
                 std.log.warn("[StyleUtils] parseGridTemplate - unmatched repeat() function", .{});
                 break;
             }
+        } else if (i + 7 <= trimmed.len and std.mem.eql(u8, trimmed[i..i+7], "minmax(")) {
+            // 检查是否是minmax()函数
+            // 找到minmax()函数的结束位置（匹配的右括号）
+            var depth: usize = 0;
+            var j = i;
+            while (j < trimmed.len) {
+                if (trimmed[j] == '(') {
+                    depth += 1;
+                } else if (trimmed[j] == ')') {
+                    depth -= 1;
+                    if (depth == 0) {
+                        // 找到匹配的右括号
+                        const minmax_str = trimmed[i..j+1];
+                        if (parseMinmaxFunction(minmax_str)) |minmax_track| {
+                            try tracks.append(allocator, minmax_track);
+                        } else {
+                            std.log.warn("[StyleUtils] parseGridTemplate - failed to parse minmax: '{s}'", .{minmax_str});
+                        }
+                        i = j + 1;
+                        break;
+                    }
+                }
+                j += 1;
+            }
+            if (j >= trimmed.len) {
+                // 没有找到匹配的右括号，跳过
+                std.log.warn("[StyleUtils] parseGridTemplate - unmatched minmax() function", .{});
+                break;
+            }
         } else {
             // 解析单个轨道值（找到下一个空格或字符串结束）
             var j = i;
@@ -1237,13 +1273,91 @@ fn parseRepeatFunction(value: []const u8, allocator: std.mem.Allocator) !std.Arr
     return tracks;
 }
 
+/// 解析minmax()函数
+/// 格式：minmax(min, max)
+/// 例如：minmax(100px, 1fr) 或 minmax(1fr, 2fr)
+fn parseMinmaxFunction(value: []const u8) ?GridTrackValue {
+    // 去除"minmax("前缀和")"后缀
+    if (!std.mem.startsWith(u8, value, "minmax(")) return null;
+    if (!std.mem.endsWith(u8, value, ")")) return null;
+
+    const inner = std.mem.trim(u8, value[7..value.len - 1], " \t\n\r");
+    if (inner.len == 0) return null;
+
+    // 查找逗号分隔符
+    const comma_pos = std.mem.indexOf(u8, inner, ",") orelse return null;
+    const min_str = std.mem.trim(u8, inner[0..comma_pos], " \t\n\r");
+    const max_str = std.mem.trim(u8, inner[comma_pos + 1..], " \t\n\r");
+
+    // 解析min值
+    var min_value: f32 = 0;
+    var min_is_fr = false;
+    if (std.mem.endsWith(u8, min_str, "fr")) {
+        const num_str = min_str[0..min_str.len - 2];
+        if (std.fmt.parseFloat(f32, num_str)) |num| {
+            if (num >= 0) {
+                min_value = num;
+                min_is_fr = true;
+            } else {
+                return null;
+            }
+        } else |_| {
+            return null;
+        }
+    } else if (parsePxValue(min_str)) |num| {
+        min_value = num;
+        min_is_fr = false;
+    } else {
+        // 不支持auto、min-content、max-content等，返回null
+        return null;
+    }
+
+    // 解析max值
+    var max_value: f32 = 0;
+    var max_is_fr = false;
+    if (std.mem.endsWith(u8, max_str, "fr")) {
+        const num_str = max_str[0..max_str.len - 2];
+        if (std.fmt.parseFloat(f32, num_str)) |num| {
+            if (num >= 0) {
+                max_value = num;
+                max_is_fr = true;
+            } else {
+                return null;
+            }
+        } else |_| {
+            return null;
+        }
+    } else if (parsePxValue(max_str)) |num| {
+        max_value = num;
+        max_is_fr = false;
+    } else {
+        // 不支持auto、min-content、max-content等，返回null
+        return null;
+    }
+
+    return GridTrackValue{
+        .minmax = .{
+            .min = min_value,
+            .max = max_value,
+            .min_is_fr = min_is_fr,
+            .max_is_fr = max_is_fr,
+        },
+    };
+}
+
 /// 解析单个Grid轨道值
 /// 支持格式：
 /// - 固定值：如"100px"
 /// - fr单位：如"1fr"
+/// - minmax()函数：如"minmax(100px, 1fr)"
 fn parseGridTrackValue(value: []const u8) ?GridTrackValue {
     const trimmed = std.mem.trim(u8, value, " \t\n\r");
     if (trimmed.len == 0) return null;
+
+    // 检查是否是minmax()函数
+    if (std.mem.startsWith(u8, trimmed, "minmax(")) {
+        return parseMinmaxFunction(trimmed);
+    }
 
     // 检查是否是fr单位
     if (std.mem.endsWith(u8, trimmed, "fr")) {

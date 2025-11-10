@@ -102,6 +102,18 @@ pub fn layoutGrid(layout_box: *box.LayoutBox, containing_block: box.Size, styles
             switch (track) {
                 .fixed => |val| total_fixed += val,
                 .fr => |val| total_fr += val,
+                .minmax => |mm| {
+                    // minmax的最小值：如果是固定值则累加，如果是fr则累加到total_fr
+                    if (mm.min_is_fr) {
+                        total_fr += mm.min;
+                    } else {
+                        total_fixed += mm.min;
+                    }
+                    // minmax的最大值：如果是fr则累加到total_fr（用于计算可用空间）
+                    if (mm.max_is_fr) {
+                        total_fr += mm.max;
+                    }
+                },
             }
         }
         
@@ -116,6 +128,16 @@ pub fn layoutGrid(layout_box: *box.LayoutBox, containing_block: box.Size, styles
             const width = switch (track) {
                 .fixed => |val| val,
                 .fr => |val| val * fr_unit_size,
+                .minmax => |mm| blk: {
+                    // 计算minmax的实际值
+                    // 最小值：如果是固定值则直接使用，如果是fr则乘以fr_unit_size
+                    const min_val = if (mm.min_is_fr) mm.min * fr_unit_size else mm.min;
+                    // 最大值：如果是固定值则直接使用，如果是fr则乘以fr_unit_size
+                    const max_val = if (mm.max_is_fr) mm.max * fr_unit_size else mm.max;
+                    // 实际值应该在min和max之间，使用max（简化实现）
+                    // TODO: 完整实现需要根据内容大小动态调整
+                    break :blk @max(min_val, @min(max_val, available_width / @as(f32, @floatFromInt(grid_template_columns.items.len))));
+                },
             };
             column_widths.append(layout_box.allocator, width) catch {
                 layoutGridDefault(layout_box, containing_block);
@@ -175,6 +197,18 @@ pub fn layoutGrid(layout_box: *box.LayoutBox, containing_block: box.Size, styles
             switch (track) {
                 .fixed => |val| total_fixed += val,
                 .fr => |val| total_fr += val,
+                .minmax => |mm| {
+                    // minmax的最小值：如果是固定值则累加，如果是fr则累加到total_fr
+                    if (mm.min_is_fr) {
+                        total_fr += mm.min;
+                    } else {
+                        total_fixed += mm.min;
+                    }
+                    // minmax的最大值：如果是fr则累加到total_fr（用于计算可用空间）
+                    if (mm.max_is_fr) {
+                        total_fr += mm.max;
+                    }
+                },
             }
         }
         
@@ -189,6 +223,16 @@ pub fn layoutGrid(layout_box: *box.LayoutBox, containing_block: box.Size, styles
             const height = switch (track) {
                 .fixed => |val| val,
                 .fr => |val| val * fr_unit_size,
+                .minmax => |mm| blk: {
+                    // 计算minmax的实际值
+                    // 最小值：如果是固定值则直接使用，如果是fr则乘以fr_unit_size
+                    const min_val = if (mm.min_is_fr) mm.min * fr_unit_size else mm.min;
+                    // 最大值：如果是固定值则直接使用，如果是fr则乘以fr_unit_size
+                    const max_val = if (mm.max_is_fr) mm.max * fr_unit_size else mm.max;
+                    // 实际值应该在min和max之间，使用max（简化实现）
+                    // TODO: 完整实现需要根据内容大小动态调整
+                    break :blk @max(min_val, @min(max_val, available_height / @as(f32, @floatFromInt(grid_template_rows.items.len))));
+                },
             };
             row_heights.append(layout_box.allocator, height) catch {
                 layoutGridDefault(layout_box, containing_block);
