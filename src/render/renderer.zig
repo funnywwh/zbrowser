@@ -522,8 +522,22 @@ pub const Renderer = struct {
                 // 获取letter-spacing（从父元素继承）
                 const letter_spacing = if (layout_box.parent) |parent| parent.letter_spacing else null;
                 
-                std.log.debug("[Renderer] renderContent: calling fillText at ({d:.1}, {d:.1}), text=\"{s}\", rect=({d:.1}, {d:.1}, {d:.1}x{d:.1}), font_size={d:.1}, text_align={}, letter_spacing={?}", .{ text_x, baseline_y, transformed_text, rect.x, rect.y, rect.width, rect.height, font.size, if (layout_box.parent) |p| p.text_align else .left, letter_spacing });
-                self.render_backend.fillText(transformed_text, text_x, baseline_y, font, color, letter_spacing);
+                // 获取word-wrap和word-break属性（从父元素继承）
+                const word_wrap = if (layout_box.parent) |parent| parent.word_wrap else .normal;
+                const word_break = if (layout_box.parent) |parent| parent.word_break else .normal;
+                
+                // 检查是否需要处理文本断行
+                // 如果white-space是nowrap或pre，不处理断行
+                const should_wrap = white_space != .nowrap and white_space != .pre;
+                
+                if (should_wrap and rect.width > 0) {
+                    // 处理文本断行（word-wrap和word-break）
+                    try self.renderTextWithWordWrap(transformed_text, text_x, baseline_y, font, color, letter_spacing, rect.width, word_wrap, word_break, actual_line_height);
+                } else {
+                    // 不处理断行，直接渲染整个文本
+                    std.log.debug("[Renderer] renderContent: calling fillText at ({d:.1}, {d:.1}), text=\"{s}\", rect=({d:.1}, {d:.1}, {d:.1}x{d:.1}), font_size={d:.1}, text_align={}, letter_spacing={?}", .{ text_x, baseline_y, transformed_text, rect.x, rect.y, rect.width, rect.height, font.size, if (layout_box.parent) |p| p.text_align else .left, letter_spacing });
+                    self.render_backend.fillText(transformed_text, text_x, baseline_y, font, color, letter_spacing);
+                }
                 
                 // 绘制文本装饰（text-decoration）
                 // 获取父元素的text-decoration属性（文本节点继承父元素的装饰）
@@ -874,6 +888,97 @@ pub const Renderer = struct {
         }
 
         return j;
+    }
+
+    /// 渲染文本（处理word-wrap和word-break）
+    /// 根据word-wrap和word-break属性将文本分割成多行并分别渲染
+    /// TODO: 完整实现需要：
+    /// 1. 更准确的单词边界检测
+    /// 2. 处理CJK字符的断行规则（keep-all）
+    /// 3. 与布局阶段配合，正确处理行高和垂直对齐
+    fn renderTextWithWordWrap(self: *Renderer, text: []const u8, start_x: f32, start_y: f32, font: backend.Font, color: backend.Color, letter_spacing: ?f32, max_width: f32, word_wrap: box.WordWrap, word_break: box.WordBreak, line_height: f32) !void {
+        if (text.len == 0) {
+            return;
+        }
+
+        var current_y = start_y;
+        var line_start: usize = 0;
+        var i: usize = 0;
+
+        while (i < text.len) {
+            // 找到当前行的结束位置
+            var line_end: usize = i;
+            var last_break_pos: usize = line_start; // 最后一个可断行位置（空格或单词边界）
+
+            // 逐字符检查，找到适合的断行位置
+            while (line_end < text.len) {
+                const char_width = try self.render_backend.calculateTextWidth(text[line_start..line_end + 1], start_x, font);
+                const line_width = char_width - start_x;
+
+                if (line_width > max_width and line_end > line_start) {
+                    // 当前行超出宽度，需要断行
+                    break;
+                }
+
+                // 记录可断行位置（空格或根据word-break规则）
+                const c = text[line_end];
+                if (c == ' ' or c == '\t') {
+                    last_break_pos = line_end + 1; // 空格后可以断行
+                } else if (word_break == .break_all) {
+                    // break-all: 任意字符都可以断行
+                    last_break_pos = line_end + 1;
+                } else if (word_wrap == .break_word) {
+                    // break-word: 允许在任意位置断行（长单词可以断行）
+                    last_break_pos = line_end + 1;
+                }
+
+                line_end += 1;
+            }
+
+            // 确定断行位置
+            var break_pos: usize = line_end;
+            if (line_end < text.len) {
+                // 需要断行
+                if (last_break_pos > line_start) {
+                    // 使用最后一个可断行位置
+                    break_pos = last_break_pos;
+                } else {
+                    // 没有找到可断行位置，强制在当前字符处断行
+                    break_pos = if (line_end > line_start) line_end else line_end + 1;
+                }
+            }
+
+            // 渲染当前行
+            const line_text = text[line_start..break_pos];
+            if (line_text.len > 0) {
+                // 去除行尾空格（除了最后一行）
+                var trimmed_line = line_text;
+                if (break_pos < text.len) {
+                    // 不是最后一行，去除尾随空格
+                    while (trimmed_line.len > 0 and (trimmed_line[trimmed_line.len - 1] == ' ' or trimmed_line[trimmed_line.len - 1] == '\t')) {
+                        trimmed_line = trimmed_line[0..trimmed_line.len - 1];
+                    }
+                }
+
+                if (trimmed_line.len > 0) {
+                    self.render_backend.fillText(trimmed_line, start_x, current_y, font, color, letter_spacing);
+                }
+            }
+
+            // 移动到下一行
+            if (break_pos < text.len) {
+                current_y += line_height;
+                line_start = break_pos;
+                // 跳过行首空格
+                while (line_start < text.len and (text[line_start] == ' ' or text[line_start] == '\t')) {
+                    line_start += 1;
+                }
+                i = line_start;
+            } else {
+                // 已处理完所有文本
+                break;
+            }
+        }
     }
 
     /// 应用text-transform转换
