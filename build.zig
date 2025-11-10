@@ -248,8 +248,17 @@ pub fn build(b: *std.Build) void {
     });
 
     // Font模块（需要在render_cpu_backend_module之前定义）
+    const font_cff_module = b.createModule(.{
+        .root_source_file = b.path("src/font/cff.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
     const font_ttf_module = b.createModule(.{
         .root_source_file = b.path("src/font/ttf.zig"),
+        .imports = &.{
+            .{ .name = "cff", .module = font_cff_module },
+        },
         .target = target,
         .optimize = optimize,
     });

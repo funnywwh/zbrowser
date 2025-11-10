@@ -51,6 +51,7 @@ const image_deflate_test = @import("tests/image/deflate_test.zig");
 // Font模块测试
 const font_font_test = @import("tests/font/font_test.zig");
 const font_ttf_test = @import("tests/font/ttf_test.zig");
+const font_cff_test = @import("tests/font/cff_test.zig");
 const font_glyph_test = @import("tests/font/glyph_test.zig");
 const font_hinting_test = @import("tests/font/hinting_test.zig");
 
@@ -104,6 +105,7 @@ test "all test modules imported" {
     _ = image_deflate_test;
     _ = font_font_test;
     _ = font_ttf_test;
+    _ = font_cff_test;
     _ = font_glyph_test;
     _ = font_hinting_test;
 

@@ -1,4 +1,5 @@
 const std = @import("std");
+const cff = @import("cff");
 
 /// TTF/OTF字体解析器
 /// 参考：TrueType规范、OpenType规范
@@ -156,7 +157,7 @@ pub const TtfParser = struct {
     /// 参数：
     /// - tag: 表标签（如 "cmap", "head", "hhea"）
     /// 返回：表数据（如果找到）
-    fn findTable(self: *Self, tag: []const u8) ?[]const u8 {
+    pub fn findTable(self: *Self, tag: []const u8) ?[]const u8 {
         if (tag.len != 4) {
             return null;
         }
@@ -286,13 +287,13 @@ pub const TtfParser = struct {
         // 查找包含codepoint的段
         var i: u16 = 0;
         while (i < seg_count) : (i += 1) {
-            const end_code = std.mem.readInt(u16, subtable[end_code_offset + @as(usize, i) * 2..][0..2], .big);
-            const start_code = std.mem.readInt(u16, subtable[start_code_offset + @as(usize, i) * 2..][0..2], .big);
+            const end_code = std.mem.readInt(u16, subtable[end_code_offset + @as(usize, i) * 2 ..][0..2], .big);
+            const start_code = std.mem.readInt(u16, subtable[start_code_offset + @as(usize, i) * 2 ..][0..2], .big);
 
             if (codepoint >= start_code and codepoint <= end_code) {
                 // 找到匹配的段
-                const id_delta = std.mem.readInt(i16, subtable[id_delta_offset + @as(usize, i) * 2..][0..2], .big);
-                const id_range_offset = std.mem.readInt(u16, subtable[id_range_offset_offset + @as(usize, i) * 2..][0..2], .big);
+                const id_delta = std.mem.readInt(i16, subtable[id_delta_offset + @as(usize, i) * 2 ..][0..2], .big);
+                const id_range_offset = std.mem.readInt(u16, subtable[id_range_offset_offset + @as(usize, i) * 2 ..][0..2], .big);
 
                 if (id_range_offset == 0) {
                     // 直接计算：glyphID = (codepoint + idDelta) & 0xFFFF
@@ -452,81 +453,164 @@ pub const TtfParser = struct {
             };
         };
 
-        // 获取下一个字形的偏移量以确定长度
-        const next_glyph_offset = if (is_long_format) blk: {
-            const offset = @as(usize, glyph_index + 1) * 4;
-            if (offset + 4 > loca_table.len) {
-                break :blk null;
-            }
-            break :blk std.mem.readInt(u32, loca_table[offset..][0..4], .big);
-        } else blk: {
-            const offset = @as(usize, glyph_index + 1) * 2;
-            if (offset + 2 > loca_table.len) {
-                break :blk null;
-            }
-            const short_offset = std.mem.readInt(u16, loca_table[offset..][0..2], .big);
-            break :blk @as(u32, short_offset) * 2;
-        };
+        // 检查字体轮廓格式
+        // OpenType字体可能使用：
+        // 1. glyf表（TrueType轮廓，二次贝塞尔曲线）- 已支持
+        // 2. CFF表（PostScript轮廓，三次贝塞尔曲线）- 待实现
+        // 3. CFF2表（PostScript轮廓v2）- 待实现
 
-        // 解析glyf表
-        const glyf_table = self.findTable("glyf") orelse {
-            var points = std.ArrayList(Glyph.Point){};
-            errdefer points.deinit(self.allocator);
-            var instructions = std.ArrayList(u8){};
-            errdefer instructions.deinit(self.allocator);
-            var contour_end_points = std.ArrayList(usize){};
-            errdefer contour_end_points.deinit(self.allocator);
-            return Glyph{
-                .glyph_index = glyph_index,
-                .points = points,
-                .instructions = instructions,
-                .contour_end_points = contour_end_points,
-            };
-        };
-
-        if (glyph_offset_value >= glyf_table.len) {
-            var points = std.ArrayList(Glyph.Point){};
-            errdefer points.deinit(self.allocator);
-            var instructions = std.ArrayList(u8){};
-            errdefer instructions.deinit(self.allocator);
-            var contour_end_points = std.ArrayList(usize){};
-            errdefer contour_end_points.deinit(self.allocator);
-            return Glyph{
-                .glyph_index = glyph_index,
-                .points = points,
-                .instructions = instructions,
-                .contour_end_points = contour_end_points,
-            };
+        // 优先尝试glyf表（TrueType轮廓）
+        const glyf_table = self.findTable("glyf");
+        if (glyf_table) |glyf| {
+            // 使用TrueType轮廓解析
+            return self.parseGlyfGlyph(glyf, glyph_index, glyph_offset_value);
         }
 
-        const glyph_length = if (next_glyph_offset) |next| blk: {
-            if (next <= glyph_offset_value) {
-                break :blk 0;
-            }
-            break :blk next - glyph_offset_value;
-        } else 0;
-
-        if (glyph_length == 0) {
-            // 空字形（如空格）
-            var points = std.ArrayList(Glyph.Point){};
-            errdefer points.deinit(self.allocator);
-            var instructions = std.ArrayList(u8){};
-            errdefer instructions.deinit(self.allocator);
-            var contour_end_points = std.ArrayList(usize){};
-            errdefer contour_end_points.deinit(self.allocator);
-            return Glyph{
-                .glyph_index = glyph_index,
-                .points = points,
-                .instructions = instructions,
-                .contour_end_points = contour_end_points,
-            };
+        // 如果找不到glyf表，尝试CFF表（PostScript轮廓）
+        const cff_table = self.findTable("CFF ");
+        if (cff_table) |cff_data| {
+            // 使用CFF解析器解析PostScript轮廓
+            return self.parseCffGlyph(cff_data, glyph_index);
         }
 
-        // 解析字形轮廓数据
-        return self.parseGlyphOutline(glyf_table[@intCast(glyph_offset_value)..], glyph_index);
+        // 如果都找不到，返回空字形
+        var points = std.ArrayList(Glyph.Point){};
+        errdefer points.deinit(self.allocator);
+        var instructions = std.ArrayList(u8){};
+        errdefer instructions.deinit(self.allocator);
+        var contour_end_points = std.ArrayList(usize){};
+        errdefer contour_end_points.deinit(self.allocator);
+        return Glyph{
+            .glyph_index = glyph_index,
+            .points = points,
+            .instructions = instructions,
+            .contour_end_points = contour_end_points,
+        };
     }
 
-    /// 解析字形轮廓数据
+    /// 解析glyf表中的字形（TrueType轮廓）
+    fn parseGlyfGlyph(self: *Self, glyf_table: []const u8, glyph_index: u16, glyph_offset: u32) !Glyph {
+        if (glyph_offset >= glyf_table.len) {
+            var points = std.ArrayList(Glyph.Point){};
+            errdefer points.deinit(self.allocator);
+            var instructions = std.ArrayList(u8){};
+            errdefer instructions.deinit(self.allocator);
+            var contour_end_points = std.ArrayList(usize){};
+            errdefer contour_end_points.deinit(self.allocator);
+            return Glyph{
+                .glyph_index = glyph_index,
+                .points = points,
+                .instructions = instructions,
+                .contour_end_points = contour_end_points,
+            };
+        }
+        return self.parseGlyphOutline(glyf_table[@intCast(glyph_offset)..], glyph_index);
+    }
+
+    /// 解析CFF表中的字形（PostScript轮廓）
+    fn parseCffGlyph(self: *Self, cff_data: []const u8, glyph_index: u16) !Glyph {
+        var cff_parser = try cff.CffParser.init(self.allocator, cff_data);
+        defer cff_parser.deinit();
+
+        // 获取CharString数据
+        const charstring_data = cff_parser.getCharString(glyph_index) catch {
+            // 如果获取失败，返回空字形
+            var points = std.ArrayList(Glyph.Point){};
+            errdefer points.deinit(self.allocator);
+            var instructions = std.ArrayList(u8){};
+            errdefer instructions.deinit(self.allocator);
+            var contour_end_points = std.ArrayList(usize){};
+            errdefer contour_end_points.deinit(self.allocator);
+            return Glyph{
+                .glyph_index = glyph_index,
+                .points = points,
+                .instructions = instructions,
+                .contour_end_points = contour_end_points,
+            };
+        };
+
+        // 解码CharString
+        var decoder = cff.CharStringDecoder.init(self.allocator, charstring_data);
+        defer decoder.deinit();
+
+        decoder.decode() catch {
+            // 如果解码失败，返回空字形
+            var points = std.ArrayList(Glyph.Point){};
+            errdefer points.deinit(self.allocator);
+            var instructions = std.ArrayList(u8){};
+            errdefer instructions.deinit(self.allocator);
+            var contour_end_points = std.ArrayList(usize){};
+            errdefer contour_end_points.deinit(self.allocator);
+            return Glyph{
+                .glyph_index = glyph_index,
+                .points = points,
+                .instructions = instructions,
+                .contour_end_points = contour_end_points,
+            };
+        };
+
+        // 转换PostScript点（f32）到TrueType点（i16）
+        // 注意：需要获取units_per_em来正确缩放
+        _ = self.findTable("head"); // 检查head表，但当前简化实现不使用units_per_em
+        return self.convertCffPointsToGlyph(&decoder, glyph_index);
+    }
+
+    /// 将CFF点转换为Glyph格式
+    fn convertCffPointsToGlyph(self: *Self, decoder: *cff.CharStringDecoder, glyph_index: u16) !Glyph {
+        var points = std.ArrayList(Glyph.Point){};
+        errdefer points.deinit(self.allocator);
+        var instructions = std.ArrayList(u8){};
+        errdefer instructions.deinit(self.allocator);
+        var contour_end_points = std.ArrayList(usize){};
+        errdefer contour_end_points.deinit(self.allocator);
+
+        // 转换CFF点（f32，三次贝塞尔）到Glyph点（i16，二次贝塞尔）
+        // TODO: 简化实现 - 当前将三次贝塞尔曲线近似为二次贝塞尔曲线
+        // 完整实现需要：
+        // 1. 支持三次贝塞尔曲线的直接渲染
+        // 2. 或者将三次贝塞尔曲线转换为多个二次贝塞尔曲线（De Casteljau算法）
+        // 参考：贝塞尔曲线转换算法
+
+        var i: usize = 0;
+        while (i < decoder.points.items.len) : (i += 1) {
+            const cff_point = decoder.points.items[i];
+
+            // 转换坐标（f32 -> i16）
+            // 注意：CFF使用字体单位坐标，需要根据units_per_em缩放
+            const x = @as(i16, @intFromFloat(cff_point.x));
+            const y = @as(i16, @intFromFloat(cff_point.y));
+
+            // 判断点类型
+            const is_control = switch (cff_point.point_type) {
+                1 => true, // 二次控制点
+                2, 3 => true, // 三次控制点（暂时标记为控制点）
+                else => false, // 普通点
+            };
+
+            try points.append(self.allocator, Glyph.Point{
+                .x = x,
+                .y = y,
+                .is_control = is_control,
+            });
+        }
+
+        // 转换轮廓结束点索引
+        for (decoder.contour_end_indices.items) |end_index| {
+            // 确保索引在有效范围内
+            if (end_index < points.items.len) {
+                try contour_end_points.append(self.allocator, end_index);
+            }
+        }
+
+        return Glyph{
+            .glyph_index = glyph_index,
+            .points = points,
+            .instructions = instructions,
+            .contour_end_points = contour_end_points,
+        };
+    }
+
+    /// 解析字形轮廓数据（TrueType格式）
     fn parseGlyphOutline(self: *Self, glyph_data: []const u8, glyph_index: u16) !Glyph {
         if (glyph_data.len < 10) {
             var points = std.ArrayList(Glyph.Point){};
@@ -616,7 +700,7 @@ pub const TtfParser = struct {
         }
 
         // 计算总点数（最后一个endPtsOfContours + 1）
-        const last_end_point = std.mem.readInt(u16, glyph_data[offset + @as(usize, num_contours - 1) * 2..][0..2], .big);
+        const last_end_point = std.mem.readInt(u16, glyph_data[offset + @as(usize, num_contours - 1) * 2 ..][0..2], .big);
         const total_points = @as(usize, last_end_point) + 1;
         offset += @as(usize, num_contours) * 2;
 
@@ -843,7 +927,7 @@ pub const TtfParser = struct {
         // 每个度量记录4字节：
         // - advanceWidth (u16)
         // - leftSideBearing (i16)
-        // 
+        //
         // 如果字形索引 >= numberOfHMetrics，使用最后一个度量记录的advanceWidth
         // 并从hmtx表的第二部分读取leftSideBearing（每个2字节）
 
@@ -858,9 +942,9 @@ pub const TtfParser = struct {
             }
 
             const advance_width = std.mem.readInt(u16, hmtx_table[offset..][0..2], .big);
-            const left_side_bearing = std.mem.readInt(i16, hmtx_table[offset + 2..][0..2], .big);
+            const left_side_bearing = std.mem.readInt(i16, hmtx_table[offset + 2 ..][0..2], .big);
 
-        return HorizontalMetrics{
+            return HorizontalMetrics{
                 .advance_width = advance_width,
                 .left_side_bearing = left_side_bearing,
             };
@@ -885,8 +969,8 @@ pub const TtfParser = struct {
             if (bearing_offset + 2 > hmtx_table.len) {
                 return HorizontalMetrics{
                     .advance_width = advance_width,
-            .left_side_bearing = 0,
-        };
+                    .left_side_bearing = 0,
+                };
             }
 
             const left_side_bearing = std.mem.readInt(i16, hmtx_table[bearing_offset..][0..2], .big);
@@ -903,19 +987,19 @@ pub const TtfParser = struct {
     pub fn getFpgm(self: *Self) ?[]const u8 {
         return self.findTable("fpgm");
     }
-    
+
     /// 获取prep表（Control Value Program）
     /// 返回：prep表数据（如果存在）
     pub fn getPrep(self: *Self) ?[]const u8 {
         return self.findTable("prep");
     }
-    
+
     /// 获取cvt表（Control Value Table）
     /// 返回：cvt表数据（如果存在）
     pub fn getCvt(self: *Self) ?[]const u8 {
         return self.findTable("cvt ");
     }
-    
+
     /// 获取字体度量信息
     pub fn getFontMetrics(self: *Self) !FontMetrics {
         // 解析head表获取units_per_em

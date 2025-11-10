@@ -438,26 +438,35 @@ pub const Parser = struct {
         const value = try self.parseValueList();
 
         // 检查!important
+        // 注意：parseValueList在遇到分号时会停止，current_token指向分号
+        // 需要先跳过分号，再检查!important
         var important = false;
         if (self.current_token) |t| {
-            if (t.token_type == .delim and t.data.delim == '!') {
+            if (t.token_type == .delim and t.data.delim == ';') {
+                // 跳过分号
                 try self.advance();
-                // 跳过空白（限制循环次数防止死循环）
-                var whitespace_count: u32 = 0;
-                while (self.current_token) |tok| {
-                    if (whitespace_count > 100) break; // 防止死循环
-                    if (tok.token_type == .whitespace) {
-                        try self.advance();
-                        whitespace_count += 1;
-                    } else {
-                        break;
+            }
+            // 检查!important
+            if (self.current_token) |tok| {
+                if (tok.token_type == .delim and tok.data.delim == '!') {
+                    try self.advance();
+                    // 跳过空白（限制循环次数防止死循环）
+                    var whitespace_count: u32 = 0;
+                    while (self.current_token) |t2| {
+                        if (whitespace_count > 100) break; // 防止死循环
+                        if (t2.token_type == .whitespace) {
+                            try self.advance();
+                            whitespace_count += 1;
+                        } else {
+                            break;
+                        }
                     }
-                }
-                // 检查important关键字
-                if (self.current_token) |tok| {
-                    if (tok.token_type == .ident and std.mem.eql(u8, tok.data.ident, "important")) {
-                        important = true;
-                        try self.advance();
+                    // 检查important关键字
+                    if (self.current_token) |t3| {
+                        if (t3.token_type == .ident and std.mem.eql(u8, t3.data.ident, "important")) {
+                            important = true;
+                            try self.advance();
+                        }
                     }
                 }
             }
@@ -474,9 +483,6 @@ pub const Parser = struct {
     /// 解析值列表（支持多值属性，如 border: 2px solid #2196f3）
     /// 解析整个值列表，直到遇到分号或右大括号
     fn parseValueList(self: *Self) !Value {
-        // 记录开始位置（用于提取原始字符串）
-        const start_pos = self.tokenizer.pos;
-        
         // 收集所有token的字符串表示，直到遇到分号、右大括号或!important
         var value_parts = std.ArrayList([]const u8){};
         defer {
@@ -485,76 +491,74 @@ pub const Parser = struct {
             }
             value_parts.deinit(self.allocator);
         }
-        
+
         var token_count: usize = 0;
-        var end_pos: ?usize = null;
-        
+
         // 收集所有token，直到遇到分号、右大括号或!important
         while (self.current_token) |token| {
-            // 如果遇到分号或右大括号，停止
+            // 如果遇到分号或右大括号，停止（不处理这个token）
             if (token.token_type == .delim) {
                 const delim = token.data.delim;
                 if (delim == ';' or delim == '}') {
-                    end_pos = self.tokenizer.pos;
+                    // 不advance，保持current_token指向分号/右大括号
                     break;
                 }
                 // 如果遇到!，可能是!important，停止
                 if (delim == '!') {
-                    end_pos = self.tokenizer.pos;
                     break;
                 }
             }
             // 如果遇到EOF，停止
             if (token.token_type == .eof) {
-                end_pos = self.tokenizer.pos;
                 break;
             }
-            
+
             // 跳过空白token（但保留在组合字符串中）
             if (token.token_type == .whitespace) {
                 try self.advance();
                 continue;
             }
-            
+
             // 将token转换为字符串表示
             const token_str = try self.tokenToString(token);
             try value_parts.append(self.allocator, token_str);
             token_count += 1;
-            
+
             // 前进到下一个token
             try self.advance();
         }
-        
-        // 如果只有一个token，尝试解析为单个值
+
+        // 如果只有一个token，直接使用已收集的token字符串
         if (token_count == 1) {
-            // 回退到开始位置，使用parseValue解析
-            self.tokenizer.pos = start_pos;
-            if (self.current_token) |*token| {
-                token.deinit(self.allocator);
-            }
-            self.current_token = try self.tokenizer.next();
-            return try self.parseValue();
+            // 使用已收集的token字符串创建关键字值
+            const keyword = value_parts.items[0];
+            // 注意：不能直接返回，因为value_parts会在defer中释放
+            // 需要复制字符串
+            const keyword_copy = try self.allocator.dupe(u8, keyword);
+            // 从value_parts中移除，避免defer释放
+            _ = value_parts.pop();
+            return Value{ .keyword = keyword_copy };
         }
-        
+
         // 如果有多个token，组合成关键字字符串
         if (token_count > 1) {
             // 使用收集的token字符串组合
             var result = std.ArrayList(u8){};
             defer result.deinit(self.allocator);
             result.ensureTotalCapacity(self.allocator, 100) catch {};
-            
+
             for (value_parts.items, 0..) |part, i| {
                 if (i > 0) {
                     try result.writer(self.allocator).writeAll(" ");
                 }
                 try result.writer(self.allocator).writeAll(part);
             }
-            
+
             const keyword = try result.toOwnedSlice(self.allocator);
             std.log.debug("[Parser] parseValueList: parsed multi-value property = '{s}' (token_count={d})", .{ keyword, token_count });
             return Value{ .keyword = keyword };
         }
-        
+
         return error.InvalidValue;
     }
 

@@ -1,4 +1,5 @@
 const std = @import("std");
+const testing = std.testing;
 const css = @import("css");
 const selector = @import("selector");
 
@@ -13,21 +14,25 @@ test "parse simple CSS rule" {
     var stylesheet = try parser.parse();
     defer stylesheet.deinit();
 
-    std.debug.assert(stylesheet.rules.items.len == 1);
+    try testing.expectEqual(@as(usize, 1), stylesheet.rules.items.len);
     const rule = stylesheet.rules.items[0];
-    std.debug.assert(rule.selectors.items.len == 1);
+    try testing.expectEqual(@as(usize, 1), rule.selectors.items.len);
     // 检查选择器：应该是类型选择器 "div"
     const sel = &rule.selectors.items[0];
-    std.debug.assert(sel.sequences.items.len == 1);
+    try testing.expectEqual(@as(usize, 1), sel.sequences.items.len);
     const seq = &sel.sequences.items[0];
-    std.debug.assert(seq.selectors.items.len == 1);
-    std.debug.assert(seq.selectors.items[0].selector_type == .type);
-    std.debug.assert(std.mem.eql(u8, seq.selectors.items[0].value, "div"));
-    std.debug.assert(rule.declarations.items.len == 1);
+    try testing.expectEqual(@as(usize, 1), seq.selectors.items.len);
+    try testing.expectEqual(selector.SimpleSelectorType.type, seq.selectors.items[0].selector_type);
+    try testing.expectEqualStrings("div", seq.selectors.items[0].value);
+    try testing.expectEqual(@as(usize, 1), rule.declarations.items.len);
     const decl = rule.declarations.items[0];
-    std.debug.assert(std.mem.eql(u8, decl.name, "color"));
-    std.debug.assert(decl.value == .keyword);
-    std.debug.assert(std.mem.eql(u8, decl.value.keyword, "red"));
+    try testing.expectEqualStrings("color", decl.name);
+    try testing.expect(decl.value == .keyword);
+    // 打印实际值以便调试
+    if (!std.mem.eql(u8, decl.value.keyword, "red")) {
+        std.debug.print("Expected 'red', but got '{s}'\n", .{decl.value.keyword});
+    }
+    try testing.expectEqualStrings("red", decl.value.keyword);
 }
 
 test "parse CSS with multiple rules" {
