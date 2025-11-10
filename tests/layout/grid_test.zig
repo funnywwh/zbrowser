@@ -1261,9 +1261,7 @@ test "layoutGrid with justify-content flex-end" {
     try testing.expect(item2_box.box_model.content.x + item2_box.box_model.content.width <= container_box.box_model.content.width + 1.0);
 }
 
-// TODO: 修复段错误问题后再启用
-// test "layoutGrid boundary - many items auto-placement" {
-test "layoutGrid boundary - many items auto-placement disabled" {
+test "layoutGrid boundary - many items auto-placement" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
@@ -1299,12 +1297,16 @@ test "layoutGrid boundary - many items auto-placement disabled" {
         try container_box.children.append(allocator, item_boxes[i]);
         item_boxes[i].parent = &container_box;
     }
-    // 清理：先释放LayoutBox，再释放Node
+    // 清理：先清空children（避免container_box.deinit()访问悬空指针），再释放item_boxes，最后释放item_nodes
     defer {
+        // 先清空children，避免container_box.deinit()访问悬空指针
+        container_box.children.clearAndFree(allocator);
+        // 然后释放item_boxes的内存
         for (item_boxes) |item_box| {
             item_box.deinit();
             allocator.destroy(item_box);
         }
+        // 最后释放item_nodes
         for (item_nodes) |item_node| {
             test_helpers.freeNode(allocator, item_node);
         }
@@ -1324,8 +1326,6 @@ test "layoutGrid boundary - many items auto-placement disabled" {
         try testing.expect(item_box.box_model.content.x + item_box.box_model.content.width <= container_box.box_model.content.width);
         try testing.expect(item_box.box_model.content.y + item_box.box_model.content.height <= container_box.box_model.content.height);
     }
-    // 暂时跳过，避免段错误
-    try testing.expect(true);
 }
 
 test "layoutGrid boundary - single column grid" {
