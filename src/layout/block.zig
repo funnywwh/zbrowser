@@ -39,6 +39,37 @@ pub fn layoutBlock(layout_box: *box.LayoutBox, containing_block: box.Size) !void
 
     // 遍历所有子元素
     for (layout_box.children.items) |child| {
+        // 跳过head、title、meta、script、style、link等元数据标签（它们不应该参与布局）
+        if (child.node.node_type == .element) {
+            if (child.node.asElement()) |elem| {
+                const tag_name = elem.tag_name;
+                if (std.mem.eql(u8, tag_name, "title") or
+                    std.mem.eql(u8, tag_name, "head") or
+                    std.mem.eql(u8, tag_name, "meta") or
+                    std.mem.eql(u8, tag_name, "script") or
+                    std.mem.eql(u8, tag_name, "style") or
+                    std.mem.eql(u8, tag_name, "link"))
+                {
+                    continue;
+                }
+            }
+        }
+        
+        // 跳过空白文本节点（它们不应该参与布局）
+        if (child.node.node_type == .text) {
+            const text_content = child.node.data.text;
+            var is_whitespace = true;
+            for (text_content) |char| {
+                if (!std.ascii.isWhitespace(char)) {
+                    is_whitespace = false;
+                    break;
+                }
+            }
+            if (is_whitespace) {
+                continue;
+            }
+        }
+        
         // 处理浮动元素
         if (child.float != .none) {
             // 关键修复：浮动元素需要先计算自己的宽度和高度

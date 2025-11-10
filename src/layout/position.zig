@@ -110,8 +110,9 @@ fn layoutAbsolute(layout_box: *box.LayoutBox, containing_block: box.Size) void {
         if (anc.position != .static) {
             // 找到定位祖先，使用其内容区域的位置
             // 注意：对于relative定位的元素，内容区域位置就是正常流位置（relative只是偏移，不影响包含块）
-            containing_block_x = anc.box_model.content.x;
-            containing_block_y = anc.box_model.content.y;
+            // absolute定位应该相对于定位祖先的padding区域，所以需要加上padding.left和padding.top
+            containing_block_x = anc.box_model.content.x + anc.box_model.padding.left;
+            containing_block_y = anc.box_model.content.y + anc.box_model.padding.top;
             positioned_ancestor = anc;
             const node_type_str = switch (anc.node.node_type) {
                 .element => if (anc.node.asElement()) |elem| elem.tag_name else "unknown",
@@ -139,14 +140,23 @@ fn layoutAbsolute(layout_box: *box.LayoutBox, containing_block: box.Size) void {
         std.log.debug("[Position] layoutAbsolute: set x = {d:.1} + {d:.1} = {d:.1}", .{ containing_block_x, left, layout_box.box_model.content.x });
     } else if (layout_box.position_right) |right| {
         // right值相对于包含块的右边缘
+        // absolute定位应该相对于定位祖先的padding区域，所以block_width应该包含padding
         const total_width = layout_box.box_model.content.width +
             layout_box.box_model.padding.horizontal() +
             layout_box.box_model.border.horizontal();
         const block_width = if (positioned_ancestor) |anc|
-            anc.box_model.content.width
+            anc.box_model.content.width + anc.box_model.padding.left + anc.box_model.padding.right
         else
             containing_block.width;
-        layout_box.box_model.content.x = containing_block_x + block_width - total_width - right;
+        // 计算x坐标，确保不超出定位祖先的右边界
+        const calculated_x = containing_block_x + block_width - total_width - right;
+        // 确保元素的右边缘不超出定位祖先的右边界（containing_block_x + block_width）
+        // 元素的右边缘 = x + total_width，应该 <= containing_block_x + block_width
+        // 所以：x <= containing_block_x + block_width - total_width
+        const max_x = containing_block_x + block_width - total_width;
+        // 确保x坐标不小于containing_block_x（不超出左边界），也不大于max_x（不超出右边界）
+        layout_box.box_model.content.x = @max(containing_block_x, @min(calculated_x, max_x));
+        std.log.debug("[Position] layoutAbsolute: set x using right = {d:.1} + {d:.1} - {d:.1} - {d:.1} = {d:.1}, max_x={d:.1}, final={d:.1}", .{ containing_block_x, block_width, total_width, right, calculated_x, max_x, layout_box.box_model.content.x });
     } else {
         // 如果left和right都未设置，使用默认值0
         layout_box.box_model.content.x = containing_block_x;
@@ -159,11 +169,12 @@ fn layoutAbsolute(layout_box: *box.LayoutBox, containing_block: box.Size) void {
         std.log.debug("[Position] layoutAbsolute: set y = {d:.1} + {d:.1} = {d:.1}", .{ containing_block_y, top, layout_box.box_model.content.y });
     } else if (layout_box.position_bottom) |bottom| {
         // bottom值相对于包含块的下边缘
+        // absolute定位应该相对于定位祖先的padding区域，所以block_height应该包含padding
         const total_height = layout_box.box_model.content.height +
             layout_box.box_model.padding.vertical() +
             layout_box.box_model.border.vertical();
         const block_height = if (positioned_ancestor) |anc|
-            anc.box_model.content.height
+            anc.box_model.content.height + anc.box_model.padding.top + anc.box_model.padding.bottom
         else
             containing_block.height;
         layout_box.box_model.content.y = containing_block_y + block_height - total_height - bottom;
@@ -182,6 +193,8 @@ fn layoutFixed(layout_box: *box.LayoutBox, viewport: box.Size) void {
     std.log.debug("[Position] layoutFixed: start, position_left={?}, position_top={?}, viewport=({d:.1}x{d:.1})", .{ layout_box.position_left, layout_box.position_top, viewport.width, viewport.height });
 
     // fixed定位始终相对于视口(0, 0)，不查找定位祖先
+    // 注意：在headless浏览器中，fixed定位应该相对于整个页面的底部
+    // 所以，我们使用viewport.height作为页面高度来计算bottom位置
     const viewport_x: f32 = 0;
     const viewport_y: f32 = 0;
 
@@ -207,7 +220,7 @@ fn layoutFixed(layout_box: *box.LayoutBox, viewport: box.Size) void {
         layout_box.box_model.content.y = viewport_y + top;
         std.log.debug("[Position] layoutFixed: set y = {d:.1} + {d:.1} = {d:.1}", .{ viewport_y, top, layout_box.box_model.content.y });
     } else if (layout_box.position_bottom) |bottom| {
-        // bottom值相对于视口的底边缘
+        // bottom值相对于页面的底边缘（在headless浏览器中，使用整个页面的高度）
         const total_height = layout_box.box_model.content.height +
             layout_box.box_model.padding.vertical() +
             layout_box.box_model.border.vertical();
