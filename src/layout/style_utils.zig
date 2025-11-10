@@ -416,6 +416,17 @@ pub fn applyStyleToLayoutBox(layout_box: *box.LayoutBox, computed_style: *const 
         layout_box.overflow = parseOverflow(overflow_value);
     }
 
+    // 解析letter-spacing
+    const letter_spacing_context = createUnitContext(containing_size.width);
+    if (getPropertyLength(computed_style, "letter-spacing", letter_spacing_context)) |spacing| {
+        layout_box.letter_spacing = spacing;
+    } else if (getPropertyKeyword(computed_style, "letter-spacing")) |spacing_value| {
+        // 支持normal关键字（表示0）
+        if (std.mem.eql(u8, spacing_value, "normal")) {
+            layout_box.letter_spacing = null; // null表示使用默认间距（0）
+        }
+    }
+
     // 解析border-radius
     if (getPropertyLength(computed_style, "border-radius", createUnitContext(containing_size.width))) |border_radius_value| {
         layout_box.box_model.border_radius = border_radius_value;

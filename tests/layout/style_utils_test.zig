@@ -1002,3 +1002,58 @@ test "applyStyleToLayoutBox with individual border widths" {
     try testing.expectEqual(@as(f32, 3.0), layout_box.box_model.border.bottom);
     try testing.expectEqual(@as(f32, 4.0), layout_box.box_model.border.left);
 }
+
+test "applyStyleToLayoutBox with letter-spacing" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, node);
+
+    // 设置inline style属性
+    if (node.asElement()) |elem| {
+        try elem.setAttribute("style", "letter-spacing: 2px;", allocator);
+    }
+
+    var layout_box = box.LayoutBox.init(node, allocator);
+    defer layout_box.deinit();
+
+    var cascade_engine = cascade.Cascade.init(allocator);
+    var computed_style = try cascade_engine.computeStyle(node, &[_]css_parser.Stylesheet{});
+    defer computed_style.deinit();
+
+    const containing_size = box.Size{ .width = 800, .height = 600 };
+    style_utils.applyStyleToLayoutBox(&layout_box, &computed_style, containing_size);
+
+    // 检查letter-spacing是否正确应用
+    try testing.expect(layout_box.letter_spacing != null);
+    try testing.expectEqual(@as(f32, 2.0), layout_box.letter_spacing.?);
+}
+
+test "applyStyleToLayoutBox with letter-spacing normal" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, node);
+
+    // 设置inline style属性
+    if (node.asElement()) |elem| {
+        try elem.setAttribute("style", "letter-spacing: normal;", allocator);
+    }
+
+    var layout_box = box.LayoutBox.init(node, allocator);
+    defer layout_box.deinit();
+
+    var cascade_engine = cascade.Cascade.init(allocator);
+    var computed_style = try cascade_engine.computeStyle(node, &[_]css_parser.Stylesheet{});
+    defer computed_style.deinit();
+
+    const containing_size = box.Size{ .width = 800, .height = 600 };
+    style_utils.applyStyleToLayoutBox(&layout_box, &computed_style, containing_size);
+
+    // 检查letter-spacing normal应该为null（表示使用默认间距）
+    try testing.expect(layout_box.letter_spacing == null);
+}

@@ -231,6 +231,10 @@ pub const LayoutBox = struct {
     /// 溢出处理（overflow属性）
     overflow: Overflow,
 
+    /// 字符间距（letter-spacing属性）
+    /// 如果为null，表示使用默认字符间距（0）
+    letter_spacing: ?f32,
+
     /// 子布局框列表
     children: std.ArrayList(*LayoutBox),
 
@@ -276,6 +280,7 @@ pub const LayoutBox = struct {
             .text_decoration = .none, // 默认无装饰
             .line_height = .normal, // 默认行高
             .overflow = .visible, // 默认不裁剪
+            .letter_spacing = null, // 默认无额外字符间距
             .children = std.ArrayList(*LayoutBox){
                 .items = &[_]*LayoutBox{},
                 .capacity = 0,
