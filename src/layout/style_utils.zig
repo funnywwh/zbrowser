@@ -62,6 +62,59 @@ pub fn parseTextDecoration(value: []const u8) box.TextDecoration {
     return .none;
 }
 
+/// 解析line-height属性值
+/// 支持格式：
+/// - 数字值（如"1.5"，表示字体大小的倍数）
+/// - 长度值（如"20px"）
+/// - 百分比值（如"150%"）
+/// - "normal"（默认值）
+pub fn parseLineHeight(value: []const u8, _: f32) box.LineHeight {
+    const trimmed = std.mem.trim(u8, value, " \t\n\r");
+    if (trimmed.len == 0) {
+        return .normal;
+    }
+
+    // 检查是否是"normal"
+    if (std.mem.eql(u8, trimmed, "normal")) {
+        return .normal;
+    }
+
+    // 尝试解析为数字值（无单位，表示字体大小的倍数）
+    if (std.fmt.parseFloat(f32, trimmed)) |number| {
+        return .{ .number = number };
+    } else |_| {
+        // 解析失败，继续尝试其他格式
+    }
+
+    // 尝试解析为长度值（px单位）
+    if (parsePxValue(trimmed)) |length| {
+        return .{ .length = length };
+    }
+
+    // 尝试解析为百分比值
+    if (trimmed.len > 1 and trimmed[trimmed.len - 1] == '%') {
+        if (std.fmt.parseFloat(f32, trimmed[0..trimmed.len - 1])) |percent| {
+            return .{ .percent = percent };
+        } else |_| {
+            // 解析失败
+        }
+    }
+
+    // 如果都解析失败，返回normal
+    return .normal;
+}
+
+/// 计算实际行高值（像素）
+/// 根据line-height类型和字体大小计算实际的行高
+pub fn computeLineHeight(line_height: box.LineHeight, font_size: f32) f32 {
+    return switch (line_height) {
+        .normal => font_size * 1.2, // 默认行高约为字体大小的1.2倍
+        .number => |n| font_size * n,
+        .length => |l| l,
+        .percent => |p| font_size * p / 100.0,
+    };
+}
+
 /// 解析border-radius属性值
 /// 支持格式："10px"、"0"（作为0px）
 /// 返回解析的数值，如果解析失败返回null
@@ -331,6 +384,21 @@ pub fn applyStyleToLayoutBox(layout_box: *box.LayoutBox, computed_style: *const 
     // 解析text-decoration
     if (getPropertyKeyword(computed_style, "text-decoration")) |text_decoration_value| {
         layout_box.text_decoration = parseTextDecoration(text_decoration_value);
+    }
+
+    // 解析line-height
+    // 先获取font-size（用于计算实际行高，但解析line-height时不需要）
+    var font_size: f32 = 16.0; // 默认字体大小
+    const font_size_context = createUnitContext(containing_size.width);
+    if (getPropertyLength(computed_style, "font-size", font_size_context)) |fs| {
+        font_size = fs;
+    }
+    
+    if (getPropertyKeyword(computed_style, "line-height")) |line_height_value| {
+        layout_box.line_height = parseLineHeight(line_height_value, font_size);
+    } else if (getPropertyLength(computed_style, "line-height", createUnitContext(containing_size.width))) |line_height_length| {
+        // line-height是长度值（如20px）
+        layout_box.line_height = .{ .length = line_height_length };
     }
 
     // 解析border-radius

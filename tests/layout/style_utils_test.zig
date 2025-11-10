@@ -557,3 +557,97 @@ test "applyStyleToLayoutBox with border-radius" {
     try testing.expect(layout_box.box_model.border_radius != null);
     try testing.expectEqual(@as(f32, 10.0), layout_box.box_model.border_radius.?);
 }
+
+test "parseLineHeight - number value" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+
+    // 测试数字值（无单位）
+    const line_height1 = style_utils.parseLineHeight("1.5", 16.0);
+    try testing.expect(line_height1 == .number);
+    try testing.expectEqual(@as(f32, 1.5), line_height1.number);
+    
+    // 测试normal值
+    const line_height2 = style_utils.parseLineHeight("normal", 16.0);
+    try testing.expect(line_height2 == .normal);
+}
+
+test "parseLineHeight - length value" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+
+    // 测试长度值（px单位）
+    const line_height = style_utils.parseLineHeight("20px", 16.0);
+    try testing.expect(line_height == .length);
+    try testing.expectEqual(@as(f32, 20.0), line_height.length);
+}
+
+test "parseLineHeight - percent value" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+
+    // 测试百分比值
+    const line_height = style_utils.parseLineHeight("150%", 16.0);
+    try testing.expect(line_height == .percent);
+    try testing.expectEqual(@as(f32, 150.0), line_height.percent);
+}
+
+test "parseLineHeight boundary_case - empty input" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+
+    // 空输入应该返回normal
+    const line_height = style_utils.parseLineHeight("", 16.0);
+    try testing.expect(line_height == .normal);
+}
+
+test "computeLineHeight - all types" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+
+    const font_size: f32 = 16.0;
+    
+    // 测试normal
+    const normal_height = style_utils.computeLineHeight(.normal, font_size);
+    try testing.expectEqual(@as(f32, 19.2), normal_height); // 16 * 1.2
+    
+    // 测试数字值
+    const number_height = style_utils.computeLineHeight(.{ .number = 1.5 }, font_size);
+    try testing.expectEqual(@as(f32, 24.0), number_height); // 16 * 1.5
+    
+    // 测试长度值
+    const length_height = style_utils.computeLineHeight(.{ .length = 20.0 }, font_size);
+    try testing.expectEqual(@as(f32, 20.0), length_height);
+    
+    // 测试百分比值
+    const percent_height = style_utils.computeLineHeight(.{ .percent = 150.0 }, font_size);
+    try testing.expectEqual(@as(f32, 24.0), percent_height); // 16 * 150 / 100
+}
+
+test "applyStyleToLayoutBox with line-height" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, node);
+
+    // 设置inline style属性
+    if (node.asElement()) |elem| {
+        try elem.setAttribute("style", "line-height: 1.5;", allocator);
+    }
+
+    var layout_box = box.LayoutBox.init(node, allocator);
+    defer layout_box.deinit();
+
+    var cascade_engine = cascade.Cascade.init(allocator);
+    var computed_style = try cascade_engine.computeStyle(node, &[_]css_parser.Stylesheet{});
+    defer computed_style.deinit();
+
+    const containing_size = box.Size{ .width = 800, .height = 600 };
+    style_utils.applyStyleToLayoutBox(&layout_box, &computed_style, containing_size);
+
+    // 检查line-height是否正确应用
+    try testing.expect(layout_box.line_height == .number);
+    try testing.expectEqual(@as(f32, 1.5), layout_box.line_height.number);
+}

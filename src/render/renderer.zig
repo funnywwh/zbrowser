@@ -322,7 +322,18 @@ pub const Renderer = struct {
                 // 但是，如果rect.height为0（未设置高度），说明这是绝对定位的文本节点
                 // 对于绝对定位的文本节点，top值应该直接作为基线位置（或者加上一个小的偏移）
                 const ascent_ratio: f32 = 0.7; // 典型的ascent比例（降低以给descender更多空间）
-                const baseline_y = rect.y + font.size * ascent_ratio;
+                
+                // 获取line-height（从父元素继承）
+                const line_height = if (layout_box.parent) |parent| parent.line_height else .normal;
+                const actual_line_height = style_utils.computeLineHeight(line_height, font.size);
+                
+                // 如果line-height大于字体大小，文本应该垂直居中在行高内
+                // 基线位置 = rect.y + (line-height - font.size) / 2 + ascent
+                // 如果line-height小于等于字体大小，使用原来的计算方式
+                const baseline_y = if (actual_line_height > font.size) 
+                    rect.y + (actual_line_height - font.size) / 2.0 + font.size * ascent_ratio
+                else
+                    rect.y + font.size * ascent_ratio;
                 std.log.debug("[Renderer] renderContent: calling fillText at ({d:.1}, {d:.1}), text=\"{s}\", rect=({d:.1}, {d:.1}, {d:.1}x{d:.1}), font_size={d:.1}, text_align={}", .{ text_x, baseline_y, text_content, rect.x, rect.y, rect.width, rect.height, font.size, if (layout_box.parent) |p| p.text_align else .left });
                 self.render_backend.fillText(text_content, text_x, baseline_y, font, color);
                 

@@ -148,6 +148,18 @@ pub const TextDecoration = enum {
     overline,
 };
 
+/// 行高类型（line-height属性）
+pub const LineHeight = union(enum) {
+    /// 数字值（如1.5，表示字体大小的倍数）
+    number: f32,
+    /// 长度值（如20px）
+    length: f32,
+    /// 百分比值（如150%，表示字体大小的百分比）
+    percent: f32,
+    /// 默认值（normal，通常约为1.2）
+    normal,
+};
+
 /// 布局框（每个DOM元素对应一个布局框）
 pub const LayoutBox = struct {
     /// 对应的DOM节点
@@ -189,6 +201,9 @@ pub const LayoutBox = struct {
     /// 文本装饰方式（text-decoration属性）
     text_decoration: TextDecoration,
 
+    /// 行高（line-height属性）
+    line_height: LineHeight,
+
     /// 子布局框列表
     children: std.ArrayList(*LayoutBox),
 
@@ -228,6 +243,7 @@ pub const LayoutBox = struct {
             .grid_column_end = null,
             .text_align = .left, // 默认左对齐
             .text_decoration = .none, // 默认无装饰
+            .line_height = .normal, // 默认行高
             .children = std.ArrayList(*LayoutBox){
                 .items = &[_]*LayoutBox{},
                 .capacity = 0,
