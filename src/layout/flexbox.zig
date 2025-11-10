@@ -274,7 +274,19 @@ fn layoutFlexboxMultiLine(
 
         // 将line.items中的指针解引用并复制到line_items
         for (line.items.items) |item_ptr| {
-            line_items.append(layout_box.allocator, item_ptr.*) catch continue;
+            line_items.append(layout_box.allocator, item_ptr.*) catch {
+                // 如果append失败，跳过这一行
+                continue;
+            };
+        }
+
+        // 如果line_items为空，跳过这一行
+        if (line_items.items.len == 0) continue;
+
+        // 确保line_items和line.items的长度一致
+        if (line_items.items.len != line.items.items.len) {
+            // 长度不一致，跳过这一行
+            continue;
         }
 
         // 计算这一行的flex尺寸
@@ -299,10 +311,16 @@ fn layoutFlexboxMultiLine(
         var line_items_for_justify = std.ArrayList(FlexItem){};
         defer line_items_for_justify.deinit(layout_box.allocator);
         for (line.items.items) |item_ptr| {
-            line_items_for_justify.append(layout_box.allocator, item_ptr.*) catch continue;
+            line_items_for_justify.append(layout_box.allocator, item_ptr.*) catch {
+                // 如果append失败，跳过这一行
+                continue;
+            };
         }
-        applyJustifyContent(&line_items_for_justify, container_main_size, container_main_pos, justify_content, is_row, is_reverse);
-        // justify-content已经直接更新了layout_box的位置，不需要同步
+        // 确保长度一致
+        if (line_items_for_justify.items.len == line.items.items.len) {
+            applyJustifyContent(&line_items_for_justify, container_main_size, container_main_pos, justify_content, is_row, is_reverse);
+            // justify-content已经直接更新了layout_box的位置，不需要同步
+        }
 
         // 计算这一行的交叉轴尺寸（取最大item的交叉轴尺寸）
         var max_cross_size: f32 = 0;
@@ -318,10 +336,16 @@ fn layoutFlexboxMultiLine(
         var line_items_for_align = std.ArrayList(FlexItem){};
         defer line_items_for_align.deinit(layout_box.allocator);
         for (line.items.items) |item_ptr| {
-            line_items_for_align.append(layout_box.allocator, item_ptr.*) catch continue;
+            line_items_for_align.append(layout_box.allocator, item_ptr.*) catch {
+                // 如果append失败，跳过这一行
+                continue;
+            };
         }
-        applyAlignItems(&line_items_for_align, line.cross_size, container_cross_pos, align_items, is_row);
-        // align-items已经直接更新了layout_box的位置和尺寸，不需要同步
+        // 确保长度一致
+        if (line_items_for_align.items.len == line.items.items.len) {
+            applyAlignItems(&line_items_for_align, line.cross_size, container_cross_pos, align_items, is_row);
+            // align-items已经直接更新了layout_box的位置和尺寸，不需要同步
+        }
     }
 
     // 第三步：计算每行的交叉轴位置（应用align-content）
