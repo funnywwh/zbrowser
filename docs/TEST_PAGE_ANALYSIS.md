@@ -56,10 +56,14 @@
 - **状态**: 已实现
 - **支持**: 支持 `minmax(min, max)` 格式，min和max可以是固定值或fr单位
 
-#### ⚠️ Grid对齐属性完整实现
+#### ✅ Grid对齐属性完整实现
 - **位置**: `justify-items`, `align-items`, `justify-content`, `align-content`
-- **状态**: 部分实现（基本对齐已支持）
-- **影响**: 某些对齐选项可能不完全支持
+- **状态**: 已实现（主要对齐值已支持）
+- **支持**: 
+  - `justify-items`: start, end, center, stretch, left, right
+  - `align-items`: start, end, center, stretch
+  - `justify-content`: start, end, center, stretch, space-around, space-between, space-evenly, left, right (还支持flex-start/flex-end别名)
+  - `align-content`: start, end, center, stretch, space-around, space-between, space-evenly (还支持flex-start/flex-end别名)
 
 ### 2. Flexbox相关
 
@@ -125,16 +129,13 @@
 ## 优先级建议
 
 ### 高优先级（影响基本功能）
-1. **`flex` 简写属性完整实现** - Flexbox使用便利性
-2. **`minmax()` 函数** - Grid布局的高级功能
-3. **`white-space`** - 控制空白字符处理
-4. **`word-wrap` / `word-break`** - 控制单词换行
+1. **`white-space` 渲染/布局逻辑** - 控制空白字符处理（解析已实现，需要完善渲染逻辑）
+2. **`word-wrap` / `word-break` 渲染/布局逻辑** - 控制单词换行（解析已实现，需要完善渲染逻辑）
 
 ### 中优先级（增强功能）
-1. **`align-content` 多行对齐** - Flexbox多行布局
-2. **`text-transform`** - 文本样式增强
-3. **`box-shadow`** - 视觉效果增强
-4. **Grid对齐属性完整实现** - Grid布局完善
+1. **`transform`** - 变换效果（需要复杂的矩阵计算）
+2. **伪类选择器** - 交互效果
+3. **伪元素** - 内容生成
 
 ### 低优先级（优化功能）
 1. **`transform`** - 变换效果（需要复杂的矩阵计算）
@@ -161,21 +162,20 @@
 
 ## 总结
 
-**已实现功能**: 约 90%
+**已实现功能**: 约 95%
 - ✅ 核心布局系统完整（block, inline, flex, grid, position, float）
 - ✅ 基础样式支持完善（margin, padding, border, background, color）
 - ✅ 文本样式完整（font-size, font-weight, text-align, text-decoration, line-height, letter-spacing, vertical-align, text-transform, white-space, word-wrap, word-break）
 - ✅ 尺寸控制完整（width, height, min-width, min-height, max-width, max-height）
 - ✅ 视觉效果支持（opacity, z-index, overflow, border-radius, border-style, box-shadow）
 - ✅ Grid布局核心功能（repeat(), fr单位, minmax(), grid-row, grid-column）
-- ✅ Flexbox完整功能（align-content多行对齐）
+- ✅ Grid对齐属性完整实现（justify-items, align-items, justify-content, align-content，包括left/right值）
+- ✅ Flexbox完整功能（align-content多行对齐，flex简写属性完整实现）
 - ✅ HTML实体解析
 - ✅ 多语言支持完善
 
-**未实现功能**: 约 10%
-- ⚠️ Flexbox完整功能（`flex` 完整简写）
-- ⚠️ Grid对齐属性完整实现（部分对齐选项可能不完全支持）
-- ⚠️ 文本处理（`white-space`, `word-wrap` 的渲染/布局逻辑待完善）
+**未实现功能**: 约 5%
+- ⚠️ 文本处理（`white-space`, `word-wrap` 的渲染/布局逻辑待完善，解析已实现）
 - ⚠️ 视觉效果（`transform`）
 - ⚠️ 交互效果（伪类、伪元素、动画）
 
