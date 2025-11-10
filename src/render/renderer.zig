@@ -190,29 +190,64 @@ pub const Renderer = struct {
         }
     }
 
+    /// 获取边框样式
+    fn getBorderStyle(self: *Renderer, computed_style: *const cascade.ComputedStyle) ?[]const u8 {
+        // 先检查单独的border-style属性
+        if (style_utils.getPropertyKeyword(computed_style, "border-style")) |style| {
+            return style;
+        }
+        // 如果没有单独的border-style，尝试从border简写属性中提取
+        if (style_utils.getPropertyKeyword(computed_style, "border")) |border_value| {
+            if (self.parseBorderShorthand(border_value)) |border_info| {
+                if (border_info.style) |style| {
+                    return style;
+                }
+            }
+        }
+        // 默认返回solid
+        return "solid";
+    }
+
     /// 渲染边框
     fn renderBorder(self: *Renderer, layout_box: *box.LayoutBox, computed_style: *const cascade.ComputedStyle, rect: backend.Rect) !void {
-        // 获取边框颜色和宽度
+        // 获取边框颜色、宽度和样式
         const border_color = self.getBorderColor(computed_style);
         const border_width = self.getBorderWidth(computed_style);
+        const border_style = self.getBorderStyle(computed_style);
 
-        std.log.debug("[Renderer] renderBorder: border_color={?}, border_width={d:.1}, rect=({d:.1}, {d:.1}, {d:.1}x{d:.1})", .{
-            border_color, border_width, rect.x, rect.y, rect.width, rect.height,
+        std.log.debug("[Renderer] renderBorder: border_color={?}, border_width={d:.1}, border_style={?s}, rect=({d:.1}, {d:.1}, {d:.1}x{d:.1})", .{
+            border_color, border_width, border_style, rect.x, rect.y, rect.width, rect.height,
         });
 
         if (border_color) |color| {
             if (border_width > 0) {
+                // 检查边框样式
+                const style = border_style orelse "solid";
+                const is_dashed = std.mem.eql(u8, style, "dashed");
+                
                 // 检查是否有圆角
                 if (layout_box.box_model.border_radius) |radius| {
                     // 绘制圆角边框
                     self.drawRoundedRectPath(rect, radius);
-                    self.render_backend.stroke(color, border_width);
+                    if (is_dashed) {
+                        // TODO: 圆角虚线边框需要更复杂的实现
+                        // 当前简化：使用实线
+                        self.render_backend.stroke(color, border_width);
+                    } else {
+                        self.render_backend.stroke(color, border_width);
+                    }
                 } else {
-                    // 绘制普通矩形边框
-                    std.log.debug("[Renderer] renderBorder: calling strokeRect with color=#{x:0>2}{x:0>2}{x:0>2}, width={d:.1}", .{
-                        color.r, color.g, color.b, border_width,
-                    });
-                    self.render_backend.strokeRect(rect, color, border_width);
+                    // 绘制矩形边框
+                    if (is_dashed) {
+                        // 绘制虚线边框
+                        self.render_backend.strokeDashedRect(rect, color, border_width);
+                    } else {
+                        // 绘制实线边框
+                        std.log.debug("[Renderer] renderBorder: calling strokeRect with color=#{x:0>2}{x:0>2}{x:0>2}, width={d:.1}", .{
+                            color.r, color.g, color.b, border_width,
+                        });
+                        self.render_backend.strokeRect(rect, color, border_width);
+                    }
                 }
             } else {
                 std.log.debug("[Renderer] renderBorder: border_width is 0, skipping", .{});

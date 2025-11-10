@@ -234,6 +234,7 @@ pub const CpuRenderBackend = struct {
     const cpu_vtable = backend.RenderBackend.VTable{
         .fillRect = fillRectImpl,
         .strokeRect = strokeRectImpl,
+        .strokeDashedRect = strokeDashedRectImpl,
         .fillText = fillTextImpl,
         .drawImage = drawImageImpl,
         .beginPath = beginPathImpl,
@@ -344,6 +345,131 @@ pub const CpuRenderBackend = struct {
                 self.pixels[index + 1] = color.g;
                 self.pixels[index + 2] = color.b;
                 self.pixels[index + 3] = color.a;
+            }
+        }
+    }
+
+    /// 绘制虚线矩形边框
+    fn strokeDashedRectImpl(self_ptr: *backend.RenderBackend, rect: backend.Rect, color: backend.Color, width: f32) void {
+        const self = fromRenderBackend(self_ptr);
+        // 如果宽度为0或负数，不绘制
+        if (width <= 0) {
+            return;
+        }
+
+        const stroke_width = @as(i32, @intFromFloat(width));
+        if (stroke_width <= 0) {
+            return;
+        }
+
+        // 计算实际绘制区域（裁剪到画布边界）
+        const start_x = @max(0, @as(i32, @intFromFloat(rect.x)));
+        const start_y = @max(0, @as(i32, @intFromFloat(rect.y)));
+        const end_x = @min(@as(i32, @intCast(self.width)), @as(i32, @intFromFloat(rect.x + rect.width)));
+        const end_y = @min(@as(i32, @intCast(self.height)), @as(i32, @intFromFloat(rect.y + rect.height)));
+
+        // 如果矩形完全在边界外，不绘制
+        if (start_x >= end_x or start_y >= end_y) {
+            return;
+        }
+
+        // 虚线模式：每段长度约为边框宽度的3倍，间隔为边框宽度的2倍
+        const dash_length = @max(3, stroke_width * 3);
+        const gap_length = @max(2, stroke_width * 2);
+
+        // 绘制上边框（虚线）
+        const top_y_end = @min(end_y, start_y + stroke_width);
+        var y = start_y;
+        while (y < top_y_end) : (y += 1) {
+            var x = start_x;
+            var dash_pos: i32 = 0;
+            while (x < end_x) {
+                if (dash_pos < dash_length) {
+                    // 绘制虚线段
+                    const index = (@as(usize, @intCast(y)) * self.width + @as(usize, @intCast(x))) * 4;
+                    self.pixels[index] = color.r;
+                    self.pixels[index + 1] = color.g;
+                    self.pixels[index + 2] = color.b;
+                    self.pixels[index + 3] = color.a;
+                    x += 1;
+                    dash_pos += 1;
+                } else {
+                    // 跳过间隔
+                    x += gap_length;
+                    dash_pos = 0;
+                }
+            }
+        }
+
+        // 绘制下边框（虚线）
+        const bottom_y_start = @max(start_y, end_y - stroke_width);
+        y = bottom_y_start;
+        while (y < end_y) : (y += 1) {
+            var x = start_x;
+            var dash_pos: i32 = 0;
+            while (x < end_x) {
+                if (dash_pos < dash_length) {
+                    // 绘制虚线段
+                    const index = (@as(usize, @intCast(y)) * self.width + @as(usize, @intCast(x))) * 4;
+                    self.pixels[index] = color.r;
+                    self.pixels[index + 1] = color.g;
+                    self.pixels[index + 2] = color.b;
+                    self.pixels[index + 3] = color.a;
+                    x += 1;
+                    dash_pos += 1;
+                } else {
+                    // 跳过间隔
+                    x += gap_length;
+                    dash_pos = 0;
+                }
+            }
+        }
+
+        // 绘制左边框（虚线）
+        const left_x_end = @min(end_x, start_x + stroke_width);
+        y = start_y;
+        while (y < end_y) : (y += 1) {
+            var x = start_x;
+            var dash_pos: i32 = 0;
+            while (x < left_x_end) {
+                if (dash_pos < dash_length) {
+                    // 绘制虚线段
+                    const index = (@as(usize, @intCast(y)) * self.width + @as(usize, @intCast(x))) * 4;
+                    self.pixels[index] = color.r;
+                    self.pixels[index + 1] = color.g;
+                    self.pixels[index + 2] = color.b;
+                    self.pixels[index + 3] = color.a;
+                    x += 1;
+                    dash_pos += 1;
+                } else {
+                    // 跳过间隔
+                    x += gap_length;
+                    dash_pos = 0;
+                }
+            }
+        }
+
+        // 绘制右边框（虚线）
+        const right_x_start = @max(start_x, end_x - stroke_width);
+        y = start_y;
+        while (y < end_y) : (y += 1) {
+            var x = right_x_start;
+            var dash_pos: i32 = 0;
+            while (x < end_x) {
+                if (dash_pos < dash_length) {
+                    // 绘制虚线段
+                    const index = (@as(usize, @intCast(y)) * self.width + @as(usize, @intCast(x))) * 4;
+                    self.pixels[index] = color.r;
+                    self.pixels[index + 1] = color.g;
+                    self.pixels[index + 2] = color.b;
+                    self.pixels[index + 3] = color.a;
+                    x += 1;
+                    dash_pos += 1;
+                } else {
+                    // 跳过间隔
+                    x += gap_length;
+                    dash_pos = 0;
+                }
             }
         }
     }

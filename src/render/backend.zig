@@ -80,6 +80,7 @@ pub const RenderBackend = struct {
         // 基础绘制操作
         fillRect: *const fn (self: *RenderBackend, rect: Rect, color: Color) void,
         strokeRect: *const fn (self: *RenderBackend, rect: Rect, color: Color, width: f32) void,
+        strokeDashedRect: *const fn (self: *RenderBackend, rect: Rect, color: Color, width: f32) void,
         fillText: *const fn (self: *RenderBackend, text: []const u8, x: f32, y: f32, font: Font, color: Color) void,
         drawImage: *const fn (self: *RenderBackend, image: *Image, src_rect: Rect, dst_rect: Rect) void,
 
@@ -120,6 +121,11 @@ pub const RenderBackend = struct {
     /// 调用strokeRect
     pub fn strokeRect(self: *RenderBackend, rect: Rect, color: Color, width: f32) void {
         self.vtable.strokeRect(self, rect, color, width);
+    }
+
+    /// 调用strokeDashedRect
+    pub fn strokeDashedRect(self: *RenderBackend, rect: Rect, color: Color, width: f32) void {
+        self.vtable.strokeDashedRect(self, rect, color, width);
     }
 
     /// 调用fillText
