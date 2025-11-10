@@ -226,6 +226,11 @@ pub const RenderBackend = struct {
         return self.vtable.getHeight(self);
     }
 
+    /// 调用calculateTextWidth
+    pub fn calculateTextWidth(self: *RenderBackend, text: []const u8, x: f32, font: Font) std.mem.Allocator.Error!f32 {
+        return self.vtable.calculateTextWidth(self, text, x, font);
+    }
+
     /// 调用deinit
     pub fn deinit(self: *RenderBackend) void {
         self.vtable.deinit(self);
