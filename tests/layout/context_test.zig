@@ -351,8 +351,7 @@ test "BlockFormattingContext boundary_case - empty floats and clear elements" {
     try testing.expectEqual(@as(usize, 0), bfc.floats.items.len);
     try testing.expectEqual(@as(usize, 0), bfc.clear_elements.items.len);
 
-    // deinit应该不会崩溃
-    bfc.deinit();
+    // defer会自动调用deinit，不需要手动调用
 }
 
 test "InlineFormattingContext boundary_case - empty line boxes" {
@@ -375,8 +374,7 @@ test "InlineFormattingContext boundary_case - empty line boxes" {
     // 检查初始值
     try testing.expectEqual(@as(usize, 0), ifc.line_boxes.items.len);
 
-    // deinit应该不会崩溃
-    ifc.deinit();
+    // defer会自动调用deinit，不需要手动调用
 }
 
 test "LineBox boundary_case - zero size rect" {
