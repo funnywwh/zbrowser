@@ -487,6 +487,310 @@ test "loadFont - file not found error" {
 - [ ] 测试是否独立运行（不依赖其他测试）？
 - [ ] 是否验证了返回值和副作用？
 
+### 测试验证规则（确保测试完全验证代码正确性）
+**测试不仅要通过，还必须能够完全验证代码的正确性。所有测试必须遵循以下验证规则。**
+
+#### 测试验证完整性规则
+**每个测试必须验证所有重要的行为，不能只验证部分行为。**
+
+1. **返回值验证**（必须）
+   - 所有函数的返回值必须被验证
+   - 使用精确的断言（`expectEqual`）而不是模糊的断言（`expect`）
+   - 验证返回值的类型、值和结构
+   - **禁止只验证返回值非null**：必须验证返回值的具体内容
+   - **示例（错误写法）**：
+     ```zig
+     // ❌ 只验证返回值非null，没有验证具体内容
+     const result = try parseHTML(html);
+     try std.testing.expect(result != null);
+     ```
+   - **示例（正确写法）**：
+     ```zig
+     // ✅ 验证返回值的具体内容
+     const result = try parseHTML(html);
+     try std.testing.expect(result != null);
+     try std.testing.expectEqual(@as(usize, 1), result.?.children.len);
+     try std.testing.expectEqualStrings("html", result.?.tag_name);
+     ```
+
+2. **状态变化验证**（必须）
+   - 如果函数修改了对象状态，必须验证状态变化
+   - 验证修改前后的状态差异
+   - 验证所有被修改的字段
+   - **禁止只验证函数执行成功**：必须验证状态确实被修改
+   - **示例（错误写法）**：
+     ```zig
+     // ❌ 只验证函数执行成功，没有验证状态变化
+     try list.append(42);
+     try std.testing.expect(true);  // 没有验证元素是否真的被添加
+     ```
+   - **示例（正确写法）**：
+     ```zig
+     // ✅ 验证状态变化
+     try std.testing.expectEqual(@as(usize, 0), list.items.len);
+     try list.append(42);
+     try std.testing.expectEqual(@as(usize, 1), list.items.len);
+     try std.testing.expectEqual(@as(i32, 42), list.items[0]);
+     ```
+
+3. **副作用验证**（必须）
+   - 如果函数有副作用（如修改全局状态、写入文件、发送网络请求等），必须验证副作用
+   - 验证副作用是否正确执行
+   - 验证副作用的结果
+   - **禁止忽略副作用**：所有副作用都必须被验证
+   - **示例（错误写法）**：
+     ```zig
+     // ❌ 只验证返回值，没有验证副作用（文件是否被写入）
+     const result = try writeToFile("test.txt", "content");
+     try std.testing.expect(result == true);
+     ```
+   - **示例（正确写法）**：
+     ```zig
+     // ✅ 验证副作用（文件内容）
+     try writeToFile("test.txt", "content");
+     const file_content = try readFile("test.txt");
+     try std.testing.expectEqualStrings("content", file_content);
+     ```
+
+4. **不变式验证**（必须）
+   - 如果函数应该保持某些不变式（如数据结构的一致性、内存安全等），必须验证不变式
+   - 验证数据结构的一致性
+   - 验证内存安全（无泄漏、无悬空指针等）
+   - **禁止假设不变式**：必须显式验证不变式
+   - **示例（错误写法）**：
+     ```zig
+     // ❌ 没有验证DOM树的一致性
+     try parser.parse();
+     try std.testing.expect(true);
+     ```
+   - **示例（正确写法）**：
+     ```zig
+     // ✅ 验证DOM树的一致性
+     try parser.parse();
+     const root = doc.getRoot();
+     try std.testing.expect(root != null);
+     try std.testing.expect(root.?.children.len > 0);
+     // 验证所有节点都有正确的父子关系
+     try verifyDOMConsistency(root.?);
+     ```
+
+#### 测试断言充分性规则
+**每个测试必须有足够的断言来验证所有重要行为，不能只有少量或模糊的断言。**
+
+1. **断言数量要求**
+   - 每个测试至少应该有2-3个断言（除非是简单的单元测试）
+   - 复杂函数应该有更多断言来验证所有行为
+   - **禁止只有一个断言**：除非是极简单的函数，否则应该有多个断言
+   - **禁止使用 `expect(true)` 作为主要断言**：这是无效的断言，不能验证任何行为
+
+2. **断言精确性要求**
+   - 使用精确的断言（`expectEqual`、`expectEqualStrings`）而不是模糊的断言（`expect`）
+   - 验证具体的值，而不是只验证非null或非空
+   - **禁止只验证存在性**：必须验证具体内容
+   - **示例（错误写法）**：
+     ```zig
+     // ❌ 断言不够精确
+     const result = try parseColor("#ff0000");
+     try std.testing.expect(result != null);
+     ```
+   - **示例（正确写法）**：
+     ```zig
+     // ✅ 断言精确
+     const result = try parseColor("#ff0000");
+     try std.testing.expect(result != null);
+     try std.testing.expectEqual(@as(u8, 255), result.?.r);
+     try std.testing.expectEqual(@as(u8, 0), result.?.g);
+     try std.testing.expectEqual(@as(u8, 0), result.?.b);
+     ```
+
+3. **断言覆盖要求**
+   - 断言必须覆盖所有重要的输出（返回值、状态变化、副作用）
+   - 不能只验证部分输出而忽略其他输出
+   - **禁止选择性验证**：必须验证所有重要输出
+
+#### 测试验证覆盖规则
+**测试必须验证所有关键路径和重要场景，不能遗漏重要场景。**
+
+1. **关键路径验证**
+   - 测试必须覆盖函数的所有关键执行路径
+   - 包括正常路径、错误路径、边界路径
+   - **禁止只测试正常路径**：必须测试所有关键路径
+
+2. **重要场景验证**
+   - 测试必须覆盖所有重要的使用场景
+   - 包括常见场景、边界场景、错误场景
+   - **禁止只测试理想场景**：必须测试实际使用场景
+
+3. **交互验证**
+   - 如果函数与其他组件交互，必须验证交互的正确性
+   - 验证函数调用其他函数的参数和结果
+   - **禁止假设交互正确**：必须验证交互
+
+#### 测试结果验证规则
+**测试必须验证函数的实际结果，不能只验证函数执行成功。**
+
+1. **结果正确性验证**
+   - 必须验证结果的正确性，而不仅仅是结果存在
+   - 使用预期值对比实际值
+   - **禁止只验证结果非null**：必须验证结果的具体内容
+   - **示例（错误写法）**：
+     ```zig
+     // ❌ 只验证结果存在，没有验证正确性
+     const layout = try calculateLayout(element);
+     try std.testing.expect(layout != null);
+     ```
+   - **示例（正确写法）**：
+     ```zig
+     // ✅ 验证结果的正确性
+     const layout = try calculateLayout(element);
+     try std.testing.expect(layout != null);
+     try std.testing.expectEqual(@as(f32, 100.0), layout.?.width);
+     try std.testing.expectEqual(@as(f32, 50.0), layout.?.height);
+     try std.testing.expectEqual(@as(f32, 0.0), layout.?.x);
+     try std.testing.expectEqual(@as(f32, 0.0), layout.?.y);
+     ```
+
+2. **结果完整性验证**
+   - 必须验证结果的完整性，不能只验证部分结果
+   - 验证所有重要的字段或属性
+   - **禁止只验证部分结果**：必须验证完整结果
+
+3. **结果一致性验证**
+   - 必须验证结果的一致性（如数据结构的一致性、逻辑一致性等）
+   - 验证结果是否符合预期的不变式
+   - **禁止假设结果一致**：必须验证一致性
+
+#### 测试正确性验证规则
+**测试本身必须是正确的，不能产生误报或漏报。**
+
+1. **测试逻辑正确性**
+   - 测试的逻辑必须正确，不能有逻辑错误
+   - 测试的预期值必须正确
+   - **禁止使用错误的预期值**：必须使用正确的预期值
+
+2. **测试独立性验证**
+   - 测试必须独立运行，不依赖其他测试的执行
+   - 测试之间不能共享状态
+   - **禁止测试之间的依赖**：每个测试必须独立
+
+3. **测试可重复性验证**
+   - 测试必须可重复执行，每次执行结果应该一致
+   - 不能依赖随机性或外部状态
+   - **禁止非确定性测试**：测试必须是确定性的
+
+#### 测试验证检查清单
+编写测试时，必须检查以下验证项目：
+- [ ] 是否验证了返回值的具体内容（不只是非null）？
+- [ ] 是否验证了所有状态变化？
+- [ ] 是否验证了所有副作用？
+- [ ] 是否验证了所有不变式？
+- [ ] 测试是否有足够的断言（至少2-3个）？
+- [ ] 是否使用了精确的断言（`expectEqual`而不是`expect`）？
+- [ ] 是否验证了所有关键路径？
+- [ ] 是否验证了所有重要场景？
+- [ ] 是否验证了函数交互的正确性？
+- [ ] 是否验证了结果的正确性（不只是存在性）？
+- [ ] 是否验证了结果的完整性？
+- [ ] 是否验证了结果的一致性？
+- [ ] 测试逻辑是否正确？
+- [ ] 测试是否独立运行？
+- [ ] 测试是否可重复执行？
+
+#### 测试验证示例
+
+**示例1：完整的测试验证（正确写法）**
+```zig
+test "parseHTML - simple structure" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+    
+    const html_content = "<html><body><p>Hello</p></body></html>";
+    const doc = try dom.Document.init(allocator);
+    defer doc.deinit();
+    
+    var parser = html.Parser.init(html_content, doc, allocator);
+    defer parser.deinit();
+    try parser.parse();
+    
+    // 验证返回值（DOM树）
+    const root = doc.getRoot();
+    try std.testing.expect(root != null);
+    
+    // 验证状态变化（DOM树结构）
+    try std.testing.expectEqual(@as(usize, 1), root.?.children.len);
+    const html_node = root.?.children[0];
+    try std.testing.expectEqualStrings("html", html_node.tag_name);
+    try std.testing.expectEqual(@as(usize, 1), html_node.children.len);
+    
+    const body_node = html_node.children[0];
+    try std.testing.expectEqualStrings("body", body_node.tag_name);
+    try std.testing.expectEqual(@as(usize, 1), body_node.children.len);
+    
+    const p_node = body_node.children[0];
+    try std.testing.expectEqualStrings("p", p_node.tag_name);
+    try std.testing.expectEqualStrings("Hello", p_node.text_content);
+    
+    // 验证不变式（DOM树一致性）
+    try verifyDOMConsistency(root.?);
+}
+```
+
+**示例2：不完整的测试验证（错误写法）**
+```zig
+test "parseHTML - simple structure" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+    
+    const html_content = "<html><body><p>Hello</p></body></html>";
+    const doc = try dom.Document.init(allocator);
+    defer doc.deinit();
+    
+    var parser = html.Parser.init(html_content, doc, allocator);
+    defer parser.deinit();
+    try parser.parse();
+    
+    // ❌ 只验证了返回值存在，没有验证具体内容
+    const root = doc.getRoot();
+    try std.testing.expect(root != null);
+    
+    // ❌ 没有验证DOM树的结构
+    // ❌ 没有验证节点内容
+    // ❌ 没有验证不变式
+}
+```
+
+**示例3：状态变化验证（正确写法）**
+```zig
+test "ArrayList append - add element" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+    
+    var list = std.ArrayList(i32).init(allocator);
+    defer list.deinit();
+    
+    // 验证初始状态
+    try std.testing.expectEqual(@as(usize, 0), list.items.len);
+    
+    // 执行操作
+    try list.append(42);
+    
+    // 验证状态变化
+    try std.testing.expectEqual(@as(usize, 1), list.items.len);
+    try std.testing.expectEqual(@as(i32, 42), list.items[0]);
+    
+    // 再次添加元素
+    try list.append(100);
+    
+    // 验证状态变化
+    try std.testing.expectEqual(@as(usize, 2), list.items.len);
+    try std.testing.expectEqual(@as(i32, 42), list.items[0]);
+    try std.testing.expectEqual(@as(i32, 100), list.items[1]);
+}
+```
+
 ### 边界测试规则（必须遵循）
 **边界测试是测试要求的核心组成部分，每个函数都必须包含边界测试用例。**
 
@@ -658,6 +962,9 @@ test "loadFont - file not found error" {
 - **绝对禁止跳过边界测试**：每个函数必须包含边界测试用例，不能只写正常情况的测试
 - **绝对禁止简化实现不添加TODO注释**：所有简化实现必须添加TODO注释，说明这是简化实现并描述完整实现计划
 - **绝对禁止遇到编译错误不记录**：遇到新的编译错误时，必须自动记录到 `docs/COMPILE_ERRORS.md` 并更新 `.cursorrules` 中的规则，不能只修复代码而不记录
+- **绝对禁止测试验证不完整**：测试必须完全验证代码正确性，禁止只验证返回值非null、只验证函数执行成功、忽略副作用、假设不变式等不完整的验证
+- **绝对禁止使用无效断言**：禁止使用 `expect(true)` 作为主要断言，禁止只有单个模糊断言，必须使用精确的断言（`expectEqual`、`expectEqualStrings`）验证具体内容
+- **绝对禁止测试只验证存在性**：禁止只验证结果存在（非null、非空），必须验证结果的具体内容、正确性和完整性
 - **绝对禁止在非项目根目录执行环境初始化脚本**：必须在项目根目录（包含环境初始化脚本的目录）执行环境初始化，否则Zig编译器路径无法正确设置
   - Linux/WSL：必须在项目根目录执行 `env.sh`
   - Windows PowerShell：必须在项目根目录执行 `env.ps1`

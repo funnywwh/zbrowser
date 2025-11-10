@@ -103,20 +103,37 @@ pub const Cascade = struct {
 
                     // 如果已存在，根据优先级决定是否覆盖
                     // 注意：使用复制的 name 作为 key，而不是 decl.name（可能已被释放）
-                    if (computed.properties.getPtr(name)) |existing| {
+                    if (computed.properties.fetchRemove(name)) |entry| {
+                        // 保存旧的key和声明信息
+                        const old_key = entry.key;
+                        var old_decl = entry.value;
+                        const old_important = old_decl.important;
+                        const old_value = try self.copyValue(old_decl.value);
+                        old_decl.deinitValueOnly(); // 只释放value，name（key）稍后处理
+
                         // 如果新声明是important，覆盖；否则不覆盖（保持后定义的规则）
-                        if (decl.important and !existing.important) {
-                            existing.deinit();
-                            existing.* = new_decl;
-                        } else if (!decl.important and existing.important) {
+                        if (decl.important and !old_important) {
+                            // 新声明是important，覆盖
+                            self.allocator.free(old_key); // 释放旧的key
+                            try computed.properties.put(name, new_decl);
+                        } else if (!decl.important and old_important) {
                             // 新声明不是important，但已存在的是important，不覆盖
+                            // 恢复旧的声明
+                            const restored_decl = parser.Declaration{
+                                .name = old_key, // 使用原来的key
+                                .value = old_value,
+                                .important = old_important,
+                                .allocator = self.allocator,
+                            };
+                            try computed.properties.put(old_key, restored_decl);
+                            // 释放新声明的资源
                             self.allocator.free(name);
                             var mutable_value = value;
                             mutable_value.deinit(self.allocator);
                         } else {
                             // 两者都是important或都不是important，后定义的覆盖先定义的
-                            existing.deinit();
-                            existing.* = new_decl;
+                            self.allocator.free(old_key); // 释放旧的key
+                            try computed.properties.put(name, new_decl);
                         }
                     } else {
                         // put 失败时会清理
