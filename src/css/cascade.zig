@@ -115,13 +115,16 @@ pub const Cascade = struct {
                         if (decl.important and !old_important) {
                             // 新声明是important，覆盖
                             self.allocator.free(old_key); // 释放旧的key
+                            // 释放旧的value（因为我们要用新的）
+                            var mutable_old_value = old_value;
+                            mutable_old_value.deinit(self.allocator);
                             try computed.properties.put(name, new_decl);
                         } else if (!decl.important and old_important) {
                             // 新声明不是important，但已存在的是important，不覆盖
                             // 恢复旧的声明
                             const restored_decl = parser.Declaration{
                                 .name = old_key, // 使用原来的key
-                                .value = old_value,
+                                .value = old_value, // old_value的所有权转移给restored_decl
                                 .important = old_important,
                                 .allocator = self.allocator,
                             };
@@ -133,6 +136,9 @@ pub const Cascade = struct {
                         } else {
                             // 两者都是important或都不是important，后定义的覆盖先定义的
                             self.allocator.free(old_key); // 释放旧的key
+                            // 释放旧的value（因为我们要用新的）
+                            var mutable_old_value = old_value;
+                            mutable_old_value.deinit(self.allocator);
                             try computed.properties.put(name, new_decl);
                         }
                     } else {
