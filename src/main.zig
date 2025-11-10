@@ -175,7 +175,7 @@ pub fn main() !void {
     // 使用固定尺寸（1920x10000）
     const render_width: u32 = 1920;
     const render_height: u32 = 10000;
-    
+
     std.log.info("渲染页面到PNG ({d}x{d})...", .{ render_width, render_height });
     try browser.renderToPNG(render_width, render_height, output_path);
     std.log.info("页面渲染成功，已保存到: {s}", .{output_path});
@@ -186,26 +186,26 @@ pub fn main() !void {
 fn extractCSSFromHTML(allocator: std.mem.Allocator, html_content: []const u8) !?[]u8 {
     const style_start_tag = "<style";
     const style_end_tag = "</style>";
-    
+
     var start_pos: ?usize = null;
     var end_pos: ?usize = null;
-    
+
     // 查找第一个<style>标签的开始位置
     if (std.mem.indexOf(u8, html_content, style_start_tag)) |pos| {
         // 找到开始标签，查找对应的结束标签
-        const after_start = html_content[pos + style_start_tag.len..];
-        
+        const after_start = html_content[pos + style_start_tag.len ..];
+
         // 查找>符号（可能是<style>或<style ...>）
         const tag_end = std.mem.indexOf(u8, after_start, ">") orelse return null;
         const style_content_start = pos + style_start_tag.len + tag_end + 1;
-        
+
         // 查找</style>标签
         if (std.mem.indexOf(u8, html_content[style_content_start..], style_end_tag)) |end_offset| {
             start_pos = style_content_start;
             end_pos = style_content_start + end_offset;
         }
     }
-    
+
     if (start_pos) |start| {
         if (end_pos) |end| {
             const css_content = html_content[start..end];
@@ -216,6 +216,6 @@ fn extractCSSFromHTML(allocator: std.mem.Allocator, html_content: []const u8) !?
             }
         }
     }
-    
+
     return null;
 }

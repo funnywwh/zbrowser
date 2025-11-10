@@ -49,6 +49,7 @@ pub const Font = struct {
     pub const FontWeight = enum {
         normal,
         bold,
+        lighter, // 细体（比normal更细）
     };
 
     pub const FontStyle = enum {

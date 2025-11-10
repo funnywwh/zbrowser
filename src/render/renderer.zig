@@ -577,6 +577,10 @@ pub const Renderer = struct {
         if (style_utils.getPropertyKeyword(computed_style, "font-weight")) |weight| {
             if (std.mem.eql(u8, weight, "bold") or std.mem.eql(u8, weight, "700") or std.mem.eql(u8, weight, "800") or std.mem.eql(u8, weight, "900")) {
                 font.weight = .bold;
+            } else if (std.mem.eql(u8, weight, "lighter") or std.mem.eql(u8, weight, "100") or std.mem.eql(u8, weight, "200") or std.mem.eql(u8, weight, "300")) {
+                font.weight = .lighter;
+            } else if (std.mem.eql(u8, weight, "normal") or std.mem.eql(u8, weight, "400")) {
+                font.weight = .normal;
             }
         }
 

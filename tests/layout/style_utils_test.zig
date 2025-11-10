@@ -651,3 +651,26 @@ test "applyStyleToLayoutBox with line-height" {
     try testing.expect(layout_box.line_height == .number);
     try testing.expectEqual(@as(f32, 1.5), layout_box.line_height.number);
 }
+
+test "font-weight lighter parsing" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, node);
+
+    // 设置inline style属性
+    if (node.asElement()) |elem| {
+        try elem.setAttribute("style", "font-weight: lighter;", allocator);
+    }
+
+    var cascade_engine = cascade.Cascade.init(allocator);
+    var computed_style = try cascade_engine.computeStyle(node, &[_]css_parser.Stylesheet{});
+    defer computed_style.deinit();
+
+    // 检查font-weight是否正确解析
+    const font_weight = style_utils.getPropertyKeyword(&computed_style, "font-weight");
+    try testing.expect(font_weight != null);
+    try testing.expectEqualStrings("lighter", font_weight.?);
+}
