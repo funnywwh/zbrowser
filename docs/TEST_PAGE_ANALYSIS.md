@@ -67,11 +67,15 @@
 
 ### 2. Flexbox相关
 
-#### ⚠️ `flex` 简写属性完整实现
+#### ✅ `flex` 简写属性完整实现
 - **位置**: `flex: 1 1 auto`
-- **状态**: 部分实现（支持单个值，如 `flex: 1`）
-- **当前支持**: 支持单个值（如 `flex: 1` 表示 `flex-grow=1`）
-- **影响**: 无法使用完整的 `flex` 简写语法（`flex-grow flex-shrink flex-basis`）
+- **状态**: 已实现
+- **支持**: 
+  - 单个值：`flex: 1` (grow=1, shrink=1, basis=auto)
+  - 两个值：`flex: 1 2` (grow=1, shrink=2, basis=auto) 或 `flex: 1 100px` (grow=1, shrink=1, basis=100px)
+  - 三个值：`flex: 1 2 100px` (grow=1, shrink=2, basis=100px)
+  - 关键字：`flex: auto` (1 1 auto), `flex: none` (0 0 auto), `flex: initial` (0 1 auto)
+  - 支持长度值（px）和百分比值作为basis
 
 #### ✅ `align-content` 多行对齐
 - **位置**: `align-content: space-between`
