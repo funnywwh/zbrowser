@@ -366,10 +366,10 @@ pub const CpuRenderBackend = struct {
 
         // 检测文本中是否包含CJK字符
         const cjk_language = self.detectCJKLanguage(text);
-        
+
         // 获取字体
         var font_face: ?*font_module.FontFace = null;
-        
+
         if (cjk_language == 3) {
             // 韩文
             font_face = self.font_manager.getFont("KoreanFont");
@@ -397,14 +397,14 @@ pub const CpuRenderBackend = struct {
                 font_face = self.tryLoadChineseFont() catch null;
             }
         }
-        
+
         if (font_face == null) {
             font_face = self.font_manager.getFont(font.family);
             if (font_face == null) {
                 font_face = self.tryLoadDefaultFont(font.family) catch null;
             }
         }
-        
+
         if (font_face) |face| {
             return self.calculateTextWidthWithFont(face, text, x, font.size);
         } else {
@@ -442,9 +442,9 @@ pub const CpuRenderBackend = struct {
                 const advance_width = @as(f32, @floatFromInt(h_metrics.advance_width));
                 // 对于CJK字符，如果advance_width明显大于字体大小，则缩小到字体大小的0.95倍
                 const is_cjk = (codepoint >= 0x4E00 and codepoint <= 0x9FFF) or // 中文
-                               (codepoint >= 0x3040 and codepoint <= 0x309F) or // 日文平假名
-                               (codepoint >= 0x30A0 and codepoint <= 0x30FF) or // 日文片假名
-                               (codepoint >= 0xAC00 and codepoint <= 0xD7AF);    // 韩文
+                    (codepoint >= 0x3040 and codepoint <= 0x309F) or // 日文平假名
+                    (codepoint >= 0x30A0 and codepoint <= 0x30FF) or // 日文片假名
+                    (codepoint >= 0xAC00 and codepoint <= 0xD7AF); // 韩文
                 const adjusted_advance = if (is_cjk and advance_width * scale > font_size * 1.1)
                     font_size * 0.95
                 else
@@ -497,9 +497,9 @@ pub const CpuRenderBackend = struct {
                 const advance_width = @as(f32, @floatFromInt(h_metrics.advance_width));
                 // 对于CJK字符，如果advance_width明显大于字体大小，则缩小到字体大小的0.95倍
                 const is_cjk = (codepoint >= 0x4E00 and codepoint <= 0x9FFF) or // 中文
-                               (codepoint >= 0x3040 and codepoint <= 0x309F) or // 日文平假名
-                               (codepoint >= 0x30A0 and codepoint <= 0x30FF) or // 日文片假名
-                               (codepoint >= 0xAC00 and codepoint <= 0xD7AF);    // 韩文
+                    (codepoint >= 0x3040 and codepoint <= 0x309F) or // 日文平假名
+                    (codepoint >= 0x30A0 and codepoint <= 0x30FF) or // 日文片假名
+                    (codepoint >= 0xAC00 and codepoint <= 0xD7AF); // 韩文
                 const adjusted_advance = if (is_cjk and advance_width * scale > font_size * 1.1)
                     font_size * 0.95
                 else
@@ -516,9 +516,9 @@ pub const CpuRenderBackend = struct {
                         const advance_width = @as(f32, @floatFromInt(h_metrics.advance_width));
                         // 对于CJK字符，如果advance_width明显大于字体大小，则缩小到字体大小的0.95倍
                         const is_cjk = (codepoint >= 0x4E00 and codepoint <= 0x9FFF) or // 中文
-                                       (codepoint >= 0x3040 and codepoint <= 0x309F) or // 日文平假名
-                                       (codepoint >= 0x30A0 and codepoint <= 0x30FF) or // 日文片假名
-                                       (codepoint >= 0xAC00 and codepoint <= 0xD7AF);    // 韩文
+                            (codepoint >= 0x3040 and codepoint <= 0x309F) or // 日文平假名
+                            (codepoint >= 0x30A0 and codepoint <= 0x30FF) or // 日文片假名
+                            (codepoint >= 0xAC00 and codepoint <= 0xD7AF); // 韩文
                         const adjusted_advance = if (is_cjk and advance_width * fallback_scale > font_size * 1.1)
                             font_size * 0.95
                         else
@@ -541,27 +541,28 @@ pub const CpuRenderBackend = struct {
         _ = self;
         var i: usize = 0;
         var has_chinese: bool = false;
-        var has_japanese_kana: bool = false;  // 日文假名（平假名、片假名）
+        var has_japanese_kana: bool = false; // 日文假名（平假名、片假名）
         var has_korean: bool = false;
         var japanese_kana_count: usize = 0;
         var chinese_han_count: usize = 0;
         var korean_count: usize = 0;
-        
+
         while (i < text.len) {
             // 检查是否是多字节UTF-8字符
             if (i + 2 < text.len) {
                 const b1 = text[i];
                 const b2 = text[i + 1];
                 const b3 = text[i + 2];
-                
+
                 // 3字节UTF-8字符（CJK字符通常是3字节）
                 if ((b1 & 0xF0) == 0xE0) {
                     const codepoint = (@as(u21, b1 & 0x0F) << 12) | (@as(u21, b2 & 0x3F) << 6) | (@as(u21, b3 & 0x3F));
-                    
+
                     // 日文平假名：0x3040-0x309F
                     // 日文片假名：0x30A0-0x30FF
                     if ((codepoint >= 0x3040 and codepoint <= 0x309F) or
-                        (codepoint >= 0x30A0 and codepoint <= 0x30FF)) {
+                        (codepoint >= 0x30A0 and codepoint <= 0x30FF))
+                    {
                         has_japanese_kana = true;
                         japanese_kana_count += 1;
                     }
@@ -581,12 +582,12 @@ pub const CpuRenderBackend = struct {
                     continue;
                 }
             }
-            
+
             // 检查2字节UTF-8字符（韩文字母）
             if (i + 1 < text.len) {
                 const b1 = text[i];
                 const b2 = text[i + 1];
-                
+
                 // 2字节UTF-8字符
                 if ((b1 & 0xE0) == 0xC0) {
                     const codepoint = (@as(u21, b1 & 0x1F) << 6) | (@as(u21, b2 & 0x3F));
@@ -598,10 +599,10 @@ pub const CpuRenderBackend = struct {
                     continue;
                 }
             }
-            
+
             i += 1;
         }
-        
+
         // 返回优先级：韩文 > 日文（有假名）> 中文
         // 如果同时有中文汉字和日文假名，优先判断为日文
         if (has_korean) {
@@ -610,11 +611,11 @@ pub const CpuRenderBackend = struct {
         }
         if (has_japanese_kana) {
             log.debug("detectCJKLanguage: detected Japanese (has_japanese_kana=true, has_chinese={})\n", .{has_chinese});
-            return 2;  // 有日文假名，判断为日文
+            return 2; // 有日文假名，判断为日文
         }
         if (has_chinese) {
             log.debug("detectCJKLanguage: detected Chinese (has_chinese=true, has_korean={}, has_japanese_kana={})\n", .{ has_korean, has_japanese_kana });
-            return 1;  // 只有中文汉字，判断为中文
+            return 1; // 只有中文汉字，判断为中文
         }
         return 0;
     }
@@ -633,10 +634,10 @@ pub const CpuRenderBackend = struct {
 
         // 检测文本中是否包含CJK字符（中文、日文、韩文）
         const cjk_language = self.detectCJKLanguage(text);
-        
+
         // 尝试使用字体模块渲染文本
         var font_face: ?*font_module.FontFace = null;
-        
+
         // 根据检测到的语言类型，优先尝试加载相应的字体
         if (cjk_language == 3) {
             // 韩文：优先尝试加载韩文字体
@@ -655,12 +656,12 @@ pub const CpuRenderBackend = struct {
                     font_face = self.tryLoadChineseFont() catch null;
                 }
             }
-            
+
             // 尝试使用韩文字体渲染，如果某些字符找不到字形，按字符分别处理
             if (font_face) |face| {
                 // 获取中文字体作为备用（用于渲染中文汉字）
                 const chinese_font_face = self.font_manager.getFont("ChineseFont") orelse self.tryLoadChineseFont() catch null;
-                
+
                 // 按字符分别渲染，对每个字符使用合适的字体
                 self.renderTextWithMixedFonts(face, chinese_font_face, text, x, y, font.size, color) catch |err| {
                     // 如果渲染失败，使用占位符
@@ -692,7 +693,7 @@ pub const CpuRenderBackend = struct {
                 font_face = self.tryLoadChineseFont() catch null;
             }
         }
-        
+
         // 如果特定语言字体加载失败，或者不包含CJK字符，尝试加载默认字体
         if (font_face == null) {
             font_face = self.font_manager.getFont(font.family);
@@ -700,15 +701,15 @@ pub const CpuRenderBackend = struct {
                 font_face = self.tryLoadDefaultFont(font.family) catch null;
             }
         }
-        
+
         if (font_face) |face| {
             // 字体已加载，使用真正的字形渲染，支持字体回退
             // 构建字体回退列表：主字体 + 其他已加载的字体
             var fallback_fonts = std.ArrayList(*font_module.FontFace){};
             defer fallback_fonts.deinit(self.allocator);
-            
+
             fallback_fonts.append(self.allocator, face) catch {};
-            
+
             // 添加其他已加载的字体作为回退
             if (self.font_manager.getFont("ChineseFont")) |chinese_font| {
                 if (chinese_font != face) {
@@ -752,7 +753,7 @@ pub const CpuRenderBackend = struct {
                     }
                 }
             }
-            
+
             // 使用字体回退机制渲染文本
             self.renderTextWithFontFallback(fallback_fonts.items, text, x, y, font.size, color) catch |err| {
                 // 如果所有字体都失败，回退到占位符
@@ -772,20 +773,20 @@ pub const CpuRenderBackend = struct {
         // 注意：这些字体通常也支持繁体中文
         const chinese_font_paths = [_][]const u8{
             // 本地项目字体（优先）
-            "fonts/SourceHanSansSC-Regular.otf",   // 思源黑体简体中文（支持中文、日文、韩文）
-            "fonts/SourceHanSansSC-Medium.otf",    // 思源黑体简体中文（支持中文、日文、韩文）
-            "fonts/wqy-zenhei.ttc",                // 文泉驿正黑（支持中文）
-            "fonts/wqy-microhei.ttc",               // 文泉驿微米黑（支持中文）
+            "fonts/SourceHanSansSC-Regular.otf", // 思源黑体简体中文（支持中文、日文、韩文）
+            "fonts/SourceHanSansSC-Medium.otf", // 思源黑体简体中文（支持中文、日文、韩文）
+            "fonts/wqy-zenhei.ttc", // 文泉驿正黑（支持中文）
+            "fonts/wqy-microhei.ttc", // 文泉驿微米黑（支持中文）
             // Windows系统字体
-            "C:\\Windows\\Fonts\\msyh.ttc",        // 微软雅黑（支持简体+繁体）
+            "C:\\Windows\\Fonts\\msyh.ttc", // 微软雅黑（支持简体+繁体）
             "C:\\Windows\\Fonts\\MSYH.ttc",
-            "C:\\Windows\\Fonts\\msyhbd.ttc",       // 微软雅黑 Bold
+            "C:\\Windows\\Fonts\\msyhbd.ttc", // 微软雅黑 Bold
             "C:\\Windows\\Fonts\\MSYHBD.ttc",
-            "C:\\Windows\\Fonts\\simsun.ttc",      // 宋体（支持简体+繁体）
+            "C:\\Windows\\Fonts\\simsun.ttc", // 宋体（支持简体+繁体）
             "C:\\Windows\\Fonts\\SimSun.ttc",
-            "C:\\Windows\\Fonts\\simhei.ttf",      // 黑体
+            "C:\\Windows\\Fonts\\simhei.ttf", // 黑体
             "C:\\Windows\\Fonts\\SimHei.ttf",
-            "C:\\Windows\\Fonts\\simkai.ttf",       // 楷体
+            "C:\\Windows\\Fonts\\simkai.ttf", // 楷体
             "C:\\Windows\\Fonts\\SimKai.ttf",
             // 本地路径（旧路径，保持兼容）
             "fonts/msyh.ttc",
@@ -816,14 +817,14 @@ pub const CpuRenderBackend = struct {
         // 日文字体路径（按优先级排序）
         const japanese_font_paths = [_][]const u8{
             // 本地项目字体（优先，支持CJK）
-            "fonts/SourceHanSansSC-Regular.otf",   // 思源黑体（支持中文、日文、韩文）
-            "fonts/SourceHanSansSC-Medium.otf",    // 思源黑体（支持中文、日文、韩文）
+            "fonts/SourceHanSansSC-Regular.otf", // 思源黑体（支持中文、日文、韩文）
+            "fonts/SourceHanSansSC-Medium.otf", // 思源黑体（支持中文、日文、韩文）
             // Windows系统字体
-            "C:\\Windows\\Fonts\\msgothic.ttc",     // MS Gothic
+            "C:\\Windows\\Fonts\\msgothic.ttc", // MS Gothic
             "C:\\Windows\\Fonts\\MSGothic.ttc",
-            "C:\\Windows\\Fonts\\msmincho.ttc",     // MS Mincho
+            "C:\\Windows\\Fonts\\msmincho.ttc", // MS Mincho
             "C:\\Windows\\Fonts\\MSMincho.ttc",
-            "C:\\Windows\\Fonts\\yugothic.ttf",    // Yu Gothic
+            "C:\\Windows\\Fonts\\yugothic.ttf", // Yu Gothic
             "C:\\Windows\\Fonts\\YuGothic.ttf",
             // 中文字体通常也支持日文汉字
             "C:\\Windows\\Fonts\\msyh.ttc",
@@ -855,16 +856,16 @@ pub const CpuRenderBackend = struct {
         // 韩文字体路径（按优先级排序）
         const korean_font_paths = [_][]const u8{
             // 本地项目字体（优先，支持CJK）
-            "fonts/SourceHanSansSC-Regular.otf",   // 思源黑体（支持中文、日文、韩文）
-            "fonts/SourceHanSansSC-Medium.otf",    // 思源黑体（支持中文、日文、韩文）
+            "fonts/SourceHanSansSC-Regular.otf", // 思源黑体（支持中文、日文、韩文）
+            "fonts/SourceHanSansSC-Medium.otf", // 思源黑体（支持中文、日文、韩文）
             // Windows系统字体
-            "C:\\Windows\\Fonts\\malgun.ttf",       // Malgun Gothic（맑은 고딕）
+            "C:\\Windows\\Fonts\\malgun.ttf", // Malgun Gothic（맑은 고딕）
             "C:\\Windows\\Fonts\\Malgun.ttf",
-            "C:\\Windows\\Fonts\\malgunbd.ttf",    // Malgun Gothic Bold
+            "C:\\Windows\\Fonts\\malgunbd.ttf", // Malgun Gothic Bold
             "C:\\Windows\\Fonts\\MalgunBD.ttf",
-            "C:\\Windows\\Fonts\\gulim.ttc",       // Gulim（굴림）
+            "C:\\Windows\\Fonts\\gulim.ttc", // Gulim（굴림）
             "C:\\Windows\\Fonts\\Gulim.ttc",
-            "C:\\Windows\\Fonts\\batang.ttc",       // Batang（바탕）
+            "C:\\Windows\\Fonts\\batang.ttc", // Batang（바탕）
             "C:\\Windows\\Fonts\\Batang.ttc",
             // 本地路径（旧路径，保持兼容）
             "fonts/malgun.ttf",
@@ -895,7 +896,7 @@ pub const CpuRenderBackend = struct {
     /// 尝试加载符号字体（Segoe UI Symbol）
     fn tryLoadSymbolFont(self: *CpuRenderBackend) !?*font_module.FontFace {
         const symbol_font_paths = [_][]const u8{
-            "C:\\Windows\\Fonts\\seguisym.ttf",      // Segoe UI Symbol
+            "C:\\Windows\\Fonts\\seguisym.ttf", // Segoe UI Symbol
             "C:\\Windows\\Fonts\\SegoeUISymbol.ttf",
             "C:\\Windows\\Fonts\\seguisym.ttc",
         };
@@ -913,7 +914,7 @@ pub const CpuRenderBackend = struct {
     /// 尝试加载Emoji字体（Segoe UI Emoji）
     fn tryLoadEmojiFont(self: *CpuRenderBackend) !?*font_module.FontFace {
         const emoji_font_paths = [_][]const u8{
-            "C:\\Windows\\Fonts\\seguiemj.ttf",      // Segoe UI Emoji
+            "C:\\Windows\\Fonts\\seguiemj.ttf", // Segoe UI Emoji
             "C:\\Windows\\Fonts\\SegoeUIEmoji.ttf",
             "C:\\Windows\\Fonts\\seguiemj.ttc",
         };
@@ -939,17 +940,18 @@ pub const CpuRenderBackend = struct {
                 return face;
             }
         } else if ((codepoint >= 0x2190 and codepoint <= 0x21FF) or // 箭头
-                   (codepoint >= 0x2200 and codepoint <= 0x22FF) or // 数学运算符
-                   (codepoint >= 0x2300 and codepoint <= 0x23FF) or // 技术符号
-                   (codepoint >= 0x2600 and codepoint <= 0x26FF) or // 杂项符号
-                   (codepoint >= 0x2700 and codepoint <= 0x27BF)) { // 装饰符号
+            (codepoint >= 0x2200 and codepoint <= 0x22FF) or // 数学运算符
+            (codepoint >= 0x2300 and codepoint <= 0x23FF) or // 技术符号
+            (codepoint >= 0x2600 and codepoint <= 0x26FF) or // 杂项符号
+            (codepoint >= 0x2700 and codepoint <= 0x27BF))
+        { // 装饰符号
             // Unicode符号范围
             if (self.tryLoadSymbolFont() catch null) |face| {
                 log.debug("Successfully loaded symbol font for codepoint U+{X:0>4}\n", .{codepoint});
                 return face;
             }
         }
-        
+
         // 尝试加载泰文字体（U+0E00 - U+0E7F）
         if (codepoint >= 0x0E00 and codepoint <= 0x0E7F) {
             const thai_font_paths = [_][]const u8{
@@ -1007,14 +1009,14 @@ pub const CpuRenderBackend = struct {
         // 注意：Arial Unicode MS可能不在所有Windows系统上，所以作为最后尝试
         const unicode_font_paths = [_][]const u8{
             // 本地项目字体（优先，支持CJK）
-            "fonts/SourceHanSansSC-Regular.otf",   // 思源黑体（支持中文、日文、韩文）
-            "fonts/SourceHanSansSC-Medium.otf",    // 思源黑体（支持中文、日文、韩文）
+            "fonts/SourceHanSansSC-Regular.otf", // 思源黑体（支持中文、日文、韩文）
+            "fonts/SourceHanSansSC-Medium.otf", // 思源黑体（支持中文、日文、韩文）
             // Windows系统字体
-            "C:\\Windows\\Fonts\\arialuni.ttf",          // Arial Unicode MS
+            "C:\\Windows\\Fonts\\arialuni.ttf", // Arial Unicode MS
             "C:\\Windows\\Fonts\\ArialUni.ttf",
-            "C:\\Windows\\Fonts\\calibri.ttf",           // Calibri（支持一些Unicode字符）
+            "C:\\Windows\\Fonts\\calibri.ttf", // Calibri（支持一些Unicode字符）
             "C:\\Windows\\Fonts\\Calibri.ttf",
-            "C:\\Windows\\Fonts\\segoeui.ttf",           // Segoe UI（支持一些Unicode字符）
+            "C:\\Windows\\Fonts\\segoeui.ttf", // Segoe UI（支持一些Unicode字符）
             "C:\\Windows\\Fonts\\SegoeUI.ttf",
         };
         for (unicode_font_paths) |path| {
@@ -1029,7 +1031,7 @@ pub const CpuRenderBackend = struct {
                 continue;
             }
         }
-        
+
         return null;
     }
 
@@ -1040,20 +1042,20 @@ pub const CpuRenderBackend = struct {
         // 优先尝试中文字体
         const font_paths = [_][]const u8{
             // 本地项目字体（优先）
-            "fonts/SourceHanSansSC-Regular.otf",   // 思源黑体（支持CJK）
-            "fonts/SourceHanSansSC-Medium.otf",    // 思源黑体（支持CJK）
-            "fonts/wqy-zenhei.ttc",                // 文泉驿正黑（支持中文）
-            "fonts/wqy-microhei.ttc",               // 文泉驿微米黑（支持中文）
+            "fonts/SourceHanSansSC-Regular.otf", // 思源黑体（支持CJK）
+            "fonts/SourceHanSansSC-Medium.otf", // 思源黑体（支持CJK）
+            "fonts/wqy-zenhei.ttc", // 文泉驿正黑（支持中文）
+            "fonts/wqy-microhei.ttc", // 文泉驿微米黑（支持中文）
             // Windows系统字体（中文字体）
-            "C:\\Windows\\Fonts\\simsun.ttc",      // 宋体
+            "C:\\Windows\\Fonts\\simsun.ttc", // 宋体
             "C:\\Windows\\Fonts\\SimSun.ttc",
-            "C:\\Windows\\Fonts\\msyh.ttc",        // 微软雅黑
+            "C:\\Windows\\Fonts\\msyh.ttc", // 微软雅黑
             "C:\\Windows\\Fonts\\MSYH.ttc",
-            "C:\\Windows\\Fonts\\msyhbd.ttc",     // 微软雅黑 Bold
+            "C:\\Windows\\Fonts\\msyhbd.ttc", // 微软雅黑 Bold
             "C:\\Windows\\Fonts\\MSYHBD.ttc",
-            "C:\\Windows\\Fonts\\simhei.ttf",     // 黑体
+            "C:\\Windows\\Fonts\\simhei.ttf", // 黑体
             "C:\\Windows\\Fonts\\SimHei.ttf",
-            "C:\\Windows\\Fonts\\simkai.ttf",     // 楷体
+            "C:\\Windows\\Fonts\\simkai.ttf", // 楷体
             "C:\\Windows\\Fonts\\SimKai.ttf",
             // 英文字体（回退）
             "C:\\Windows\\Fonts\\arial.ttf",
@@ -1090,9 +1092,7 @@ pub const CpuRenderBackend = struct {
             const path_lower_slice = path_lower.items;
 
             // 检查路径是否包含字体名称
-            const should_try = if (std.mem.indexOf(u8, path_lower_slice, font_name_lower_slice) != null) true
-            else if (std.mem.eql(u8, font_name_lower_slice, "arial") and std.mem.indexOf(u8, path_lower_slice, "arial") != null) true
-            else false;
+            const should_try = if (std.mem.indexOf(u8, path_lower_slice, font_name_lower_slice) != null) true else if (std.mem.eql(u8, font_name_lower_slice, "arial") and std.mem.indexOf(u8, path_lower_slice, "arial") != null) true else false;
 
             if (should_try) {
                 if (self.font_manager.loadFont(path, font_family)) |face| {
@@ -1156,7 +1156,7 @@ pub const CpuRenderBackend = struct {
             var font_to_use = primary_font;
             var font_metrics_to_use = font_metrics;
             var scale_to_use = scale;
-            
+
             // 尝试从主字体获取字形索引
             const glyph_index_opt = try primary_font.getGlyphIndex(codepoint);
             if (glyph_index_opt == null) {
@@ -1167,7 +1167,7 @@ pub const CpuRenderBackend = struct {
                         font_to_use = fallback;
                         font_metrics_to_use = try fallback.getFontMetrics();
                         scale_to_use = font_size / @as(f32, @floatFromInt(font_metrics_to_use.units_per_em));
-                        
+
                         // 使用备用字体渲染
                         const h_metrics = try fallback.getHorizontalMetrics(fallback_glyph_index);
                         var glyph = try fallback.getGlyph(fallback_glyph_index);
@@ -1191,9 +1191,9 @@ pub const CpuRenderBackend = struct {
                         const advance_width = @as(f32, @floatFromInt(h_metrics.advance_width));
                         // 对于CJK字符，如果advance_width明显大于字体大小，则缩小到字体大小的0.95倍
                         const is_cjk = (codepoint >= 0x4E00 and codepoint <= 0x9FFF) or // 中文
-                                       (codepoint >= 0x3040 and codepoint <= 0x309F) or // 日文平假名
-                                       (codepoint >= 0x30A0 and codepoint <= 0x30FF) or // 日文片假名
-                                       (codepoint >= 0xAC00 and codepoint <= 0xD7AF);    // 韩文
+                            (codepoint >= 0x3040 and codepoint <= 0x309F) or // 日文平假名
+                            (codepoint >= 0x30A0 and codepoint <= 0x30FF) or // 日文片假名
+                            (codepoint >= 0xAC00 and codepoint <= 0xD7AF); // 韩文
                         const adjusted_advance = if (is_cjk and advance_width * scale_to_use > font_size * 1.1)
                             font_size * 0.95
                         else
@@ -1249,18 +1249,18 @@ pub const CpuRenderBackend = struct {
         if (font_faces.len == 0) {
             return error.NoFontAvailable;
         }
-        
+
         // 使用第一个字体初始化hinting（简化：只初始化一次）
         const primary_face = font_faces[0];
         const fpgm_data = primary_face.getFpgm();
         const prep_data = primary_face.getPrep();
         const cvt_data = primary_face.getCvt();
         _ = self.glyph_renderer.initHinting(fpgm_data, prep_data, cvt_data) catch {};
-        
+
         var current_x = x;
         var is_first_char = true;
         var i: usize = 0;
-        
+
         while (i < text.len) {
             const decode_result = self.decodeUtf8Codepoint(text[i..]) catch {
                 i += 1;
@@ -1268,14 +1268,14 @@ pub const CpuRenderBackend = struct {
             };
             const codepoint = decode_result.codepoint;
             i += decode_result.bytes_consumed;
-            
+
             // 尝试所有字体，找到支持该字符的字体
             var found_font: ?*font_module.FontFace = null;
             var found_glyph_index: ?u16 = null;
             var found_metrics: ?struct { advance_width: u16, left_side_bearing: i16 } = null;
             var found_scale: f32 = 0;
             var found_units_per_em: u16 = 0;
-            
+
             for (font_faces) |font_face| {
                 const glyph_index_opt = font_face.getGlyphIndex(codepoint) catch continue;
                 if (glyph_index_opt) |glyph_index| {
@@ -1283,7 +1283,7 @@ pub const CpuRenderBackend = struct {
                     const units_per_em = font_metrics.units_per_em;
                     const scale = font_size / @as(f32, @floatFromInt(units_per_em));
                     const h_metrics = font_face.getHorizontalMetrics(glyph_index) catch continue;
-                    
+
                     found_font = font_face;
                     found_glyph_index = glyph_index;
                     found_metrics = .{
@@ -1295,13 +1295,13 @@ pub const CpuRenderBackend = struct {
                     break;
                 }
             }
-            
+
             if (found_font) |font_face| {
                 const glyph_index = found_glyph_index.?;
                 const h_metrics = found_metrics.?;
                 const scale = found_scale;
                 const units_per_em = found_units_per_em;
-                
+
                 // 获取字形数据
                 var glyph = font_face.getGlyph(glyph_index) catch {
                     // 如果获取字形失败，跳过这个字符
@@ -1310,15 +1310,15 @@ pub const CpuRenderBackend = struct {
                     continue;
                 };
                 defer glyph.deinit(self.allocator);
-                
+
                 // 计算字形的X位置
                 const glyph_x = if (is_first_char)
                     current_x
                 else
                     current_x + @as(f32, @floatFromInt(h_metrics.left_side_bearing)) * scale;
-                
+
                 is_first_char = false;
-                
+
                 // 渲染字形
                 self.glyph_renderer.renderGlyph(
                     &glyph,
@@ -1331,13 +1331,13 @@ pub const CpuRenderBackend = struct {
                     units_per_em,
                     color,
                 );
-                
+
                 // 移动到下一个字符位置
                 const advance_width = @as(f32, @floatFromInt(h_metrics.advance_width));
                 const is_cjk = (codepoint >= 0x4E00 and codepoint <= 0x9FFF) or
-                               (codepoint >= 0x3040 and codepoint <= 0x309F) or
-                               (codepoint >= 0x30A0 and codepoint <= 0x30FF) or
-                               (codepoint >= 0xAC00 and codepoint <= 0xD7AF);
+                    (codepoint >= 0x3040 and codepoint <= 0x309F) or
+                    (codepoint >= 0x30A0 and codepoint <= 0x30FF) or
+                    (codepoint >= 0xAC00 and codepoint <= 0xD7AF);
                 const adjusted_advance = if (is_cjk and advance_width * scale > font_size * 1.1)
                     font_size * 0.95
                 else
@@ -1362,7 +1362,7 @@ pub const CpuRenderBackend = struct {
                             current_x += placeholder_width;
                             continue;
                         };
-                        
+
                         // 获取字形数据
                         var glyph = font_face.getGlyph(glyph_index) catch {
                             const placeholder_width = font_size * 0.6;
@@ -1370,15 +1370,15 @@ pub const CpuRenderBackend = struct {
                             continue;
                         };
                         defer glyph.deinit(self.allocator);
-                        
+
                         // 计算字形的X位置
                         const glyph_x = if (is_first_char)
                             current_x
                         else
                             current_x + @as(f32, @floatFromInt(h_metrics.left_side_bearing)) * scale;
-                        
+
                         is_first_char = false;
-                        
+
                         // 渲染字形
                         self.glyph_renderer.renderGlyph(
                             &glyph,
@@ -1391,7 +1391,7 @@ pub const CpuRenderBackend = struct {
                             units_per_em,
                             color,
                         );
-                        
+
                         // 移动到下一个字符位置
                         const advance_width = @as(f32, @floatFromInt(h_metrics.advance_width));
                         current_x += advance_width * scale;
@@ -1421,12 +1421,12 @@ pub const CpuRenderBackend = struct {
         const fpgm_data = font_face.getFpgm();
         const prep_data = font_face.getPrep();
         const cvt_data = font_face.getCvt();
-        
+
         // 初始化hinting解释器
         _ = self.glyph_renderer.initHinting(fpgm_data, prep_data, cvt_data) catch {
             // Hinting初始化失败，继续使用原始渲染
         };
-        
+
         // 获取字体度量信息
         const font_metrics = try font_face.getFontMetrics();
         const units_per_em = font_metrics.units_per_em;
@@ -1459,7 +1459,7 @@ pub const CpuRenderBackend = struct {
                 }
                 // 获取字形的水平度量
                 const h_metrics = try font_face.getHorizontalMetrics(glyph_index);
-                
+
                 // 获取字形数据
                 var glyph = try font_face.getGlyph(glyph_index);
                 defer glyph.deinit(self.allocator);
@@ -1467,11 +1467,11 @@ pub const CpuRenderBackend = struct {
                 // 计算字形的X位置
                 // 注意：对于第一个字符，不应该使用left_side_bearing，因为它会改变文本的起始位置
                 // left_side_bearing主要用于调整字符之间的间距，而不是文本的起始位置
-                const glyph_x = if (is_first_char) 
-                    current_x  // 第一个字符直接使用current_x，不使用left_side_bearing
-                else 
+                const glyph_x = if (is_first_char)
+                    current_x // 第一个字符直接使用current_x，不使用left_side_bearing
+                else
                     current_x + @as(f32, @floatFromInt(h_metrics.left_side_bearing)) * scale;
-                
+
                 is_first_char = false; // 后续字符不再是第一个
 
                 // 渲染字形
@@ -1492,9 +1492,9 @@ pub const CpuRenderBackend = struct {
                 const advance_width = @as(f32, @floatFromInt(h_metrics.advance_width));
                 // 检测是否为CJK字符（中文、日文、韩文）
                 const is_cjk = (codepoint >= 0x4E00 and codepoint <= 0x9FFF) or // 中文
-                               (codepoint >= 0x3040 and codepoint <= 0x309F) or // 日文平假名
-                               (codepoint >= 0x30A0 and codepoint <= 0x30FF) or // 日文片假名
-                               (codepoint >= 0xAC00 and codepoint <= 0xD7AF);    // 韩文
+                    (codepoint >= 0x3040 and codepoint <= 0x309F) or // 日文平假名
+                    (codepoint >= 0x30A0 and codepoint <= 0x30FF) or // 日文片假名
+                    (codepoint >= 0xAC00 and codepoint <= 0xD7AF); // 韩文
                 // 对于CJK字符，如果advance_width明显大于字体大小，则缩小到字体大小的0.95倍
                 // 这样可以减少字符间距，让文本更紧凑
                 const adjusted_advance = if (is_cjk and advance_width * scale > font_size * 1.1)
@@ -1519,18 +1519,18 @@ pub const CpuRenderBackend = struct {
         if (bytes.len == 0) {
             return error.InvalidUtf8;
         }
-        
+
         const first_byte = bytes[0];
-        
+
         // ASCII字符（0-127）
         if (first_byte < 128) {
             return .{ .codepoint = first_byte, .bytes_consumed = 1 };
         }
-        
+
         // 多字节UTF-8字符
         var codepoint: u21 = 0;
         var bytes_consumed: usize = 0;
-        
+
         if ((first_byte & 0xE0) == 0xC0) {
             // 2字节字符（110xxxxx 10xxxxxx）
             if (bytes.len < 2) return error.InvalidUtf8;
@@ -1542,9 +1542,9 @@ pub const CpuRenderBackend = struct {
             if (bytes.len < 3) return error.InvalidUtf8;
             if ((bytes[1] & 0xC0) != 0x80) return error.InvalidUtf8;
             if ((bytes[2] & 0xC0) != 0x80) return error.InvalidUtf8;
-            codepoint = (@as(u21, first_byte & 0x0F) << 12) | 
-                       (@as(u21, bytes[1] & 0x3F) << 6) | 
-                       @as(u21, bytes[2] & 0x3F);
+            codepoint = (@as(u21, first_byte & 0x0F) << 12) |
+                (@as(u21, bytes[1] & 0x3F) << 6) |
+                @as(u21, bytes[2] & 0x3F);
             bytes_consumed = 3;
         } else if ((first_byte & 0xF8) == 0xF0) {
             // 4字节字符（11110xxx 10xxxxxx 10xxxxxx 10xxxxxx）
@@ -1552,15 +1552,15 @@ pub const CpuRenderBackend = struct {
             if ((bytes[1] & 0xC0) != 0x80) return error.InvalidUtf8;
             if ((bytes[2] & 0xC0) != 0x80) return error.InvalidUtf8;
             if ((bytes[3] & 0xC0) != 0x80) return error.InvalidUtf8;
-            codepoint = (@as(u21, first_byte & 0x07) << 18) | 
-                       (@as(u21, bytes[1] & 0x3F) << 12) | 
-                       (@as(u21, bytes[2] & 0x3F) << 6) | 
-                       @as(u21, bytes[3] & 0x3F);
+            codepoint = (@as(u21, first_byte & 0x07) << 18) |
+                (@as(u21, bytes[1] & 0x3F) << 12) |
+                (@as(u21, bytes[2] & 0x3F) << 6) |
+                @as(u21, bytes[3] & 0x3F);
             bytes_consumed = 4;
         } else {
             return error.InvalidUtf8;
         }
-        
+
         return .{ .codepoint = codepoint, .bytes_consumed = bytes_consumed };
     }
 
@@ -1582,7 +1582,7 @@ pub const CpuRenderBackend = struct {
         const bottom_y = y + height;
         const left = x;
         const right = x + width;
-        
+
         // 根据字符绘制不同的模式
         switch (char) {
             'A', 'a' => {
@@ -1666,16 +1666,16 @@ pub const CpuRenderBackend = struct {
         var i: usize = 0;
         var prev_x: f32 = center_x + radius;
         var prev_y: f32 = center_y;
-        
+
         while (i <= num_points) : (i += 1) {
             const angle = 2.0 * math.pi * @as(f32, @floatFromInt(i)) / @as(f32, @floatFromInt(num_points));
             const x = center_x + radius * math.cos(angle);
             const y = center_y + radius * math.sin(angle);
-            
+
             if (i > 0) {
                 self.drawLineBresenham(prev_x, prev_y, x, y, color, line_width);
             }
-            
+
             prev_x = x;
             prev_y = y;
         }
@@ -1717,7 +1717,7 @@ pub const CpuRenderBackend = struct {
             // 改进的占位符：使用线条绘制简单的字符形状，而不是实心矩形
             const min_char_width = @max(6.0, char_width);
             const min_char_height = @max(6.0, clamped_height * 0.95);
-            
+
             var char_x = clamped_x;
             var i: usize = 0;
             while (i < text.len and char_x < max_x) : (i += 1) {
@@ -1725,15 +1725,15 @@ pub const CpuRenderBackend = struct {
                 if (char_w > 0) {
                     const char_h = min_char_height;
                     const char_y = clamped_y + (clamped_height - char_h) * 0.5; // 垂直居中
-                    
+
                     // 为每个字符绘制一个简单的线条模式，使其看起来更像文本
                     // 使用边框矩形 + 内部线条
                     const char_rect = backend.Rect.init(char_x, char_y, char_w, char_h);
-                    
+
                     // 绘制边框（细线）
                     const border_width = @max(1.0, font.size * 0.05);
                     strokeRectInternal(self, char_rect, color, border_width);
-                    
+
                     // 根据字符绘制简单的内部线条模式
                     const c = if (i < text.len) text[i] else ' ';
                     self.drawCharPattern(char_x, char_y, char_w, char_h, c, color, font.size);
