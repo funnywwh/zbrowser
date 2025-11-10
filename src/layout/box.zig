@@ -128,6 +128,14 @@ pub const FloatType = enum {
     right,
 };
 
+/// 文本对齐类型
+pub const TextAlign = enum {
+    left,
+    center,
+    right,
+    justify,
+};
+
 /// 布局框（每个DOM元素对应一个布局框）
 pub const LayoutBox = struct {
     /// 对应的DOM节点
@@ -162,6 +170,9 @@ pub const LayoutBox = struct {
     /// 如果值为null，表示使用自动放置
     grid_column_start: ?usize,
     grid_column_end: ?usize,
+
+    /// 文本对齐方式（text-align属性）
+    text_align: TextAlign,
 
     /// 子布局框列表
     children: std.ArrayList(*LayoutBox),
@@ -199,6 +210,7 @@ pub const LayoutBox = struct {
             .grid_row_end = null,
             .grid_column_start = null,
             .grid_column_end = null,
+            .text_align = .left, // 默认左对齐
             .children = std.ArrayList(*LayoutBox){
                 .items = &[_]*LayoutBox{},
                 .capacity = 0,

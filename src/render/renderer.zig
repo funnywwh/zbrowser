@@ -214,6 +214,39 @@ pub const Renderer = struct {
             std.log.debug("[Renderer] renderContent: text_color={?}, font_size={d:.1}", .{ text_color, font.size });
 
             if (text_color) |color| {
+                // 计算文本对齐后的x坐标
+                var text_x = rect.x;
+                
+                // 获取父元素的text-align属性（如果存在）
+                if (layout_box.parent) |parent| {
+                    // 计算文本宽度（使用估算值）
+                    // TODO: 完整实现需要从render_backend获取准确的文本宽度
+                    // 当前使用简化的估算：每个字符宽度约为字体大小的0.7倍
+                    const char_width = font.size * 0.7;
+                    const text_width = char_width * @as(f32, @floatFromInt(text_content.len));
+                    
+                    // 根据text-align调整x坐标
+                    switch (parent.text_align) {
+                        .left => {
+                            // 左对齐（默认），不需要调整
+                            text_x = rect.x;
+                        },
+                        .center => {
+                            // 居中对齐：x = 容器左边界 + (容器宽度 - 文本宽度) / 2
+                            text_x = rect.x + (rect.width - text_width) / 2.0;
+                        },
+                        .right => {
+                            // 右对齐：x = 容器右边界 - 文本宽度
+                            text_x = rect.x + rect.width - text_width;
+                        },
+                        .justify => {
+                            // 两端对齐（简化实现：暂时按左对齐处理）
+                            // TODO: 完整实现需要调整字符间距
+                            text_x = rect.x;
+                        },
+                    }
+                }
+                
                 // 绘制文本
                 // y坐标需要调整：rect.y是内容区域的顶部，我们需要计算基线位置
                 // 基线位置 = rect.y + ascent
@@ -226,8 +259,8 @@ pub const Renderer = struct {
                 // 对于绝对定位的文本节点，top值应该直接作为基线位置（或者加上一个小的偏移）
                 const ascent_ratio: f32 = 0.7; // 典型的ascent比例（降低以给descender更多空间）
                 const baseline_y = rect.y + font.size * ascent_ratio;
-                std.log.debug("[Renderer] renderContent: calling fillText at ({d:.1}, {d:.1}), text=\"{s}\", rect=({d:.1}, {d:.1}, {d:.1}x{d:.1}), font_size={d:.1}", .{ rect.x, baseline_y, text_content, rect.x, rect.y, rect.width, rect.height, font.size });
-                self.render_backend.fillText(text_content, rect.x, baseline_y, font, color);
+                std.log.debug("[Renderer] renderContent: calling fillText at ({d:.1}, {d:.1}), text=\"{s}\", rect=({d:.1}, {d:.1}, {d:.1}x{d:.1}), font_size={d:.1}, text_align={}", .{ text_x, baseline_y, text_content, rect.x, rect.y, rect.width, rect.height, font.size, if (layout_box.parent) |p| p.text_align else .left });
+                self.render_backend.fillText(text_content, text_x, baseline_y, font, color);
             } else {
                 std.log.debug("[Renderer] renderContent: no text color, skipping", .{});
             }

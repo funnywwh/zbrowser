@@ -42,6 +42,16 @@ pub fn parseFloatType(value: []const u8) box.FloatType {
     return .none;
 }
 
+/// 解析text-align属性值
+pub fn parseTextAlign(value: []const u8) box.TextAlign {
+    if (std.mem.eql(u8, value, "left")) return .left;
+    if (std.mem.eql(u8, value, "center")) return .center;
+    if (std.mem.eql(u8, value, "right")) return .right;
+    if (std.mem.eql(u8, value, "justify")) return .justify;
+    // 默认返回left
+    return .left;
+}
+
 /// 从字符串解析px单位的值
 /// 支持格式："10px"、"0"（作为0px）
 /// 返回解析的数值，如果解析失败返回null
@@ -268,6 +278,11 @@ pub fn applyStyleToLayoutBox(layout_box: *box.LayoutBox, computed_style: *const 
     if (getGridColumn(computed_style)) |grid_column| {
         layout_box.grid_column_start = grid_column.start;
         layout_box.grid_column_end = grid_column.end;
+    }
+
+    // 解析text-align
+    if (getPropertyKeyword(computed_style, "text-align")) |text_align_value| {
+        layout_box.text_align = parseTextAlign(text_align_value);
     }
 
     // TODO: 解析border
