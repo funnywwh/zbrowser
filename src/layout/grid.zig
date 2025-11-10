@@ -595,6 +595,8 @@ fn applyGridContentAlignment(
                 }
             }
         },
+        .left => offset.x = 0, // left等同于start
+        .right => offset.x = free_width, // right等同于end
         .space_between => {
             // space-between: 第一个track在开始位置，最后一个track在结束位置，中间的tracks之间均匀分布
             applySpaceBetween(column_positions, grid_width, container_width, column_gap);
@@ -885,6 +887,8 @@ fn applyGridItemAlignment(
             // stretch: item宽度会被设置为cell_width（在调用处处理）
             offset.x = 0;
         },
+        .left => offset.x = 0, // left等同于start
+        .right => offset.x = cell_width - item_width, // right等同于end
     }
 
     // 应用align-items

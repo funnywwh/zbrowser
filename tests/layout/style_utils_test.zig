@@ -1692,3 +1692,31 @@ test "parseBoxShadow boundary_case - invalid format" {
     try testing.expect(style_utils.parseBoxShadow("2px") == null);
     try testing.expect(style_utils.parseBoxShadow("2px 2px") == null);
 }
+
+test "parseGridJustifyItems - all values including left and right" {
+    try testing.expectEqual(style_utils.GridJustifyItems.start, style_utils.parseGridJustifyItems("start"));
+    try testing.expectEqual(style_utils.GridJustifyItems.end, style_utils.parseGridJustifyItems("end"));
+    try testing.expectEqual(style_utils.GridJustifyItems.center, style_utils.parseGridJustifyItems("center"));
+    try testing.expectEqual(style_utils.GridJustifyItems.stretch, style_utils.parseGridJustifyItems("stretch"));
+    try testing.expectEqual(style_utils.GridJustifyItems.left, style_utils.parseGridJustifyItems("left"));
+    try testing.expectEqual(style_utils.GridJustifyItems.right, style_utils.parseGridJustifyItems("right"));
+    // 无效值应该返回默认值stretch
+    try testing.expectEqual(style_utils.GridJustifyItems.stretch, style_utils.parseGridJustifyItems("invalid"));
+}
+
+test "parseGridJustifyContent - all values including left and right" {
+    try testing.expectEqual(style_utils.GridJustifyContent.start, style_utils.parseGridJustifyContent("start"));
+    try testing.expectEqual(style_utils.GridJustifyContent.end, style_utils.parseGridJustifyContent("end"));
+    try testing.expectEqual(style_utils.GridJustifyContent.center, style_utils.parseGridJustifyContent("center"));
+    try testing.expectEqual(style_utils.GridJustifyContent.stretch, style_utils.parseGridJustifyContent("stretch"));
+    try testing.expectEqual(style_utils.GridJustifyContent.space_around, style_utils.parseGridJustifyContent("space-around"));
+    try testing.expectEqual(style_utils.GridJustifyContent.space_between, style_utils.parseGridJustifyContent("space-between"));
+    try testing.expectEqual(style_utils.GridJustifyContent.space_evenly, style_utils.parseGridJustifyContent("space-evenly"));
+    try testing.expectEqual(style_utils.GridJustifyContent.left, style_utils.parseGridJustifyContent("left"));
+    try testing.expectEqual(style_utils.GridJustifyContent.right, style_utils.parseGridJustifyContent("right"));
+    // 测试flex-start和flex-end别名
+    try testing.expectEqual(style_utils.GridJustifyContent.start, style_utils.parseGridJustifyContent("flex-start"));
+    try testing.expectEqual(style_utils.GridJustifyContent.end, style_utils.parseGridJustifyContent("flex-end"));
+    // 无效值应该返回默认值start
+    try testing.expectEqual(style_utils.GridJustifyContent.start, style_utils.parseGridJustifyContent("invalid"));
+}

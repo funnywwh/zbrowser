@@ -1759,6 +1759,8 @@ pub const GridJustifyItems = enum {
     end,
     center,
     stretch,
+    left,
+    right,
 };
 
 pub const GridAlignItems = enum {
@@ -1776,6 +1778,8 @@ pub const GridJustifyContent = enum {
     space_around,
     space_between,
     space_evenly,
+    left,
+    right,
 };
 
 pub const GridAlignContent = enum {
@@ -1794,6 +1798,8 @@ pub fn parseGridJustifyItems(value: []const u8) GridJustifyItems {
     if (std.mem.eql(u8, value, "end")) return .end;
     if (std.mem.eql(u8, value, "center")) return .center;
     if (std.mem.eql(u8, value, "stretch")) return .stretch;
+    if (std.mem.eql(u8, value, "left")) return .left;
+    if (std.mem.eql(u8, value, "right")) return .right;
     // 默认值
     return .stretch;
 }
@@ -1819,6 +1825,8 @@ pub fn parseGridJustifyContent(value: []const u8) GridJustifyContent {
     if (std.mem.eql(u8, value, "space-around")) return .space_around;
     if (std.mem.eql(u8, value, "space-between")) return .space_between;
     if (std.mem.eql(u8, value, "space-evenly")) return .space_evenly;
+    if (std.mem.eql(u8, value, "left")) return .left;
+    if (std.mem.eql(u8, value, "right")) return .right;
     // 默认值
     return .start;
 }
