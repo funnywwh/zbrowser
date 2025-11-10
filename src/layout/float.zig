@@ -20,15 +20,96 @@ const box = @import("box");
 pub fn layoutFloat(layout_box: *box.LayoutBox, containing_block: *box.LayoutBox, y: *f32) void {
     // 确定浮动方向
     const float_left = layout_box.float == .left;
+    
+    // 使用std.debug.print直接输出到stderr，确保能看到日志
+    std.debug.print("[FloatLayout] layoutFloat: float={}, y={d:.1}, containing_block=({d:.1}, {d:.1}, {d:.1}x{d:.1})\n", .{
+        layout_box.float,
+        y.*,
+        containing_block.box_model.content.x,
+        containing_block.box_model.content.y,
+        containing_block.box_model.content.width,
+        containing_block.box_model.content.height,
+    });
 
     // 使用totalSize()获取包含padding和border的总宽度
     const layout_total_size = layout_box.box_model.totalSize();
     const layout_total_width = layout_total_size.width;
     const layout_total_height = layout_total_size.height;
+    
+    // 边界检查：确保尺寸有效
+    if (layout_total_width <= 0 or layout_total_height <= 0) {
+        std.log.warn("[FloatLayout] layoutFloat: invalid size ({d:.1}x{d:.1}), skipping", .{ layout_total_width, layout_total_height });
+        layout_box.is_layouted = true;
+        return;
+    }
 
     // 计算浮动位置
     var x: f32 = if (float_left) 0 else containing_block.box_model.content.width - layout_total_width;
-    var current_y = y.*;
+
+    // 关键修复：浮动元素应该从当前行的y坐标开始
+    // 先检查是否有已布局的浮动元素，如果有，使用它们的最小y坐标（同一行）
+    // 如果没有，使用y.*（第一个浮动元素）
+    var current_y: f32 = undefined;
+    var min_y_in_line: ?f32 = null;
+    
+    // 计算初始y坐标（从padding.top开始，不考虑已布局的浮动元素）
+    // 这样可以找到同一行的浮动元素，即使y.*已经被更新
+    const initial_y = containing_block.box_model.padding.top;
+    
+    // 查找所有已布局的浮动元素，找到最小y坐标（同一行的起始位置）
+    // 策略：查找所有已布局的浮动元素，找到它们的最小y坐标
+    // 只考虑与初始y坐标接近（同一行）的浮动元素
+    for (containing_block.children.items) |child| {
+        if (child.float == .none) continue;
+        if (child == layout_box) continue;
+        if (!child.is_layouted) continue;
+        
+        // 获取浮动元素的y坐标（相对于包含块）
+        const child_y_abs = child.box_model.content.y;
+        const containing_y_abs = containing_block.box_model.content.y;
+        const child_margin_top = child.box_model.margin.top;
+        
+        // 计算浮动元素相对于包含块内容区域的y坐标（不包括padding和margin）
+        // 浮动元素的最终y坐标 = containing_block.content.y + current_y + child.margin.top
+        // 所以：current_y = child_y_abs - containing_y_abs - child_margin_top
+        // 这个current_y就是浮动元素在布局时使用的y坐标
+        const child_y_relative = child_y_abs - containing_y_abs - child_margin_top;
+        
+        // 只考虑与当前包含块相关的浮动元素（避免使用其他包含块的浮动元素坐标）
+        // 如果child_y_relative是负数或非常大，说明这个浮动元素不属于当前包含块，应该跳过
+        if (child_y_relative < -100.0 or child_y_relative > 10000.0) {
+            continue;
+        }
+        
+        // 只考虑与初始y坐标接近（同一行）的浮动元素
+        // 如果child_y_relative与initial_y接近（在100像素内），认为是同一行
+        if (@abs(child_y_relative - initial_y) < 100.0) {
+            // 找到最小y坐标（同一行的起始位置）
+            if (min_y_in_line == null or child_y_relative < min_y_in_line.?) {
+                min_y_in_line = child_y_relative;
+            }
+        }
+    }
+    
+    // 如果找到了已布局的浮动元素，检查最小y坐标
+    // 策略：使用初始y坐标（padding.top）来判断是否在同一行
+    // 如果min_y与initial_y接近（在100像素内），认为是同一行，使用min_y
+    // 否则，使用y.*（新行）
+    if (min_y_in_line) |min_y| {
+        // 如果min_y与initial_y接近（在100像素内），认为是同一行，使用min_y
+        if (@abs(min_y - initial_y) < 100.0) {
+            // 在同一行，使用最小y坐标
+            current_y = min_y;
+        } else {
+            // 不在同一行，使用y.*（新行）
+            current_y = y.*;
+        }
+    } else {
+        // 没有已布局的浮动元素，使用initial_y（padding.top）
+        // 注意：y.*可能已经被前面的元素更新了，所以应该使用initial_y
+        // 浮动元素应该相对于包含块的content区域，所以应该从padding.top开始
+        current_y = initial_y;
+    }
 
     // 查找合适的位置（考虑碰撞检测）
     x = findFloatPosition(layout_box, containing_block, x, current_y, float_left);
@@ -51,15 +132,41 @@ pub fn layoutFloat(layout_box: *box.LayoutBox, containing_block: *box.LayoutBox,
     }
 
     // 设置位置（相对于包含块）
-    layout_box.box_model.content.x = containing_block.box_model.content.x + x;
-    layout_box.box_model.content.y = containing_block.box_model.content.y + current_y;
+    // 注意：x和current_y都是相对于containing_block的内容区域的坐标
+    // 浮动元素的位置 = containing_block.content位置 + containing_block.padding + current_y + margin
+    // current_y是从padding.top开始的（相对于containing_block的content区域）
+    // 所以需要加上containing_block的content坐标和margin
+    // 但是，x是相对于containing_block内容区域的，所以需要加上padding.left
+    layout_box.box_model.content.x = containing_block.box_model.content.x + containing_block.box_model.padding.left + x + layout_box.box_model.margin.left;
+    layout_box.box_model.content.y = containing_block.box_model.content.y + current_y + layout_box.box_model.margin.top;
+    
+    // 使用std.debug.print直接输出到stderr，确保能看到日志
+    std.debug.print("[FloatLayout] layoutFloat: containing_block.content.y={d:.1}, containing_block.padding.top={d:.1}, current_y={d:.1}, margin.top={d:.1}, final_y={d:.1}\n", .{
+        containing_block.box_model.content.y,
+        containing_block.box_model.padding.top,
+        current_y,
+        layout_box.box_model.margin.top,
+        layout_box.box_model.content.y,
+    });
+
+    std.debug.print("[FloatLayout] layoutFloat: final position=({d:.1}, {d:.1}), size=({d:.1}x{d:.1}), content_size=({d:.1}x{d:.1})\n", .{
+        layout_box.box_model.content.x,
+        layout_box.box_model.content.y,
+        layout_total_width,
+        layout_total_height,
+        layout_box.box_model.content.width,
+        layout_box.box_model.content.height,
+    });
 
     // 标记为已布局
     layout_box.is_layouted = true;
 
     // 更新y坐标（取当前y和浮动元素底部位置的最大值）
+    // 注意：这里更新y是为了后续的正常流元素知道浮动元素占用的空间
     const float_bottom = current_y + layout_total_height;
-    y.* = float_bottom;
+    if (float_bottom > y.*) {
+        y.* = float_bottom;
+    }
 }
 
 /// 查找浮动位置
@@ -147,10 +254,12 @@ pub fn clearFloats(containing_block: *box.LayoutBox, y: f32) f32 {
         if (!child.is_layouted) continue;
 
         // 计算浮动元素的底部位置（相对于包含块）
+        // 使用totalSize()获取包含padding和border的总高度
         const child_y_abs = child.box_model.content.y;
         const containing_y_abs = containing_block.box_model.content.y;
         const child_y_relative = child_y_abs - containing_y_abs;
-        const child_bottom = child_y_relative + child.box_model.content.height;
+        const child_total_size = child.box_model.totalSize();
+        const child_bottom = child_y_relative + child_total_size.height;
 
         // 更新最大y值
         if (child_bottom > max_y) {

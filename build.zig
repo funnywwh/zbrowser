@@ -150,12 +150,22 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    const layout_float_module = b.createModule(.{
+        .root_source_file = b.path("src/layout/float.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "box", .module = layout_box_module },
+        },
+    });
+
     const layout_block_module = b.createModule(.{
         .root_source_file = b.path("src/layout/block.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{
             .{ .name = "box", .module = layout_box_module },
+            .{ .name = "float", .module = layout_float_module },
         },
     });
 
@@ -171,15 +181,6 @@ pub fn build(b: *std.Build) void {
 
     const layout_position_module = b.createModule(.{
         .root_source_file = b.path("src/layout/position.zig"),
-        .target = target,
-        .optimize = optimize,
-        .imports = &.{
-            .{ .name = "box", .module = layout_box_module },
-        },
-    });
-
-    const layout_float_module = b.createModule(.{
-        .root_source_file = b.path("src/layout/float.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{

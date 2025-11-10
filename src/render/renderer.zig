@@ -63,13 +63,29 @@ pub const Renderer = struct {
             .document => "document",
             .doctype => "doctype",
         };
-        std.log.debug("[Renderer] renderLayoutBox: node_type={s}, content=({d:.1}, {d:.1}, {d:.1}x{d:.1})", .{
+        // 检查是否是浮动元素
+        const is_float = layout_box.float != .none;
+        std.log.debug("[Renderer] renderLayoutBox: node_type={s}, float={}, content=({d:.1}, {d:.1}, {d:.1}x{d:.1}), is_layouted={}", .{
             node_type_str,
+            layout_box.float,
             layout_box.box_model.content.x,
             layout_box.box_model.content.y,
             layout_box.box_model.content.width,
             layout_box.box_model.content.height,
+            layout_box.is_layouted,
         });
+        
+        // 如果是浮动元素，输出额外信息
+        if (is_float) {
+            const total_size = layout_box.box_model.totalSize();
+            std.debug.print("[Renderer] renderLayoutBox: FLOAT ELEMENT - float={}, position=({d:.1}, {d:.1}), size=({d:.1}x{d:.1})\n", .{
+                layout_box.float,
+                layout_box.box_model.content.x,
+                layout_box.box_model.content.y,
+                total_size.width,
+                total_size.height,
+            });
+        }
 
         // 计算样式（用于获取颜色、背景等）
         var cascade_engine = cascade.Cascade.init(self.allocator);
