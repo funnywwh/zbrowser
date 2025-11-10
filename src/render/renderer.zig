@@ -107,13 +107,18 @@ pub const Renderer = struct {
             self.render_backend.setGlobalAlpha(layout_box.opacity);
         }
 
-        // 2. 绘制背景（只对非文本节点绘制，避免覆盖文本）
+        // 2. 绘制阴影（在背景之前绘制，确保阴影在背景下方）
+        if (layout_box.box_shadow) |shadow| {
+            try self.renderBoxShadow(layout_box, shadow, border_rect);
+        }
+
+        // 3. 绘制背景（只对非文本节点绘制，避免覆盖文本）
         // 注意：对于包含文本节点的元素（如<p>），背景应该只绘制到内容区域，不覆盖descender
         if (layout_box.node.node_type != .text) {
             try self.renderBackground(layout_box, &computed_style, border_rect);
         }
 
-        // 3. 处理overflow属性（如果为hidden、scroll或auto，需要裁剪）
+        // 4. 处理overflow属性（如果为hidden、scroll或auto，需要裁剪）
         const needs_clip = layout_box.overflow != .visible;
         if (needs_clip) {
             // 保存当前状态（如果还没有保存）
@@ -130,7 +135,7 @@ pub const Renderer = struct {
             self.render_backend.clip(clip_rect);
         }
 
-        // 4. 递归渲染子节点（先渲染子节点，确保文本在背景之上）
+        // 5. 递归渲染子节点（先渲染子节点，确保文本在背景之上）
         // 如果子元素有z-index，需要按照z-index排序
         // 简化实现：只对positioned元素（relative、absolute、fixed、sticky）应用z-index排序
         var children_to_render = std.ArrayList(*box.LayoutBox){
@@ -176,10 +181,10 @@ pub const Renderer = struct {
             try self.renderLayoutBox(child);
         }
 
-        // 5. 绘制内容（文本）- 在子节点之后绘制，确保文本在最上层
+        // 6. 绘制内容（文本）- 在子节点之后绘制，确保文本在最上层
         try self.renderContent(layout_box, &computed_style, content_rect);
 
-        // 6. 绘制边框（最后绘制，确保边框在最上层）
+        // 7. 绘制边框（最后绘制，确保边框在最上层）
         try self.renderBorder(layout_box, &computed_style, border_rect);
 
         // 7. 恢复状态（如果应用了opacity或clip）
@@ -256,6 +261,38 @@ pub const Renderer = struct {
         
         // 闭合路径（回到起点）
         self.render_backend.closePath();
+    }
+
+    /// 渲染box-shadow阴影
+    /// 简化实现：使用简单的矩形阴影，不实现模糊效果
+    /// TODO: 完整实现需要实现高斯模糊算法
+    fn renderBoxShadow(self: *Renderer, layout_box: *box.LayoutBox, shadow: box.BoxShadow, rect: backend.Rect) !void {
+        // 如果是内阴影（inset），暂时不实现
+        if (shadow.inset) {
+            // TODO: 实现内阴影
+            return;
+        }
+
+        // 计算阴影矩形的位置和尺寸
+        const shadow_x = rect.x + shadow.offset_x - shadow.spread_radius;
+        const shadow_y = rect.y + shadow.offset_y - shadow.spread_radius;
+        const shadow_width = rect.width + shadow.spread_radius * 2.0;
+        const shadow_height = rect.height + shadow.spread_radius * 2.0;
+
+        const shadow_rect = backend.Rect.init(shadow_x, shadow_y, shadow_width, shadow_height);
+
+        // 创建阴影颜色
+        const shadow_color = backend.Color.init(shadow.color_r, shadow.color_g, shadow.color_b, shadow.color_a);
+
+        // 简化实现：如果border-radius存在，使用圆角矩形；否则使用普通矩形
+        if (layout_box.box_model.border_radius) |radius| {
+            // 绘制圆角阴影
+            self.drawRoundedRectPath(shadow_rect, radius);
+            self.render_backend.fill(shadow_color);
+        } else {
+            // 绘制普通矩形阴影
+            self.render_backend.fillRect(shadow_rect, shadow_color);
+        }
     }
 
     /// 渲染背景

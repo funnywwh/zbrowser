@@ -104,6 +104,161 @@ pub fn parseTextTransform(value: []const u8) box.TextTransform {
     return .none;
 }
 
+/// 解析box-shadow属性值
+/// 格式：offset-x offset-y blur-radius spread-radius color inset?
+/// 例如："2px 2px 4px 0px rgba(0,0,0,0.2)" 或 "2px 2px 4px 0px #000 inset"
+/// TODO: 完整实现需要支持多个阴影（用逗号分隔）
+pub fn parseBoxShadow(value: []const u8) ?box.BoxShadow {
+    const trimmed = std.mem.trim(u8, value, " \t\n\r");
+    if (trimmed.len == 0) return null;
+    
+    // 检查是否是"none"
+    if (std.mem.eql(u8, trimmed, "none")) return null;
+    
+    // 简化实现：只支持基本格式
+    // 格式：offset-x offset-y blur-radius spread-radius color [inset]
+    var parts = std.mem.splitSequence(u8, trimmed, " ");
+    var parts_list = std.ArrayList([]const u8){
+        .items = &[_][]const u8{},
+        .capacity = 0,
+    };
+    defer parts_list.deinit(std.heap.page_allocator);
+    
+    while (parts.next()) |part| {
+        const trimmed_part = std.mem.trim(u8, part, " \t\n\r");
+        if (trimmed_part.len > 0) {
+            parts_list.append(std.heap.page_allocator, trimmed_part) catch return null;
+        }
+    }
+    
+    if (parts_list.items.len < 5) {
+        // 至少需要5个部分（offset-x, offset-y, blur-radius, spread-radius, color）
+        return null;
+    }
+    
+    // 检查最后一个部分是否是"inset"
+    var has_inset = false;
+    var color_index = parts_list.items.len - 1;
+    if (std.mem.eql(u8, parts_list.items[parts_list.items.len - 1], "inset")) {
+        has_inset = true;
+        color_index = parts_list.items.len - 2;
+    }
+    
+    if (color_index < 4) {
+        return null; // 没有足够的参数
+    }
+    
+    // 解析offset-x
+    const offset_x = parsePxValue(parts_list.items[0]) orelse return null;
+    
+    // 解析offset-y
+    const offset_y = parsePxValue(parts_list.items[1]) orelse return null;
+    
+    // 解析blur-radius
+    const blur_radius = parsePxValue(parts_list.items[2]) orelse return null;
+    
+    // 解析spread-radius
+    const spread_radius = parsePxValue(parts_list.items[3]) orelse return null;
+    
+    // 解析颜色
+    const color_str = parts_list.items[color_index];
+    const color = parseColor(color_str) orelse return null;
+    
+    return box.BoxShadow{
+        .offset_x = offset_x,
+        .offset_y = offset_y,
+        .blur_radius = blur_radius,
+        .spread_radius = spread_radius,
+        .color_r = color.r,
+        .color_g = color.g,
+        .color_b = color.b,
+        .color_a = color.a,
+        .inset = has_inset,
+    };
+}
+
+/// 解析颜色值
+/// 支持格式：#rgb, #rrggbb, rgb(r,g,b), rgba(r,g,b,a)
+/// TODO: 完整实现需要支持更多颜色格式
+fn parseColor(value: []const u8) ?struct { r: u8, g: u8, b: u8, a: u8 } {
+    const trimmed = std.mem.trim(u8, value, " \t\n\r");
+    if (trimmed.len == 0) return null;
+    
+    // 解析十六进制颜色 #rgb 或 #rrggbb
+    if (trimmed[0] == '#') {
+        const hex_str = trimmed[1..];
+        if (hex_str.len == 3) {
+            // #rgb格式
+            const r_hex = hex_str[0..1];
+            const g_hex = hex_str[1..2];
+            const b_hex = hex_str[2..3];
+            const r = std.fmt.parseInt(u8, r_hex, 16) catch return null;
+            const g = std.fmt.parseInt(u8, g_hex, 16) catch return null;
+            const b = std.fmt.parseInt(u8, b_hex, 16) catch return null;
+            return .{
+                .r = r * 17, // 扩展3位到8位
+                .g = g * 17,
+                .b = b * 17,
+                .a = 255,
+            };
+        } else if (hex_str.len == 6) {
+            // #rrggbb格式
+            const r_hex = hex_str[0..2];
+            const g_hex = hex_str[2..4];
+            const b_hex = hex_str[4..6];
+            const r = std.fmt.parseInt(u8, r_hex, 16) catch return null;
+            const g = std.fmt.parseInt(u8, g_hex, 16) catch return null;
+            const b = std.fmt.parseInt(u8, b_hex, 16) catch return null;
+            return .{ .r = r, .g = g, .b = b, .a = 255 };
+        }
+    }
+    
+    // 解析rgba格式 rgba(r,g,b,a)
+    if (std.mem.startsWith(u8, trimmed, "rgba(") and std.mem.endsWith(u8, trimmed, ")")) {
+        const inner = trimmed[5..trimmed.len - 1];
+        var parts = std.mem.splitSequence(u8, inner, ",");
+        var values: [4]f32 = undefined;
+        var i: usize = 0;
+        while (parts.next()) |part| : (i += 1) {
+            if (i >= 4) return null;
+            const trimmed_part = std.mem.trim(u8, part, " \t\n\r");
+            values[i] = std.fmt.parseFloat(f32, trimmed_part) catch return null;
+        }
+        if (i != 4) return null;
+        
+        // rgba值范围：r,g,b在0-255，a在0-1
+        return .{
+            .r = @as(u8, @intFromFloat(@min(255, @max(0, values[0])))),
+            .g = @as(u8, @intFromFloat(@min(255, @max(0, values[1])))),
+            .b = @as(u8, @intFromFloat(@min(255, @max(0, values[2])))),
+            .a = @as(u8, @intFromFloat(@min(255, @max(0, values[3] * 255)))),
+        };
+    }
+    
+    // 解析rgb格式 rgb(r,g,b)
+    if (std.mem.startsWith(u8, trimmed, "rgb(") and std.mem.endsWith(u8, trimmed, ")")) {
+        const inner = trimmed[4..trimmed.len - 1];
+        var parts = std.mem.splitSequence(u8, inner, ",");
+        var values: [3]f32 = undefined;
+        var i: usize = 0;
+        while (parts.next()) |part| : (i += 1) {
+            if (i >= 3) return null;
+            const trimmed_part = std.mem.trim(u8, part, " \t\n\r");
+            values[i] = std.fmt.parseFloat(f32, trimmed_part) catch return null;
+        }
+        if (i != 3) return null;
+        
+        return .{
+            .r = @as(u8, @intFromFloat(@min(255, @max(0, values[0])))),
+            .g = @as(u8, @intFromFloat(@min(255, @max(0, values[1])))),
+            .b = @as(u8, @intFromFloat(@min(255, @max(0, values[2])))),
+            .a = 255,
+        };
+    }
+    
+    return null;
+}
+
 /// 解析text-decoration属性值
 pub fn parseTextDecoration(value: []const u8) box.TextDecoration {
     if (std.mem.eql(u8, value, "none")) return .none;
@@ -530,6 +685,11 @@ pub fn applyStyleToLayoutBox(layout_box: *box.LayoutBox, computed_style: *const 
     // 解析text-transform
     if (getPropertyKeyword(computed_style, "text-transform")) |text_transform_value| {
         layout_box.text_transform = parseTextTransform(text_transform_value);
+    }
+
+    // 解析box-shadow
+    if (getPropertyKeyword(computed_style, "box-shadow")) |box_shadow_value| {
+        layout_box.box_shadow = parseBoxShadow(box_shadow_value);
     }
 
     // 解析border-radius

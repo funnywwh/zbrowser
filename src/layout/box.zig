@@ -206,6 +206,25 @@ pub const TextTransform = enum {
     capitalize, // 首字母大写
 };
 
+/// 阴影效果（box-shadow属性）
+pub const BoxShadow = struct {
+    /// 水平偏移量（px）
+    offset_x: f32,
+    /// 垂直偏移量（px）
+    offset_y: f32,
+    /// 模糊半径（px）
+    blur_radius: f32,
+    /// 扩散半径（px）
+    spread_radius: f32,
+    /// 阴影颜色（使用backend.Color，但这里只存储RGBA值）
+    color_r: u8,
+    color_g: u8,
+    color_b: u8,
+    color_a: u8,
+    /// 是否为内阴影（inset）
+    inset: bool,
+};
+
 /// 行高类型（line-height属性）
 pub const LineHeight = union(enum) {
     /// 数字值（如1.5，表示字体大小的倍数）
@@ -307,6 +326,10 @@ pub const LayoutBox = struct {
     /// 控制文本的大小写转换方式
     text_transform: TextTransform,
 
+    /// 阴影效果（box-shadow属性）
+    /// 控制元素的阴影效果
+    box_shadow: ?BoxShadow,
+
     /// 子布局框列表
     children: std.ArrayList(*LayoutBox),
 
@@ -360,6 +383,7 @@ pub const LayoutBox = struct {
             .word_wrap = .normal, // 默认正常换行
             .word_break = .normal, // 默认正常断行
             .text_transform = .none, // 默认不转换
+            .box_shadow = null, // 默认无阴影
             .children = std.ArrayList(*LayoutBox){
                 .items = &[_]*LayoutBox{},
                 .capacity = 0,

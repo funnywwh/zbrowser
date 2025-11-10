@@ -1614,3 +1614,81 @@ test "parseTextTransform - all values" {
     // 无效值应该返回默认值none
     try testing.expectEqual(box.TextTransform.none, style_utils.parseTextTransform("invalid"));
 }
+
+test "applyStyleToLayoutBox with box-shadow" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, node);
+
+    // 设置inline style属性
+    if (node.asElement()) |elem| {
+        try elem.setAttribute("style", "box-shadow: 2px 2px 4px 0px rgba(0,0,0,0.2);", allocator);
+    }
+
+    var layout_box = box.LayoutBox.init(node, allocator);
+    defer layout_box.deinit();
+
+    var cascade_engine = cascade.Cascade.init(allocator);
+    var computed_style = try cascade_engine.computeStyle(node, &[_]css_parser.Stylesheet{});
+    defer computed_style.deinit();
+
+    const containing_size = box.Size{ .width = 800, .height = 600 };
+    style_utils.applyStyleToLayoutBox(&layout_box, &computed_style, containing_size);
+
+    // 检查box-shadow是否正确应用
+    try testing.expect(layout_box.box_shadow != null);
+    const shadow = layout_box.box_shadow.?;
+    try testing.expectEqual(@as(f32, 2.0), shadow.offset_x);
+    try testing.expectEqual(@as(f32, 2.0), shadow.offset_y);
+    try testing.expectEqual(@as(f32, 4.0), shadow.blur_radius);
+    try testing.expectEqual(@as(f32, 0.0), shadow.spread_radius);
+    try testing.expectEqual(@as(u8, 0), shadow.color_r);
+    try testing.expectEqual(@as(u8, 0), shadow.color_g);
+    try testing.expectEqual(@as(u8, 0), shadow.color_b);
+    // rgba(0,0,0,0.2) 的alpha值应该是 0.2 * 255 = 51
+    try testing.expectEqual(@as(u8, 51), shadow.color_a);
+    try testing.expectEqual(false, shadow.inset);
+}
+
+test "parseBoxShadow - basic shadow" {
+    const shadow = style_utils.parseBoxShadow("2px 2px 4px 0px rgba(0,0,0,0.2)");
+    try testing.expect(shadow != null);
+    try testing.expectEqual(@as(f32, 2.0), shadow.?.offset_x);
+    try testing.expectEqual(@as(f32, 2.0), shadow.?.offset_y);
+    try testing.expectEqual(@as(f32, 4.0), shadow.?.blur_radius);
+    try testing.expectEqual(@as(f32, 0.0), shadow.?.spread_radius);
+    try testing.expectEqual(@as(u8, 0), shadow.?.color_r);
+    try testing.expectEqual(@as(u8, 0), shadow.?.color_g);
+    try testing.expectEqual(@as(u8, 0), shadow.?.color_b);
+    try testing.expectEqual(@as(u8, 51), shadow.?.color_a); // 0.2 * 255 = 51
+    try testing.expectEqual(false, shadow.?.inset);
+}
+
+test "parseBoxShadow - with inset" {
+    const shadow = style_utils.parseBoxShadow("2px 2px 4px 0px #000 inset");
+    try testing.expect(shadow != null);
+    try testing.expectEqual(@as(f32, 2.0), shadow.?.offset_x);
+    try testing.expectEqual(@as(f32, 2.0), shadow.?.offset_y);
+    try testing.expectEqual(@as(f32, 4.0), shadow.?.blur_radius);
+    try testing.expectEqual(@as(f32, 0.0), shadow.?.spread_radius);
+    try testing.expectEqual(@as(u8, 0), shadow.?.color_r);
+    try testing.expectEqual(@as(u8, 0), shadow.?.color_g);
+    try testing.expectEqual(@as(u8, 0), shadow.?.color_b);
+    try testing.expectEqual(@as(u8, 255), shadow.?.color_a);
+    try testing.expectEqual(true, shadow.?.inset);
+}
+
+test "parseBoxShadow - none value" {
+    const shadow = style_utils.parseBoxShadow("none");
+    try testing.expect(shadow == null);
+}
+
+test "parseBoxShadow boundary_case - invalid format" {
+    // 无效格式应该返回null
+    try testing.expect(style_utils.parseBoxShadow("") == null);
+    try testing.expect(style_utils.parseBoxShadow("2px") == null);
+    try testing.expect(style_utils.parseBoxShadow("2px 2px") == null);
+}
