@@ -632,25 +632,59 @@ pub fn getAlignContent(computed_style: *const cascade.ComputedStyle) AlignConten
     return .stretch; // 默认值
 }
 
+/// Grid轨道值类型
+pub const GridTrackValue = union(enum) {
+    /// 固定像素值
+    fixed: f32,
+    /// fr单位（fractional unit）
+    fr: f32,
+};
+
 /// Grid属性解析
-/// 解析grid-template-rows/columns（简化：只支持固定值，如"100px 200px"）
-/// TODO: 完整实现需要支持repeat(), minmax(), fr单位等
-pub fn parseGridTemplate(value: []const u8, allocator: std.mem.Allocator) !std.ArrayList(f32) {
+/// 解析grid-template-rows/columns
+/// 支持格式：
+/// - 固定值：如"100px 200px"
+/// - repeat()函数：如"repeat(3, 1fr)"或"repeat(3, 100px)"
+/// - fr单位：如"1fr 2fr 1fr"
+/// TODO: 完整实现需要支持minmax()等
+pub fn parseGridTemplate(value: []const u8, allocator: std.mem.Allocator) !std.ArrayList(GridTrackValue) {
     std.log.warn("[StyleUtils] parseGridTemplate - value='{s}'", .{value});
-    var tracks = std.ArrayList(f32){
-        .items = &[_]f32{},
+    var tracks = std.ArrayList(GridTrackValue){
+        .items = &[_]GridTrackValue{},
         .capacity = 0,
     };
     errdefer tracks.deinit(allocator);
 
-    // 简化实现：按空格分割，解析每个值
-    var iter = std.mem.splitSequence(u8, value, " ");
+    // 去除前后空格
+    const trimmed = std.mem.trim(u8, value, " \t\n\r");
+    if (trimmed.len == 0) {
+        return tracks;
+    }
+
+    // 解析每个轨道值（按空格分割）
+    var iter = std.mem.splitSequence(u8, trimmed, " ");
     while (iter.next()) |track_str| {
-        if (parsePxValue(track_str)) |num| {
-            std.log.warn("[StyleUtils] parseGridTemplate - parsed track: {d}", .{num});
-            try tracks.append(allocator, num);
+        const trimmed_track = std.mem.trim(u8, track_str, " \t\n\r");
+        if (trimmed_track.len == 0) continue;
+
+        // 检查是否是repeat()函数
+        if (std.mem.startsWith(u8, trimmed_track, "repeat(")) {
+            var repeat_tracks = parseRepeatFunction(trimmed_track, allocator) catch {
+                std.log.warn("[StyleUtils] parseGridTemplate - failed to parse repeat: '{s}'", .{trimmed_track});
+                continue;
+            };
+            defer repeat_tracks.deinit(allocator);
+            // 将repeat的结果添加到tracks
+            for (repeat_tracks.items) |track| {
+                try tracks.append(allocator, track);
+            }
         } else {
-            std.log.warn("[StyleUtils] parseGridTemplate - failed to parse track: '{s}'", .{track_str});
+            // 解析单个轨道值
+            if (parseGridTrackValue(trimmed_track)) |track| {
+                try tracks.append(allocator, track);
+            } else {
+                std.log.warn("[StyleUtils] parseGridTemplate - failed to parse track: '{s}'", .{trimmed_track});
+            }
         }
     }
     std.log.warn("[StyleUtils] parseGridTemplate - tracks.len={d}", .{tracks.items.len});
@@ -658,19 +692,86 @@ pub fn parseGridTemplate(value: []const u8, allocator: std.mem.Allocator) !std.A
     return tracks;
 }
 
+/// 解析repeat()函数
+/// 格式：repeat(count, track)
+/// 例如：repeat(3, 1fr) 或 repeat(3, 100px)
+fn parseRepeatFunction(value: []const u8, allocator: std.mem.Allocator) !std.ArrayList(GridTrackValue) {
+    // 去除"repeat("前缀和")"后缀
+    if (!std.mem.startsWith(u8, value, "repeat(")) return error.InvalidRepeat;
+    if (!std.mem.endsWith(u8, value, ")")) return error.InvalidRepeat;
+
+    const inner = std.mem.trim(u8, value[7..value.len - 1], " \t\n\r");
+    if (inner.len == 0) return error.InvalidRepeat;
+
+    // 查找逗号分隔符
+    const comma_pos = std.mem.indexOf(u8, inner, ",") orelse return error.InvalidRepeat;
+    const count_str = std.mem.trim(u8, inner[0..comma_pos], " \t\n\r");
+    const track_str = std.mem.trim(u8, inner[comma_pos + 1..], " \t\n\r");
+
+    // 解析重复次数
+    const count = std.fmt.parseInt(usize, count_str, 10) catch return error.InvalidRepeat;
+    if (count == 0) return error.InvalidRepeat;
+
+    // 解析轨道值
+    const track = parseGridTrackValue(track_str) orelse return error.InvalidRepeat;
+
+    // 创建结果数组
+    var tracks = std.ArrayList(GridTrackValue){
+        .items = &[_]GridTrackValue{},
+        .capacity = 0,
+    };
+    errdefer tracks.deinit(allocator);
+
+    // 重复添加轨道值
+    var i: usize = 0;
+    while (i < count) : (i += 1) {
+        try tracks.append(allocator, track);
+    }
+
+    return tracks;
+}
+
+/// 解析单个Grid轨道值
+/// 支持格式：
+/// - 固定值：如"100px"
+/// - fr单位：如"1fr"
+fn parseGridTrackValue(value: []const u8) ?GridTrackValue {
+    const trimmed = std.mem.trim(u8, value, " \t\n\r");
+    if (trimmed.len == 0) return null;
+
+    // 检查是否是fr单位
+    if (std.mem.endsWith(u8, trimmed, "fr")) {
+        const num_str = trimmed[0..trimmed.len - 2];
+        if (std.fmt.parseFloat(f32, num_str)) |num| {
+            if (num >= 0) {
+                return GridTrackValue{ .fr = num };
+            }
+        } else |_| {
+            return null;
+        }
+    }
+
+    // 检查是否是px单位
+    if (parsePxValue(trimmed)) |num| {
+        return GridTrackValue{ .fixed = num };
+    }
+
+    return null;
+}
+
 /// 从ComputedStyle获取Grid属性
-pub fn getGridTemplateRows(computed_style: *const cascade.ComputedStyle, allocator: std.mem.Allocator) !std.ArrayList(f32) {
+pub fn getGridTemplateRows(computed_style: *const cascade.ComputedStyle, allocator: std.mem.Allocator) !std.ArrayList(GridTrackValue) {
     if (getPropertyKeyword(computed_style, "grid-template-rows")) |value| {
         return parseGridTemplate(value, allocator);
     }
     // 默认返回空列表
-    return std.ArrayList(f32){
-        .items = &[_]f32{},
+    return std.ArrayList(GridTrackValue){
+        .items = &[_]GridTrackValue{},
         .capacity = 0,
     };
 }
 
-pub fn getGridTemplateColumns(computed_style: *const cascade.ComputedStyle, allocator: std.mem.Allocator) !std.ArrayList(f32) {
+pub fn getGridTemplateColumns(computed_style: *const cascade.ComputedStyle, allocator: std.mem.Allocator) !std.ArrayList(GridTrackValue) {
     if (computed_style.getProperty("grid-template-columns")) |decl| {
         std.log.warn("[StyleUtils] getGridTemplateColumns - found property, value type: {}", .{decl.value});
         const value_str = switch (decl.value) {
@@ -683,8 +784,8 @@ pub fn getGridTemplateColumns(computed_style: *const cascade.ComputedStyle, allo
             },
             else => {
                 std.log.warn("[StyleUtils] getGridTemplateColumns - unsupported value type", .{});
-                return std.ArrayList(f32){
-                    .items = &[_]f32{},
+                return std.ArrayList(GridTrackValue){
+                    .items = &[_]GridTrackValue{},
                     .capacity = 0,
                 };
             },
@@ -694,8 +795,8 @@ pub fn getGridTemplateColumns(computed_style: *const cascade.ComputedStyle, allo
     }
     std.log.warn("[StyleUtils] getGridTemplateColumns - property not found", .{});
     // 默认返回空列表
-    return std.ArrayList(f32){
-        .items = &[_]f32{},
+    return std.ArrayList(GridTrackValue){
+        .items = &[_]GridTrackValue{},
         .capacity = 0,
     };
 }

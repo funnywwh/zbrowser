@@ -86,17 +86,54 @@ pub fn layoutGrid(layout_box: *box.LayoutBox, containing_block: box.Size, styles
     };
     defer row_positions.deinit(layout_box.allocator);
 
-    // 计算列位置（考虑gap）
+    // 计算列位置（考虑gap和fr单位）
+    // 首先将GridTrackValue转换为实际像素值
+    var column_widths = std.ArrayList(f32){
+        .items = &[_]f32{},
+        .capacity = 0,
+    };
+    defer column_widths.deinit(layout_box.allocator);
+    
+    if (grid_template_columns.items.len > 0) {
+        // 计算固定尺寸的总和和fr单位的总和
+        var total_fixed: f32 = 0;
+        var total_fr: f32 = 0;
+        for (grid_template_columns.items) |track| {
+            switch (track) {
+                .fixed => |val| total_fixed += val,
+                .fr => |val| total_fr += val,
+            }
+        }
+        
+        // 计算可用空间（容器宽度减去gap）
+        const total_gap = column_gap * @as(f32, @floatFromInt(grid_template_columns.items.len - 1));
+        const available_width = layout_box.box_model.content.width - total_gap;
+        const fr_space = if (total_fr > 0) available_width - total_fixed else 0;
+        const fr_unit_size = if (total_fr > 0) fr_space / total_fr else 0;
+        
+        // 转换为实际像素值
+        for (grid_template_columns.items) |track| {
+            const width = switch (track) {
+                .fixed => |val| val,
+                .fr => |val| val * fr_unit_size,
+            };
+            column_widths.append(layout_box.allocator, width) catch {
+                layoutGridDefault(layout_box, containing_block);
+                return;
+            };
+        }
+    }
+    
     // column_positions存储每列的起始位置（包括gap的累积位置）
     var x_offset: f32 = 0;
     column_positions.append(layout_box.allocator, 0) catch {
         layoutGridDefault(layout_box, containing_block);
         return;
     };
-    if (grid_template_columns.items.len > 0) {
-        for (grid_template_columns.items, 0..) |col_width, i| {
+    if (column_widths.items.len > 0) {
+        for (column_widths.items, 0..) |col_width, i| {
             // 下一列的起始位置 = 当前列的起始位置 + 当前列宽 + gap
-            if (i < grid_template_columns.items.len - 1) {
+            if (i < column_widths.items.len - 1) {
                 x_offset += col_width + column_gap;
             } else {
                 // 最后一列后不加gap
@@ -122,17 +159,54 @@ pub fn layoutGrid(layout_box: *box.LayoutBox, containing_block: box.Size, styles
         }
     }
 
-    // 计算行位置（考虑gap）
+    // 计算行位置（考虑gap和fr单位）
+    // 首先将GridTrackValue转换为实际像素值
+    var row_heights = std.ArrayList(f32){
+        .items = &[_]f32{},
+        .capacity = 0,
+    };
+    defer row_heights.deinit(layout_box.allocator);
+    
+    if (grid_template_rows.items.len > 0) {
+        // 计算固定尺寸的总和和fr单位的总和
+        var total_fixed: f32 = 0;
+        var total_fr: f32 = 0;
+        for (grid_template_rows.items) |track| {
+            switch (track) {
+                .fixed => |val| total_fixed += val,
+                .fr => |val| total_fr += val,
+            }
+        }
+        
+        // 计算可用空间（容器高度减去gap）
+        const total_gap = row_gap * @as(f32, @floatFromInt(grid_template_rows.items.len - 1));
+        const available_height = layout_box.box_model.content.height - total_gap;
+        const fr_space = if (total_fr > 0) available_height - total_fixed else 0;
+        const fr_unit_size = if (total_fr > 0) fr_space / total_fr else 0;
+        
+        // 转换为实际像素值
+        for (grid_template_rows.items) |track| {
+            const height = switch (track) {
+                .fixed => |val| val,
+                .fr => |val| val * fr_unit_size,
+            };
+            row_heights.append(layout_box.allocator, height) catch {
+                layoutGridDefault(layout_box, containing_block);
+                return;
+            };
+        }
+    }
+    
     // row_positions存储每行的起始位置（包括gap的累积位置）
     var y_offset: f32 = 0;
     row_positions.append(layout_box.allocator, 0) catch {
         layoutGridDefault(layout_box, containing_block);
         return;
     };
-    if (grid_template_rows.items.len > 0) {
-        for (grid_template_rows.items, 0..) |row_height, i| {
+    if (row_heights.items.len > 0) {
+        for (row_heights.items, 0..) |row_height, i| {
             // 下一行的起始位置 = 当前行的起始位置 + 当前行高 + gap
-            if (i < grid_template_rows.items.len - 1) {
+            if (i < row_heights.items.len - 1) {
                 y_offset += row_height + row_gap;
             } else {
                 // 最后一行后不加gap
