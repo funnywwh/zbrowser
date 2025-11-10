@@ -131,7 +131,48 @@ pub const Renderer = struct {
         }
 
         // 4. 递归渲染子节点（先渲染子节点，确保文本在背景之上）
+        // 如果子元素有z-index，需要按照z-index排序
+        // 简化实现：只对positioned元素（relative、absolute、fixed、sticky）应用z-index排序
+        var children_to_render = std.ArrayList(*box.LayoutBox){
+            .items = &[_]*box.LayoutBox{},
+            .capacity = 0,
+        };
+        defer children_to_render.deinit(self.allocator);
+        
+        // 收集需要按z-index排序的元素和普通元素
+        var positioned_children = std.ArrayList(*box.LayoutBox){
+            .items = &[_]*box.LayoutBox{},
+            .capacity = 0,
+        };
+        defer positioned_children.deinit(self.allocator);
+        
         for (layout_box.children.items) |child| {
+            // 检查是否是positioned元素且有z-index
+            const is_positioned = child.position != .static;
+            if (is_positioned and child.z_index != null) {
+                try positioned_children.append(self.allocator, child);
+            } else {
+                // 普通元素或没有z-index的positioned元素，按原顺序渲染
+                try children_to_render.append(self.allocator, child);
+            }
+        }
+        
+        // 对positioned元素按z-index排序（z-index小的先渲染，大的后渲染）
+        std.mem.sort(*box.LayoutBox, positioned_children.items, {}, struct {
+            fn lessThan(_: void, a: *box.LayoutBox, b: *box.LayoutBox) bool {
+                const z_a = a.z_index orelse 0;
+                const z_b = b.z_index orelse 0;
+                return z_a < z_b;
+            }
+        }.lessThan);
+        
+        // 合并排序后的positioned元素到渲染列表
+        // 简化实现：先渲染普通元素，再渲染positioned元素（按z-index排序）
+        // TODO: 完整实现需要按照z-index值混合渲染顺序
+        for (children_to_render.items) |child| {
+            try self.renderLayoutBox(child);
+        }
+        for (positioned_children.items) |child| {
             try self.renderLayoutBox(child);
         }
 

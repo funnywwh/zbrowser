@@ -240,6 +240,11 @@ pub const LayoutBox = struct {
     /// 默认值：1.0（完全不透明）
     opacity: f32,
 
+    /// 堆叠顺序（z-index属性）
+    /// 如果为null，表示使用默认堆叠顺序（auto）
+    /// 只对positioned元素（relative、absolute、fixed、sticky）有效
+    z_index: ?i32,
+
     /// 子布局框列表
     children: std.ArrayList(*LayoutBox),
 
@@ -287,6 +292,7 @@ pub const LayoutBox = struct {
             .overflow = .visible, // 默认不裁剪
             .letter_spacing = null, // 默认无额外字符间距
             .opacity = 1.0, // 默认完全不透明
+            .z_index = null, // 默认使用auto堆叠顺序
             .children = std.ArrayList(*LayoutBox){
                 .items = &[_]*LayoutBox{},
                 .capacity = 0,

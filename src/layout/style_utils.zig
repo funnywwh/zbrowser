@@ -438,6 +438,21 @@ pub fn applyStyleToLayoutBox(layout_box: *box.LayoutBox, computed_style: *const 
         }
     }
 
+    // 解析z-index
+    if (getPropertyKeyword(computed_style, "z-index")) |z_index_value| {
+        // 支持auto关键字（表示null）
+        if (std.mem.eql(u8, z_index_value, "auto")) {
+            layout_box.z_index = null; // null表示使用auto堆叠顺序
+        } else {
+            // 尝试解析为整数
+            if (std.fmt.parseInt(i32, z_index_value, 10)) |z_index| {
+                layout_box.z_index = z_index;
+            } else |_| {
+                // 解析失败，使用默认值null（auto）
+            }
+        }
+    }
+
     // 解析border-radius
     if (getPropertyLength(computed_style, "border-radius", createUnitContext(containing_size.width))) |border_radius_value| {
         layout_box.box_model.border_radius = border_radius_value;
