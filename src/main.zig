@@ -172,9 +172,9 @@ pub fn main() !void {
         std.log.warn("Body element not found", .{});
     }
 
-    // 使用固定尺寸（1920x5000）
+    // 使用固定尺寸（1920x10000）
     const render_width: u32 = 1920;
-    const render_height: u32 = 5000;
+    const render_height: u32 = 10000;
     
     std.log.info("渲染页面到PNG ({d}x{d})...", .{ render_width, render_height });
     try browser.renderToPNG(render_width, render_height, output_path);
