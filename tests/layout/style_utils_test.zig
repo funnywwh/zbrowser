@@ -674,3 +674,134 @@ test "font-weight lighter parsing" {
     try testing.expect(font_weight != null);
     try testing.expectEqualStrings("lighter", font_weight.?);
 }
+
+test "getFlexProperties with flex shorthand - single value" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, node);
+
+    // 设置inline style属性
+    if (node.asElement()) |elem| {
+        try elem.setAttribute("style", "flex: 1;", allocator);
+    }
+
+    var cascade_engine = cascade.Cascade.init(allocator);
+    var computed_style = try cascade_engine.computeStyle(node, &[_]css_parser.Stylesheet{});
+    defer computed_style.deinit();
+
+    const containing_size: f32 = 800.0;
+    const flex_props = style_utils.getFlexProperties(&computed_style, containing_size);
+
+    // flex: 1 应该解析为 grow=1, shrink=1, basis=auto
+    try testing.expectEqual(@as(f32, 1.0), flex_props.grow);
+    try testing.expectEqual(@as(f32, 1.0), flex_props.shrink);
+    try testing.expect(flex_props.basis == null); // auto
+}
+
+test "getFlexProperties with flex shorthand - two values" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, node);
+
+    // 设置inline style属性
+    if (node.asElement()) |elem| {
+        try elem.setAttribute("style", "flex: 1 2;", allocator);
+    }
+
+    var cascade_engine = cascade.Cascade.init(allocator);
+    var computed_style = try cascade_engine.computeStyle(node, &[_]css_parser.Stylesheet{});
+    defer computed_style.deinit();
+
+    const containing_size: f32 = 800.0;
+    const flex_props = style_utils.getFlexProperties(&computed_style, containing_size);
+
+    // flex: 1 2 应该解析为 grow=1, shrink=2, basis=auto
+    try testing.expectEqual(@as(f32, 1.0), flex_props.grow);
+    try testing.expectEqual(@as(f32, 2.0), flex_props.shrink);
+    try testing.expect(flex_props.basis == null); // auto
+}
+
+test "getFlexProperties with flex shorthand - three values" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, node);
+
+    // 设置inline style属性
+    if (node.asElement()) |elem| {
+        try elem.setAttribute("style", "flex: 1 2 100px;", allocator);
+    }
+
+    var cascade_engine = cascade.Cascade.init(allocator);
+    var computed_style = try cascade_engine.computeStyle(node, &[_]css_parser.Stylesheet{});
+    defer computed_style.deinit();
+
+    const containing_size: f32 = 800.0;
+    const flex_props = style_utils.getFlexProperties(&computed_style, containing_size);
+
+    // flex: 1 2 100px 应该解析为 grow=1, shrink=2, basis=100px
+    try testing.expectEqual(@as(f32, 1.0), flex_props.grow);
+    try testing.expectEqual(@as(f32, 2.0), flex_props.shrink);
+    try testing.expect(flex_props.basis != null);
+    try testing.expectEqual(@as(f32, 100.0), flex_props.basis.?);
+}
+
+test "getFlexProperties with flex shorthand - auto keyword" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, node);
+
+    // 设置inline style属性
+    if (node.asElement()) |elem| {
+        try elem.setAttribute("style", "flex: auto;", allocator);
+    }
+
+    var cascade_engine = cascade.Cascade.init(allocator);
+    var computed_style = try cascade_engine.computeStyle(node, &[_]css_parser.Stylesheet{});
+    defer computed_style.deinit();
+
+    const containing_size: f32 = 800.0;
+    const flex_props = style_utils.getFlexProperties(&computed_style, containing_size);
+
+    // flex: auto 应该解析为 grow=1, shrink=1, basis=auto
+    try testing.expectEqual(@as(f32, 1.0), flex_props.grow);
+    try testing.expectEqual(@as(f32, 1.0), flex_props.shrink);
+    try testing.expect(flex_props.basis == null); // auto
+}
+
+test "getFlexProperties with flex shorthand - none keyword" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, node);
+
+    // 设置inline style属性
+    if (node.asElement()) |elem| {
+        try elem.setAttribute("style", "flex: none;", allocator);
+    }
+
+    var cascade_engine = cascade.Cascade.init(allocator);
+    var computed_style = try cascade_engine.computeStyle(node, &[_]css_parser.Stylesheet{});
+    defer computed_style.deinit();
+
+    const containing_size: f32 = 800.0;
+    const flex_props = style_utils.getFlexProperties(&computed_style, containing_size);
+
+    // flex: none 应该解析为 grow=0, shrink=0, basis=auto
+    try testing.expectEqual(@as(f32, 0.0), flex_props.grow);
+    try testing.expectEqual(@as(f32, 0.0), flex_props.shrink);
+    try testing.expect(flex_props.basis == null); // auto
+}

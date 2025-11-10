@@ -774,6 +774,81 @@ pub fn getFlexShrink(computed_style: *const cascade.ComputedStyle) f32 {
     return 1.0; // 默认值
 }
 
+/// 解析flex简写属性
+/// 支持格式：
+/// - "1" -> grow=1, shrink=1, basis=auto
+/// - "1 2" -> grow=1, shrink=2, basis=auto
+/// - "1 2 100px" -> grow=1, shrink=2, basis=100px
+/// - "auto" -> grow=1, shrink=1, basis=auto
+/// - "none" -> grow=0, shrink=0, basis=auto
+/// - "initial" -> grow=0, shrink=1, basis=auto
+fn parseFlexShorthand(value: []const u8, containing_size: f32) FlexItemProperties {
+    const trimmed = std.mem.trim(u8, value, " \t\n\r");
+    if (trimmed.len == 0) {
+        return .{ .grow = 0.0, .shrink = 1.0, .basis = null };
+    }
+
+    // 检查关键字
+    if (std.mem.eql(u8, trimmed, "auto")) {
+        return .{ .grow = 1.0, .shrink = 1.0, .basis = null };
+    }
+    if (std.mem.eql(u8, trimmed, "none")) {
+        return .{ .grow = 0.0, .shrink = 0.0, .basis = null };
+    }
+    if (std.mem.eql(u8, trimmed, "initial")) {
+        return .{ .grow = 0.0, .shrink = 1.0, .basis = null };
+    }
+
+    // 按空格分割值
+    var parts = std.mem.splitSequence(u8, trimmed, " ");
+    var grow: ?f32 = null;
+    var shrink: ?f32 = null;
+    var basis: ?f32 = null;
+
+    var part_count: usize = 0;
+    while (parts.next()) |part| {
+        const part_trimmed = std.mem.trim(u8, part, " \t\n\r");
+        if (part_trimmed.len == 0) continue;
+        part_count += 1;
+
+        // 尝试解析为数字（grow或shrink）
+        if (std.fmt.parseFloat(f32, part_trimmed)) |num| {
+            if (grow == null) {
+                grow = num;
+            } else if (shrink == null) {
+                shrink = num;
+            } else {
+                // 第三个值应该是basis，但如果是数字，也作为basis处理（如"0"表示0px）
+                // 实际上，basis应该是长度值，这里简化处理
+            }
+        } else |_| {
+            // 解析失败，可能是长度值（basis）
+            // 尝试解析为长度值
+            if (parsePxValue(part_trimmed)) |px_value| {
+                basis = px_value;
+            } else if (part_trimmed.len > 1 and part_trimmed[part_trimmed.len - 1] == '%') {
+                // 百分比值
+                if (std.fmt.parseFloat(f32, part_trimmed[0..part_trimmed.len - 1])) |percent| {
+                    basis = containing_size * percent / 100.0;
+                } else |_| {
+                    // 解析失败，忽略
+                }
+            } else if (std.mem.eql(u8, part_trimmed, "auto")) {
+                basis = null; // auto
+            } else {
+                // 无法解析，忽略
+            }
+        }
+    }
+
+    // 根据解析的值设置结果
+    return .{
+        .grow = grow orelse 0.0,
+        .shrink = shrink orelse (if (grow != null) 1.0 else 1.0), // 如果指定了grow，shrink默认为1.0
+        .basis = basis,
+    };
+}
+
 /// 从ComputedStyle获取flex-basis值
 /// 返回null表示auto
 pub fn getFlexBasis(computed_style: *const cascade.ComputedStyle, containing_size: f32) ?f32 {
@@ -782,13 +857,22 @@ pub fn getFlexBasis(computed_style: *const cascade.ComputedStyle, containing_siz
     if (getPropertyLength(computed_style, "flex-basis", context)) |basis| {
         return basis;
     }
-    // 检查flex简写属性（简化实现：只支持单个值，如"1"表示flex-grow=1）
-    // TODO: 完整实现需要解析flex简写（flex-grow flex-shrink flex-basis）
+    // 检查flex简写属性
+    if (getPropertyKeyword(computed_style, "flex")) |flex_value| {
+        const flex_props = parseFlexShorthand(flex_value, containing_size);
+        return flex_props.basis;
+    }
     return null; // auto
 }
 
 /// 从ComputedStyle获取完整的flex属性
 pub fn getFlexProperties(computed_style: *const cascade.ComputedStyle, containing_size: f32) FlexItemProperties {
+    // 先检查flex简写属性（优先级最高）
+    if (getPropertyKeyword(computed_style, "flex")) |flex_value| {
+        return parseFlexShorthand(flex_value, containing_size);
+    }
+    
+    // 如果没有flex简写属性，分别获取各个属性
     return .{
         .grow = getFlexGrow(computed_style),
         .shrink = getFlexShrink(computed_style),
