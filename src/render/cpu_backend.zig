@@ -1941,8 +1941,28 @@ pub const CpuRenderBackend = struct {
         // TODO: 简化实现 - 当前将圆弧近似为直线段
         // 完整实现需要：使用Bresenham算法或参数方程绘制圆弧
         const num_segments = @max(8, @as(i32, @intFromFloat(radius * 2)));
+        
+        // 如果路径不为空，检查当前点是否与圆弧起点相同
+        // 如果相同，跳过第一个点以避免重复
+        var skip_first = false;
+        if (self.current_path.items.len > 0) {
+            const last_point = self.current_path.items[self.current_path.items.len - 1];
+            const start_px = x + radius * @cos(start);
+            const start_py = y + radius * @sin(start);
+            const dx = @abs(last_point.x - start_px);
+            const dy = @abs(last_point.y - start_py);
+            // 如果距离很小（小于0.1像素），认为是同一个点
+            if (dx < 0.1 and dy < 0.1) {
+                skip_first = true;
+            }
+        }
+        
         var i: i32 = 0;
         while (i <= num_segments) : (i += 1) {
+            // 如果跳过第一个点，从i=1开始
+            if (skip_first and i == 0) {
+                continue;
+            }
             const angle = start + (end - start) * (@as(f32, @floatFromInt(i)) / @as(f32, @floatFromInt(num_segments)));
             const px = x + radius * @cos(angle);
             const py = y + radius * @sin(angle);
@@ -1970,9 +1990,9 @@ pub const CpuRenderBackend = struct {
     }
 
     /// 内部路径填充实现
-    /// TODO: 简化实现 - 当前使用简单的扫描线算法
-    /// 完整实现需要：
-    /// 1. 更精确的多边形填充算法
+    /// 使用射线法（Ray Casting）判断点是否在路径内
+    /// TODO: 完整实现需要：
+    /// 1. 更精确的多边形填充算法（扫描线算法）
     /// 2. 处理自相交路径
     /// 3. 非零规则和奇偶规则
     fn fillPathInternal(self: *CpuRenderBackend, color: backend.Color) void {
@@ -1980,8 +2000,7 @@ pub const CpuRenderBackend = struct {
             return; // 至少需要3个点才能形成封闭区域
         }
 
-        // 简化实现：使用边界框填充
-        // TODO: 实现完整的扫描线填充算法
+        // 计算边界框
         var min_x: f32 = self.current_path.items[0].x;
         var min_y: f32 = self.current_path.items[0].y;
         var max_x: f32 = self.current_path.items[0].x;
@@ -1994,9 +2013,95 @@ pub const CpuRenderBackend = struct {
             max_y = @max(max_y, point.y);
         }
 
-        // 填充边界框（简化实现）
-        const rect = backend.Rect.init(min_x, min_y, max_x - min_x, max_y - min_y);
-        fillRectInternal(self, rect, color);
+        // 使用射线法填充路径内部
+        // 对于边界框内的每个像素，使用射线法判断是否在路径内
+        const start_x = @max(0, @as(i32, @intFromFloat(min_x)));
+        const start_y = @max(0, @as(i32, @intFromFloat(min_y)));
+        const end_x = @min(@as(i32, @intCast(self.width)), @as(i32, @intFromFloat(max_x)) + 1);
+        const end_y = @min(@as(i32, @intCast(self.height)), @as(i32, @intFromFloat(max_y)) + 1);
+
+        var py = start_y;
+        while (py < end_y) : (py += 1) {
+            var px = start_x;
+            while (px < end_x) : (px += 1) {
+                const test_x = @as(f32, @floatFromInt(px)) + 0.5;
+                const test_y = @as(f32, @floatFromInt(py)) + 0.5;
+                
+                // 使用射线法（从点向右发射射线，计算与路径的交点数）
+                if (isPointInPath(self.current_path.items, test_x, test_y)) {
+                    const index = (@as(usize, @intCast(py)) * self.width + @as(usize, @intCast(px))) * 4;
+                    
+                    // 应用全局透明度
+                    const alpha = @as(f32, @floatFromInt(color.a)) * self.current_state.global_alpha;
+                    const final_alpha = @as(u8, @intFromFloat(alpha));
+                    
+                    if (final_alpha < 255) {
+                        // Alpha混合
+                        const src_alpha = @as(f32, @floatFromInt(final_alpha)) / 255.0;
+                        const dst_alpha = @as(f32, @floatFromInt(self.pixels[index + 3])) / 255.0;
+                        const combined_alpha = src_alpha + dst_alpha * (1 - src_alpha);
+                        if (combined_alpha > 0) {
+                            const inv_alpha = 1.0 / combined_alpha;
+                            self.pixels[index] = @as(u8, @intFromFloat((@as(f32, @floatFromInt(color.r)) * src_alpha + @as(f32, @floatFromInt(self.pixels[index])) * dst_alpha * (1 - src_alpha)) * inv_alpha));
+                            self.pixels[index + 1] = @as(u8, @intFromFloat((@as(f32, @floatFromInt(color.g)) * src_alpha + @as(f32, @floatFromInt(self.pixels[index + 1])) * dst_alpha * (1 - src_alpha)) * inv_alpha));
+                            self.pixels[index + 2] = @as(u8, @intFromFloat((@as(f32, @floatFromInt(color.b)) * src_alpha + @as(f32, @floatFromInt(self.pixels[index + 2])) * dst_alpha * (1 - src_alpha)) * inv_alpha));
+                            self.pixels[index + 3] = @as(u8, @intFromFloat(combined_alpha * 255));
+                        }
+                    } else {
+                        self.pixels[index] = color.r;
+                        self.pixels[index + 1] = color.g;
+                        self.pixels[index + 2] = color.b;
+                        self.pixels[index + 3] = final_alpha;
+                    }
+                }
+            }
+        }
+    }
+
+    /// 使用射线法判断点是否在路径内
+    /// 从点向右发射射线，计算与路径的交点数
+    /// 如果交点数为奇数，点在路径内；如果为偶数，点在路径外
+    fn isPointInPath(path: []const Point, x: f32, y: f32) bool {
+        if (path.len < 3) {
+            return false;
+        }
+        
+        var intersections: i32 = 0;
+        var i: usize = 0;
+        while (i < path.len) : (i += 1) {
+            const p1 = path[i];
+            const p2 = path[(i + 1) % path.len];
+            
+            // 检查射线（从(x, y)向右）是否与线段(p1, p2)相交
+            // 射线：y = test_y, x >= test_x
+            // 线段：从p1到p2
+            
+            // 如果线段是水平的，跳过
+            if (@abs(p1.y - p2.y) < 0.001) {
+                continue;
+            }
+            
+            // 如果点在线段的y范围外，跳过
+            const min_y = @min(p1.y, p2.y);
+            const max_y = @max(p1.y, p2.y);
+            if (y < min_y or y >= max_y) {
+                continue;
+            }
+            
+            // 计算射线与线段的交点x坐标
+            // 线段方程：y = p1.y + (p2.y - p1.y) * t, x = p1.x + (p2.x - p1.x) * t
+            // 当y = test_y时，t = (test_y - p1.y) / (p2.y - p1.y)
+            const t = (y - p1.y) / (p2.y - p1.y);
+            const intersect_x = p1.x + (p2.x - p1.x) * t;
+            
+            // 如果交点在点的右侧，计数
+            if (intersect_x > x) {
+                intersections += 1;
+            }
+        }
+        
+        // 奇数个交点表示点在路径内
+        return (@rem(intersections, 2)) == 1;
     }
 
     /// 内部路径描边实现

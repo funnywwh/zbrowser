@@ -213,30 +213,48 @@ pub const Renderer = struct {
         }
         
         // 绘制圆角矩形路径（顺时针）
+        // 从左上角开始，移动到上边左端（圆弧起点）
         self.render_backend.beginPath();
+        self.render_backend.moveTo(x + r, y);
         
-        // 左上角圆弧（从180度到270度，即从左边到上边）
-        self.render_backend.arc(x + r, y + r, r, std.math.pi, 3.0 * std.math.pi / 2.0);
-        
-        // 上边直线
+        // 上边直线（从左端到右端）
         self.render_backend.lineTo(x + w - r, y);
         
-        // 右上角圆弧（从270度到0度，即从上边到右边）
-        self.render_backend.arc(x + w - r, y + r, r, 3.0 * std.math.pi / 2.0, 0);
+        // 右上角圆弧（从270度到360度/0度，即从上边到右边）
+        // 圆弧中心：(x + w - r, y + r)，半径：r
+        // 起点：(x + w - r, y) 对应角度270度（3π/2）
+        // 终点：(x + w, y + r) 对应角度0度（2π）
+        // 注意：arc函数会从start角度开始添加点，第一个点应该正好是当前点
+        // 但为了确保连续性，我们需要确保arc的第一个点与当前点匹配
+        // 由于arc函数直接添加点而不检查当前点，我们需要确保路径连续
+        // 使用2π而不是0，确保角度递增（从270度到360度）
+        const pi = std.math.pi;
+        const pi_2 = pi / 2.0;
+        const pi_3_2 = 3.0 * pi / 2.0;
+        const pi_2x = 2.0 * pi;
         
-        // 右边直线
+        // 右上角圆弧：从270度到360度（0度）
+        // arc函数会添加从start到end的所有点，包括start和end
+        // 第一个点：(x + w - r + r*cos(3π/2), y + r + r*sin(3π/2)) = (x + w - r, y)
+        // 最后一个点：(x + w - r + r*cos(2π), y + r + r*sin(2π)) = (x + w, y + r)
+        self.render_backend.arc(x + w - r, y + r, r, pi_3_2, pi_2x);
+        
+        // 右边直线（从上端到下端）
         self.render_backend.lineTo(x + w, y + h - r);
         
         // 右下角圆弧（从0度到90度，即从右边到下边）
-        self.render_backend.arc(x + w - r, y + h - r, r, 0, std.math.pi / 2.0);
+        self.render_backend.arc(x + w - r, y + h - r, r, 0, pi_2);
         
-        // 下边直线
+        // 下边直线（从右端到左端）
         self.render_backend.lineTo(x + r, y + h);
         
         // 左下角圆弧（从90度到180度，即从下边到左边）
-        self.render_backend.arc(x + r, y + h - r, r, std.math.pi / 2.0, std.math.pi);
+        self.render_backend.arc(x + r, y + h - r, r, pi_2, pi);
         
-        // 左边直线（回到起点）
+        // 左上角圆弧（从180度到270度，即从左边到上边）
+        self.render_backend.arc(x + r, y + r, r, pi, pi_3_2);
+        
+        // 闭合路径（回到起点）
         self.render_backend.closePath();
     }
 
