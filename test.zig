@@ -20,6 +20,7 @@ const css_parser_test = @import("tests/css/parser_test.zig");
 const css_tokenizer_test = @import("tests/css/tokenizer_test.zig");
 const css_selector_test = @import("tests/css/selector_test.zig");
 const css_cascade_test = @import("tests/css/cascade_test.zig");
+const css_css3_properties_test = @import("tests/css/css3_properties_test.zig");
 
 // Utils模块测试
 const string_test = @import("tests/utils/string_test.zig");
@@ -84,6 +85,7 @@ test "all test modules imported" {
     _ = css_tokenizer_test;
     _ = css_selector_test;
     _ = css_cascade_test;
+    _ = css_css3_properties_test;
     _ = string_test;
     _ = math_test;
     _ = allocator_test;

@@ -177,9 +177,49 @@ fn layoutAbsolute(layout_box: *box.LayoutBox, containing_block: box.Size) void {
 }
 
 /// Fixed定位：相对于视口
+/// fixed定位始终相对于视口，不查找定位祖先
 fn layoutFixed(layout_box: *box.LayoutBox, viewport: box.Size) void {
-    // fixed定位与absolute类似，但相对于视口而不是包含块
-    layoutAbsolute(layout_box, viewport);
+    std.log.debug("[Position] layoutFixed: start, position_left={?}, position_top={?}, viewport=({d:.1}x{d:.1})", .{ layout_box.position_left, layout_box.position_top, viewport.width, viewport.height });
+
+    // fixed定位始终相对于视口(0, 0)，不查找定位祖先
+    const viewport_x: f32 = 0;
+    const viewport_y: f32 = 0;
+
+    // 计算水平位置（left优先，如果未设置则使用right）
+    if (layout_box.position_left) |left| {
+        layout_box.box_model.content.x = viewport_x + left;
+        std.log.debug("[Position] layoutFixed: set x = {d:.1} + {d:.1} = {d:.1}", .{ viewport_x, left, layout_box.box_model.content.x });
+    } else if (layout_box.position_right) |right| {
+        // right值相对于视口的右边缘
+        const total_width = layout_box.box_model.content.width +
+            layout_box.box_model.padding.horizontal() +
+            layout_box.box_model.border.horizontal();
+        layout_box.box_model.content.x = viewport_x + viewport.width - total_width - right;
+        std.log.debug("[Position] layoutFixed: set x using right = {d:.1} + {d:.1} - {d:.1} - {d:.1} = {d:.1}", .{ viewport_x, viewport.width, total_width, right, layout_box.box_model.content.x });
+    } else {
+        // 如果left和right都未设置，使用默认值0
+        layout_box.box_model.content.x = viewport_x;
+        std.log.debug("[Position] layoutFixed: no left/right, set x = {d:.1}", .{viewport_x});
+    }
+
+    // 计算垂直位置（top优先，如果未设置则使用bottom）
+    if (layout_box.position_top) |top| {
+        layout_box.box_model.content.y = viewport_y + top;
+        std.log.debug("[Position] layoutFixed: set y = {d:.1} + {d:.1} = {d:.1}", .{ viewport_y, top, layout_box.box_model.content.y });
+    } else if (layout_box.position_bottom) |bottom| {
+        // bottom值相对于视口的底边缘
+        const total_height = layout_box.box_model.content.height +
+            layout_box.box_model.padding.vertical() +
+            layout_box.box_model.border.vertical();
+        layout_box.box_model.content.y = viewport_y + viewport.height - total_height - bottom;
+        std.log.debug("[Position] layoutFixed: set y using bottom = {d:.1} + {d:.1} - {d:.1} - {d:.1} = {d:.1}", .{ viewport_y, viewport.height, total_height, bottom, layout_box.box_model.content.y });
+    } else {
+        // 如果top和bottom都未设置，使用默认值0
+        layout_box.box_model.content.y = viewport_y;
+        std.log.debug("[Position] layoutFixed: no top/bottom, set y = {d:.1}", .{viewport_y});
+    }
+
+    std.log.debug("[Position] layoutFixed: final position = ({d:.1}, {d:.1})", .{ layout_box.box_model.content.x, layout_box.box_model.content.y });
 }
 
 /// Sticky定位：在滚动时会"粘"在指定位置
