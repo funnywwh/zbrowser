@@ -859,7 +859,12 @@ pub const CpuRenderBackend = struct {
         // 韩文字体路径（按优先级排序）
         const korean_font_paths = [_][]const u8{
             // 优先使用TrueType字体（TTF格式，使用glyf表）
-            // Windows系统字体（TrueType格式）
+            // 本地项目字体（TrueType格式，支持韩文）
+            "fonts/NotoSansCJKKR-Regular.ttf", // Noto Sans CJK KR（TrueType格式，支持韩文）
+            // Windows系统字体（TrueType格式，支持韩文）
+            "C:\\Windows\\Fonts\\arialuni.ttf", // Arial Unicode MS（TrueType格式，支持韩文等多种语言）
+            "C:\\Windows\\Fonts\\ArialUni.ttf",
+            "C:\\Windows\\Fonts\\ARIALUNI.TTF",
             "C:\\Windows\\Fonts\\malgun.ttf", // Malgun Gothic（맑은 고딕，TrueType格式）
             "C:\\Windows\\Fonts\\Malgun.ttf",
             "C:\\Windows\\Fonts\\malgunbd.ttf", // Malgun Gothic Bold（TrueType格式）

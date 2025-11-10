@@ -225,7 +225,7 @@ pub const GlyphRenderer = struct {
     }
 
     /// 使用扫描线算法填充轮廓（带抗锯齿，支持多个轮廓）
-    /// 使用奇偶填充规则（even-odd rule）：从外向内，奇数个轮廓内的区域填充，偶数个轮廓内的区域不填充
+    /// 使用非零填充规则（non-zero winding rule）：根据路径方向决定填充区域
     fn fillOutline(
         self: *Self,
         points: []const Point,
@@ -264,8 +264,13 @@ pub const GlyphRenderer = struct {
             
             const y = @as(f32, @floatFromInt(scanline)) + 0.5; // 扫描线中心
 
-            // 计算与所有轮廓的交点
-            var intersections = std.ArrayList(f32){};
+            // 计算与所有轮廓的交点（使用非零填充规则）
+            // 存储交点和方向
+            const Intersection = struct {
+                x: f32,
+                direction: i32, // +1 表示从下到上，-1 表示从上到下
+            };
+            var intersections = std.ArrayList(Intersection){};
             defer intersections.deinit(std.heap.page_allocator);
 
             // 遍历每个轮廓
@@ -274,7 +279,7 @@ pub const GlyphRenderer = struct {
             while (contour_idx < contour_end_points.len) : (contour_idx += 1) {
                 const contour_end = contour_end_points[contour_idx];
                 
-                // 计算当前轮廓与扫描线的交点
+                // 计算当前轮廓与扫描线的交点（使用非零填充规则）
                 var i = contour_start;
                 while (i <= contour_end) : (i += 1) {
                     if (i >= points.len) break;
@@ -289,7 +294,9 @@ pub const GlyphRenderer = struct {
                         if (p1.y != p2.y) {
                             const t = (y - p1.y) / (p2.y - p1.y);
                             const x = p1.x + t * (p2.x - p1.x);
-                            intersections.append(std.heap.page_allocator, x) catch continue;
+                            // 计算方向：从下到上为+1，从上到下为-1
+                            const direction: i32 = if (p1.y < p2.y) 1 else -1;
+                            intersections.append(std.heap.page_allocator, Intersection{ .x = x, .direction = direction }) catch continue;
                         }
                     }
                 }
@@ -297,80 +304,100 @@ pub const GlyphRenderer = struct {
                 contour_start = contour_end + 1;
             }
 
-            // 对交点排序
-            std.mem.sort(f32, intersections.items, {}, comptime std.sort.asc(f32));
+            // 对交点按x坐标排序
+            std.mem.sort(Intersection, intersections.items, {}, struct {
+                fn lessThan(_: void, a: Intersection, b: Intersection) bool {
+                    return a.x < b.x;
+                }
+            }.lessThan);
 
-            // 使用奇偶填充规则：填充奇数索引区间（0-1, 2-3, 4-5, ...）
+            // 使用非零填充规则：从左边开始，累加方向值，当累加值不为0时填充
+            var winding: i32 = 0;
+            var fill_start_x: ?f32 = null;
+            
             var j: usize = 0;
-            while (j + 1 < intersections.items.len) : (j += 2) {
-                const x1 = intersections.items[j];
-                const x2 = intersections.items[j + 1];
+            while (j < intersections.items.len) : (j += 1) {
+                const intersection = intersections.items[j];
+                const prev_winding = winding;
+                winding += intersection.direction;
+                
+                // 当winding从0变为非0时，开始填充区间
+                if (prev_winding == 0 and winding != 0) {
+                    fill_start_x = intersection.x;
+                }
+                // 当winding从非0变为0时，结束填充区间
+                else if (prev_winding != 0 and winding == 0) {
+                    if (fill_start_x) |x1| {
+                        const x2 = intersection.x;
+                        
+                        // 填充从x1到x2的区间（非零填充规则）
+                        // 扩展X范围以处理边缘抗锯齿
+                        const start_x = @as(i32, @intFromFloat(x1)) - 3;
+                        const end_x = @as(i32, @intFromFloat(x2)) + 4;
 
-                // 扩展X范围以处理边缘抗锯齿
-                // 注意：不要过早裁剪，允许扫描超出画布边界（但会在像素写入时检查）
-                // 增加扩展范围以提供更好的平滑度（参考Chrome的实现）
-                const start_x = @as(i32, @intFromFloat(x1)) - 3;
-                const end_x = @as(i32, @intFromFloat(x2)) + 4;
-
-                var px = start_x;
-            while (px < end_x) : (px += 1) {
-                    // 检查像素是否在画布范围内
-                    if (px < 0 or px >= @as(i32, @intCast(width))) continue;
-                    
-                    const pixel_x = @as(f32, @floatFromInt(px)) + 0.5;
-                    
-                    // 使用子像素渲染（RGB子像素）和MSDF（多通道有符号距离场）
-                    // 计算每个RGB子像素的覆盖度，获得3倍的水平分辨率
-                    const subpixel_offsets = [_]f32{ -1.0/3.0, 0.0, 1.0/3.0 }; // R, G, B子像素偏移
-                    var subpixel_coverages = [_]f32{ 0.0, 0.0, 0.0 };
-                    
-                    // 计算每个子像素的覆盖度（传入字体大小以调整小字体的抗锯齿参数）
-                    var i: usize = 0;
-                    while (i < 3) : (i += 1) {
-                        const subpixel_x = pixel_x + subpixel_offsets[i];
-                        subpixel_coverages[i] = self.calculateCoverageWithMSDF(subpixel_x, y, x1, x2, font_size);
-                    }
-                    
-                    // 使用子像素覆盖度渲染
-                    if (subpixel_coverages[0] > 0.0 or subpixel_coverages[1] > 0.0 or subpixel_coverages[2] > 0.0) {
-                        const index = (@as(usize, @intCast(scanline)) * width + @as(usize, @intCast(px))) * 4;
-                if (index + 3 < pixels.len) {
-                            const alpha = @as(f32, @floatFromInt(color.a)) / 255.0;
+                        var px = start_x;
+                        while (px < end_x) : (px += 1) {
+                            // 检查像素是否在画布范围内
+                            if (px < 0 or px >= @as(i32, @intCast(width))) continue;
                             
-                            // 分别处理RGB三个通道，使用对应的子像素覆盖度
-                            const r_coverage = subpixel_coverages[0] * alpha;
-                            const g_coverage = subpixel_coverages[1] * alpha;
-                            const b_coverage = subpixel_coverages[2] * alpha;
+                            const pixel_x = @as(f32, @floatFromInt(px)) + 0.5;
                             
-                            // 计算最终alpha（使用最大覆盖度）
-                            const max_coverage = @max(@max(subpixel_coverages[0], subpixel_coverages[1]), subpixel_coverages[2]);
-                            const final_alpha = max_coverage * alpha;
-                            const final_alpha_u8 = @as(u8, @intFromFloat(final_alpha * 255.0));
+                            // 使用子像素渲染（RGB子像素）和MSDF（多通道有符号距离场）
+                            // 计算每个RGB子像素的覆盖度，获得3倍的水平分辨率
+                            const subpixel_offsets = [_]f32{ -1.0/3.0, 0.0, 1.0/3.0 }; // R, G, B子像素偏移
+                            var subpixel_coverages = [_]f32{ 0.0, 0.0, 0.0 };
                             
-                            // 如果像素已有内容，进行alpha混合
-                            if (pixels[index + 3] > 0) {
-                                const existing_alpha = @as(f32, @floatFromInt(pixels[index + 3])) / 255.0;
-                                const combined_alpha = existing_alpha + final_alpha * (1.0 - existing_alpha);
-                                
-                                if (combined_alpha > 0.0) {
-                                    // 分别混合RGB通道
-                                    const r_t = r_coverage / combined_alpha;
-                                    const g_t = g_coverage / combined_alpha;
-                                    const b_t = b_coverage / combined_alpha;
+                            // 计算每个子像素的覆盖度（传入字体大小以调整小字体的抗锯齿参数）
+                            var i: usize = 0;
+                            while (i < 3) : (i += 1) {
+                                const subpixel_x = pixel_x + subpixel_offsets[i];
+                                subpixel_coverages[i] = self.calculateCoverageWithMSDF(subpixel_x, y, x1, x2, font_size);
+                            }
+                            
+                            // 使用子像素覆盖度渲染
+                            if (subpixel_coverages[0] > 0.0 or subpixel_coverages[1] > 0.0 or subpixel_coverages[2] > 0.0) {
+                                const index = (@as(usize, @intCast(scanline)) * width + @as(usize, @intCast(px))) * 4;
+                                if (index + 3 < pixels.len) {
+                                    const alpha = @as(f32, @floatFromInt(color.a)) / 255.0;
                                     
-                                    pixels[index] = @as(u8, @intFromFloat(@as(f32, @floatFromInt(pixels[index])) * (1.0 - r_t) + @as(f32, @floatFromInt(color.r)) * r_t));
-                                    pixels[index + 1] = @as(u8, @intFromFloat(@as(f32, @floatFromInt(pixels[index + 1])) * (1.0 - g_t) + @as(f32, @floatFromInt(color.g)) * g_t));
-                                    pixels[index + 2] = @as(u8, @intFromFloat(@as(f32, @floatFromInt(pixels[index + 2])) * (1.0 - b_t) + @as(f32, @floatFromInt(color.b)) * b_t));
-                                    pixels[index + 3] = @as(u8, @intFromFloat(combined_alpha * 255.0));
+                                    // 分别处理RGB三个通道，使用对应的子像素覆盖度
+                                    const r_coverage = subpixel_coverages[0] * alpha;
+                                    const g_coverage = subpixel_coverages[1] * alpha;
+                                    const b_coverage = subpixel_coverages[2] * alpha;
+                                    
+                                    // 计算最终alpha（使用最大覆盖度）
+                                    const max_coverage = @max(@max(subpixel_coverages[0], subpixel_coverages[1]), subpixel_coverages[2]);
+                                    const final_alpha = max_coverage * alpha;
+                                    const final_alpha_u8 = @as(u8, @intFromFloat(final_alpha * 255.0));
+                                    
+                                    // 如果像素已有内容，进行alpha混合
+                                    if (pixels[index + 3] > 0) {
+                                        const existing_alpha = @as(f32, @floatFromInt(pixels[index + 3])) / 255.0;
+                                        const combined_alpha = existing_alpha + final_alpha * (1.0 - existing_alpha);
+                                        
+                                        if (combined_alpha > 0.0) {
+                                            // 分别混合RGB通道
+                                            const r_t = r_coverage / combined_alpha;
+                                            const g_t = g_coverage / combined_alpha;
+                                            const b_t = b_coverage / combined_alpha;
+                                            
+                                            pixels[index] = @as(u8, @intFromFloat(@as(f32, @floatFromInt(pixels[index])) * (1.0 - r_t) + @as(f32, @floatFromInt(color.r)) * r_t));
+                                            pixels[index + 1] = @as(u8, @intFromFloat(@as(f32, @floatFromInt(pixels[index + 1])) * (1.0 - g_t) + @as(f32, @floatFromInt(color.g)) * g_t));
+                                            pixels[index + 2] = @as(u8, @intFromFloat(@as(f32, @floatFromInt(pixels[index + 2])) * (1.0 - b_t) + @as(f32, @floatFromInt(color.b)) * b_t));
+                                            pixels[index + 3] = @as(u8, @intFromFloat(combined_alpha * 255.0));
+                                        }
+                                    } else {
+                                        // 直接设置像素，使用子像素覆盖度
+                                        pixels[index] = @as(u8, @intFromFloat(@as(f32, @floatFromInt(color.r)) * r_coverage));
+                                        pixels[index + 1] = @as(u8, @intFromFloat(@as(f32, @floatFromInt(color.g)) * g_coverage));
+                                        pixels[index + 2] = @as(u8, @intFromFloat(@as(f32, @floatFromInt(color.b)) * b_coverage));
+                                        pixels[index + 3] = final_alpha_u8;
+                                    }
                                 }
-                            } else {
-                                // 直接设置像素，使用子像素覆盖度
-                                pixels[index] = @as(u8, @intFromFloat(@as(f32, @floatFromInt(color.r)) * r_coverage));
-                                pixels[index + 1] = @as(u8, @intFromFloat(@as(f32, @floatFromInt(color.g)) * g_coverage));
-                                pixels[index + 2] = @as(u8, @intFromFloat(@as(f32, @floatFromInt(color.b)) * b_coverage));
-                                pixels[index + 3] = final_alpha_u8;
                             }
                         }
+                        
+                        fill_start_x = null; // 重置填充起始点
                     }
                 }
             }
