@@ -62,6 +62,39 @@ pub fn parseTextDecoration(value: []const u8) box.TextDecoration {
     return .none;
 }
 
+/// 解析border-radius属性值
+/// 支持格式："10px"、"0"（作为0px）
+/// 返回解析的数值，如果解析失败返回null
+pub fn parseBorderRadius(value: []const u8, containing_size: box.Size) ?f32 {
+    const trimmed = std.mem.trim(u8, value, " \t\n\r");
+    if (trimmed.len == 0) {
+        return null;
+    }
+
+    // 检查是否是"0"（表示0px）
+    if (std.mem.eql(u8, trimmed, "0")) {
+        return 0.0;
+    }
+
+    // 尝试解析px单位
+    if (parsePxValue(trimmed)) |px_value| {
+        return px_value;
+    }
+
+    // 尝试解析百分比
+    if (trimmed.len > 1 and trimmed[trimmed.len - 1] == '%') {
+        if (std.fmt.parseFloat(f32, trimmed[0..trimmed.len - 1])) |percent| {
+            // 使用宽度和高度中的较小值作为参考（CSS规范）
+            const reference = @min(containing_size.width, containing_size.height);
+            return reference * percent / 100.0;
+        } else |_| {
+            return null;
+        }
+    }
+
+    return null;
+}
+
 /// 从字符串解析px单位的值
 /// 支持格式："10px"、"0"（作为0px）
 /// 返回解析的数值，如果解析失败返回null
@@ -298,6 +331,16 @@ pub fn applyStyleToLayoutBox(layout_box: *box.LayoutBox, computed_style: *const 
     // 解析text-decoration
     if (getPropertyKeyword(computed_style, "text-decoration")) |text_decoration_value| {
         layout_box.text_decoration = parseTextDecoration(text_decoration_value);
+    }
+
+    // 解析border-radius
+    if (getPropertyLength(computed_style, "border-radius", createUnitContext(containing_size.width))) |border_radius_value| {
+        layout_box.box_model.border_radius = border_radius_value;
+    } else if (getPropertyKeyword(computed_style, "border-radius")) |border_radius_value| {
+        // 尝试解析关键字（如"0"）
+        if (parseBorderRadius(border_radius_value, containing_size)) |radius| {
+            layout_box.box_model.border_radius = radius;
+        }
     }
 
     // 解析box-sizing（需要在width/height之前解析，因为width/height的解析依赖于box-sizing）

@@ -37,6 +37,7 @@ pub const LayoutEngine = struct {
             .border = box.Edges{ .top = 0, .right = 0, .bottom = 0, .left = 0 },
             .margin = box.Edges{ .top = 0, .right = 0, .bottom = 0, .left = 0 },
             .box_sizing = .content_box,
+            .border_radius = null, // 默认无圆角
         };
         layout_box.display = .block;
         layout_box.position = .static;

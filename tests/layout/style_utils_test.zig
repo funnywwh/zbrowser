@@ -495,3 +495,65 @@ test "applyStyleToLayoutBox with text-decoration line-through" {
     // 检查text-decoration是否正确应用
     try testing.expectEqual(box.TextDecoration.line_through, layout_box.text_decoration);
 }
+
+test "parseBorderRadius - px value" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+
+    const containing_size = box.Size{ .width = 800, .height = 600 };
+    
+    // 测试px值
+    const radius1 = style_utils.parseBorderRadius("10px", containing_size);
+    try testing.expect(radius1 != null);
+    try testing.expectEqual(@as(f32, 10.0), radius1.?);
+    
+    // 测试0值
+    const radius2 = style_utils.parseBorderRadius("0", containing_size);
+    try testing.expect(radius2 != null);
+    try testing.expectEqual(@as(f32, 0.0), radius2.?);
+    
+    // 测试百分比值
+    const radius3 = style_utils.parseBorderRadius("5%", containing_size);
+    try testing.expect(radius3 != null);
+    // 5% of min(800, 600) = 5% of 600 = 30
+    try testing.expectEqual(@as(f32, 30.0), radius3.?);
+}
+
+test "parseBorderRadius boundary_case - empty input" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+
+    const containing_size = box.Size{ .width = 800, .height = 600 };
+    
+    // 空输入应该返回null
+    const radius = style_utils.parseBorderRadius("", containing_size);
+    try testing.expect(radius == null);
+}
+
+test "applyStyleToLayoutBox with border-radius" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, node);
+
+    // 设置inline style属性
+    if (node.asElement()) |elem| {
+        try elem.setAttribute("style", "border-radius: 10px;", allocator);
+    }
+
+    var layout_box = box.LayoutBox.init(node, allocator);
+    defer layout_box.deinit();
+
+    var cascade_engine = cascade.Cascade.init(allocator);
+    var computed_style = try cascade_engine.computeStyle(node, &[_]css_parser.Stylesheet{});
+    defer computed_style.deinit();
+
+    const containing_size = box.Size{ .width = 800, .height = 600 };
+    style_utils.applyStyleToLayoutBox(&layout_box, &computed_style, containing_size);
+
+    // 检查border-radius是否正确应用
+    try testing.expect(layout_box.box_model.border_radius != null);
+    try testing.expectEqual(@as(f32, 10.0), layout_box.box_model.border_radius.?);
+}

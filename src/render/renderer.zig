@@ -116,9 +116,60 @@ pub const Renderer = struct {
         try self.renderBorder(layout_box, &computed_style, border_rect);
     }
 
+    /// 绘制圆角矩形路径
+    /// 使用路径API绘制圆角矩形
+    fn drawRoundedRectPath(self: *Renderer, rect: backend.Rect, radius: f32) void {
+        const x = rect.x;
+        const y = rect.y;
+        const w = rect.width;
+        const h = rect.height;
+        
+        // 限制圆角半径不超过矩形宽度和高度的一半
+        const max_radius = @min(w / 2.0, h / 2.0);
+        const r = @min(radius, max_radius);
+        
+        // 如果圆角半径为0或很小，使用普通矩形
+        if (r < 0.5) {
+            // 使用普通矩形路径
+            self.render_backend.beginPath();
+            self.render_backend.moveTo(x, y);
+            self.render_backend.lineTo(x + w, y);
+            self.render_backend.lineTo(x + w, y + h);
+            self.render_backend.lineTo(x, y + h);
+            self.render_backend.closePath();
+            return;
+        }
+        
+        // 绘制圆角矩形路径（顺时针）
+        self.render_backend.beginPath();
+        
+        // 左上角圆弧（从180度到270度，即从左边到上边）
+        self.render_backend.arc(x + r, y + r, r, std.math.pi, 3.0 * std.math.pi / 2.0);
+        
+        // 上边直线
+        self.render_backend.lineTo(x + w - r, y);
+        
+        // 右上角圆弧（从270度到0度，即从上边到右边）
+        self.render_backend.arc(x + w - r, y + r, r, 3.0 * std.math.pi / 2.0, 0);
+        
+        // 右边直线
+        self.render_backend.lineTo(x + w, y + h - r);
+        
+        // 右下角圆弧（从0度到90度，即从右边到下边）
+        self.render_backend.arc(x + w - r, y + h - r, r, 0, std.math.pi / 2.0);
+        
+        // 下边直线
+        self.render_backend.lineTo(x + r, y + h);
+        
+        // 左下角圆弧（从90度到180度，即从下边到左边）
+        self.render_backend.arc(x + r, y + h - r, r, std.math.pi / 2.0, std.math.pi);
+        
+        // 左边直线（回到起点）
+        self.render_backend.closePath();
+    }
+
     /// 渲染背景
     fn renderBackground(self: *Renderer, layout_box: *box.LayoutBox, computed_style: *const cascade.ComputedStyle, rect: backend.Rect) !void {
-        _ = layout_box;
         // 获取背景颜色
         const bg_color = self.getBackgroundColor(computed_style);
 
@@ -127,14 +178,20 @@ pub const Renderer = struct {
         });
 
         if (bg_color) |color| {
-            // 绘制背景矩形
-            self.render_backend.fillRect(rect, color);
+            // 检查是否有圆角
+            if (layout_box.box_model.border_radius) |radius| {
+                // 绘制圆角背景
+                self.drawRoundedRectPath(rect, radius);
+                self.render_backend.fill(color);
+            } else {
+                // 绘制普通矩形背景
+                self.render_backend.fillRect(rect, color);
+            }
         }
     }
 
     /// 渲染边框
     fn renderBorder(self: *Renderer, layout_box: *box.LayoutBox, computed_style: *const cascade.ComputedStyle, rect: backend.Rect) !void {
-        _ = layout_box;
         // 获取边框颜色和宽度
         const border_color = self.getBorderColor(computed_style);
         const border_width = self.getBorderWidth(computed_style);
@@ -145,11 +202,18 @@ pub const Renderer = struct {
 
         if (border_color) |color| {
             if (border_width > 0) {
-                // 绘制边框
-                std.log.debug("[Renderer] renderBorder: calling strokeRect with color=#{x:0>2}{x:0>2}{x:0>2}, width={d:.1}", .{
-                    color.r, color.g, color.b, border_width,
-                });
-                self.render_backend.strokeRect(rect, color, border_width);
+                // 检查是否有圆角
+                if (layout_box.box_model.border_radius) |radius| {
+                    // 绘制圆角边框
+                    self.drawRoundedRectPath(rect, radius);
+                    self.render_backend.stroke(color, border_width);
+                } else {
+                    // 绘制普通矩形边框
+                    std.log.debug("[Renderer] renderBorder: calling strokeRect with color=#{x:0>2}{x:0>2}{x:0>2}, width={d:.1}", .{
+                        color.r, color.g, color.b, border_width,
+                    });
+                    self.render_backend.strokeRect(rect, color, border_width);
+                }
             } else {
                 std.log.debug("[Renderer] renderBorder: border_width is 0, skipping", .{});
             }

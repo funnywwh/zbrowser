@@ -97,6 +97,7 @@ test "BoxModel totalSize content-box" {
             .left = 0,
         },
         .box_sizing = .content_box,
+        .border_radius = null,
     };
 
     const total = box_model.totalSize();
@@ -134,6 +135,7 @@ test "BoxModel totalSize border-box" {
             .left = 0,
         },
         .box_sizing = .border_box,
+        .border_radius = null,
     };
 
     const total = box_model.totalSize();
@@ -358,6 +360,7 @@ test "BoxModel totalSize boundary_case - zero content" {
             .left = 0,
         },
         .box_sizing = .content_box,
+        .border_radius = null,
     };
 
     const total = box_model.totalSize();
@@ -394,6 +397,7 @@ test "BoxModel totalSize boundary_case - zero padding and border" {
             .left = 0,
         },
         .box_sizing = .content_box,
+        .border_radius = null,
     };
 
     const total = box_model.totalSize();

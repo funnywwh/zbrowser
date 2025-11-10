@@ -76,6 +76,10 @@ pub const BoxModel = struct {
     /// 盒模型类型（content-box 或 border-box）
     box_sizing: BoxSizing,
 
+    /// 边框圆角（border-radius属性）
+    /// 如果为null，表示没有圆角（使用直角）
+    border_radius: ?f32,
+
     /// 计算总尺寸（包含padding和border）
     pub fn totalSize(self: BoxModel) Size {
         const padding_horizontal = self.padding.horizontal();
@@ -209,6 +213,7 @@ pub const LayoutBox = struct {
                 .border = Edges{ .top = 0, .right = 0, .bottom = 0, .left = 0 },
                 .margin = Edges{ .top = 0, .right = 0, .bottom = 0, .left = 0 },
                 .box_sizing = .content_box,
+                .border_radius = null, // 默认无圆角
             },
             .display = .block,
             .position = .static,
