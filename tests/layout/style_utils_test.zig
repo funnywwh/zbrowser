@@ -1578,3 +1578,39 @@ test "parseWordBreak - all values" {
     // 无效值应该返回默认值normal
     try testing.expectEqual(box.WordBreak.normal, style_utils.parseWordBreak("invalid"));
 }
+
+test "applyStyleToLayoutBox with text-transform" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, node);
+
+    // 设置inline style属性
+    if (node.asElement()) |elem| {
+        try elem.setAttribute("style", "text-transform: uppercase;", allocator);
+    }
+
+    var layout_box = box.LayoutBox.init(node, allocator);
+    defer layout_box.deinit();
+
+    var cascade_engine = cascade.Cascade.init(allocator);
+    var computed_style = try cascade_engine.computeStyle(node, &[_]css_parser.Stylesheet{});
+    defer computed_style.deinit();
+
+    const containing_size = box.Size{ .width = 800, .height = 600 };
+    style_utils.applyStyleToLayoutBox(&layout_box, &computed_style, containing_size);
+
+    // 检查text-transform是否正确应用
+    try testing.expectEqual(box.TextTransform.uppercase, layout_box.text_transform);
+}
+
+test "parseTextTransform - all values" {
+    try testing.expectEqual(box.TextTransform.none, style_utils.parseTextTransform("none"));
+    try testing.expectEqual(box.TextTransform.uppercase, style_utils.parseTextTransform("uppercase"));
+    try testing.expectEqual(box.TextTransform.lowercase, style_utils.parseTextTransform("lowercase"));
+    try testing.expectEqual(box.TextTransform.capitalize, style_utils.parseTextTransform("capitalize"));
+    // 无效值应该返回默认值none
+    try testing.expectEqual(box.TextTransform.none, style_utils.parseTextTransform("invalid"));
+}

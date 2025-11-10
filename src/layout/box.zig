@@ -198,6 +198,14 @@ pub const WordBreak = enum {
     keep_all, // 保持所有（CJK文本不断行，非CJK文本正常断行）
 };
 
+/// 文本大小写转换（text-transform属性）
+pub const TextTransform = enum {
+    none, // 不转换（默认）
+    uppercase, // 转换为大写
+    lowercase, // 转换为小写
+    capitalize, // 首字母大写
+};
+
 /// 行高类型（line-height属性）
 pub const LineHeight = union(enum) {
     /// 数字值（如1.5，表示字体大小的倍数）
@@ -295,6 +303,10 @@ pub const LayoutBox = struct {
     /// 控制单词内部的断行规则
     word_break: WordBreak,
 
+    /// 文本大小写转换（text-transform属性）
+    /// 控制文本的大小写转换方式
+    text_transform: TextTransform,
+
     /// 子布局框列表
     children: std.ArrayList(*LayoutBox),
 
@@ -347,6 +359,7 @@ pub const LayoutBox = struct {
             .white_space = .normal, // 默认正常处理空白字符
             .word_wrap = .normal, // 默认正常换行
             .word_break = .normal, // 默认正常断行
+            .text_transform = .none, // 默认不转换
             .children = std.ArrayList(*LayoutBox){
                 .items = &[_]*LayoutBox{},
                 .capacity = 0,

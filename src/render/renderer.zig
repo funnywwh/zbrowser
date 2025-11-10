@@ -362,9 +362,22 @@ pub const Renderer = struct {
                 return;
             }
 
-            // 检查是否只包含空白字符
+            // 应用text-transform转换
+            // 获取父元素的text-transform属性（文本节点继承父元素的转换）
+            const text_transform = if (layout_box.parent) |parent| parent.text_transform else .none;
+            var transformed_text = text_content;
+            var transformed_buffer: [1024]u8 = undefined;
+            if (text_transform != .none) {
+                // 应用文本转换
+                const transformed_len = self.applyTextTransform(text_content, text_transform, &transformed_buffer);
+                if (transformed_len > 0) {
+                    transformed_text = transformed_buffer[0..transformed_len];
+                }
+            }
+
+            // 检查是否只包含空白字符（使用转换后的文本）
             var is_whitespace_only = true;
-            for (text_content) |c| {
+            for (transformed_text) |c| {
                 if (c != ' ' and c != '\n' and c != '\r' and c != '\t') {
                     is_whitespace_only = false;
                     break;
@@ -408,11 +421,11 @@ pub const Renderer = struct {
                 
                 // 获取父元素的text-align属性（如果存在）
                 if (layout_box.parent) |parent| {
-                    // 计算文本宽度（使用估算值）
+                    // 计算文本宽度（使用估算值，使用转换后的文本长度）
                     // TODO: 完整实现需要从render_backend获取准确的文本宽度
                     // 当前使用简化的估算：每个字符宽度约为字体大小的0.7倍
                     const char_width = font.size * 0.7;
-                    const text_width = char_width * @as(f32, @floatFromInt(text_content.len));
+                    const text_width = char_width * @as(f32, @floatFromInt(transformed_text.len));
                     
                     // 根据text-align调整x坐标
                     switch (parent.text_align) {
@@ -462,16 +475,16 @@ pub const Renderer = struct {
                 // 获取letter-spacing（从父元素继承）
                 const letter_spacing = if (layout_box.parent) |parent| parent.letter_spacing else null;
                 
-                std.log.debug("[Renderer] renderContent: calling fillText at ({d:.1}, {d:.1}), text=\"{s}\", rect=({d:.1}, {d:.1}, {d:.1}x{d:.1}), font_size={d:.1}, text_align={}, letter_spacing={?}", .{ text_x, baseline_y, text_content, rect.x, rect.y, rect.width, rect.height, font.size, if (layout_box.parent) |p| p.text_align else .left, letter_spacing });
-                self.render_backend.fillText(text_content, text_x, baseline_y, font, color, letter_spacing);
+                std.log.debug("[Renderer] renderContent: calling fillText at ({d:.1}, {d:.1}), text=\"{s}\", rect=({d:.1}, {d:.1}, {d:.1}x{d:.1}), font_size={d:.1}, text_align={}, letter_spacing={?}", .{ text_x, baseline_y, transformed_text, rect.x, rect.y, rect.width, rect.height, font.size, if (layout_box.parent) |p| p.text_align else .left, letter_spacing });
+                self.render_backend.fillText(transformed_text, text_x, baseline_y, font, color, letter_spacing);
                 
                 // 绘制文本装饰（text-decoration）
                 // 获取父元素的text-decoration属性（文本节点继承父元素的装饰）
                 const text_decoration = if (layout_box.parent) |parent| parent.text_decoration else .none;
                 if (text_decoration != .none) {
-                    // 计算文本宽度（使用估算值）
+                    // 计算文本宽度（使用估算值，使用转换后的文本长度）
                     const char_width = font.size * 0.7;
-                    const text_width = char_width * @as(f32, @floatFromInt(text_content.len));
+                    const text_width = char_width * @as(f32, @floatFromInt(transformed_text.len));
                     
                     // 计算装饰线的位置和宽度
                     const decoration_width = @max(1.0, font.size * 0.05); // 装饰线宽度约为字体大小的5%
@@ -726,5 +739,66 @@ pub const Renderer = struct {
         }
 
         return font;
+    }
+
+    /// 应用text-transform转换
+    /// 将文本根据text-transform属性进行大小写转换
+    fn applyTextTransform(self: *Renderer, text: []const u8, transform: box.TextTransform, buffer: []u8) usize {
+        _ = self; // 未使用
+        if (transform == .none) {
+            // 不转换，直接复制
+            const len = @min(text.len, buffer.len);
+            @memcpy(buffer[0..len], text[0..len]);
+            return len;
+        }
+
+        var i: usize = 0;
+        var j: usize = 0;
+        var capitalize_next = true; // 用于capitalize模式
+
+        while (i < text.len and j < buffer.len) : (i += 1) {
+            const c = text[i];
+            var transformed: u8 = c;
+
+            switch (transform) {
+                .none => transformed = c,
+                .uppercase => {
+                    // 转换为大写
+                    if (c >= 'a' and c <= 'z') {
+                        transformed = c - ('a' - 'A');
+                    }
+                },
+                .lowercase => {
+                    // 转换为小写
+                    if (c >= 'A' and c <= 'Z') {
+                        transformed = c + ('a' - 'A');
+                    }
+                },
+                .capitalize => {
+                    // 首字母大写
+                    if (capitalize_next and c >= 'a' and c <= 'z') {
+                        transformed = c - ('a' - 'A');
+                        capitalize_next = false;
+                    } else if (c >= 'A' and c <= 'Z') {
+                        // 如果当前字符是大写但不是首字母，转换为小写
+                        if (!capitalize_next) {
+                            transformed = c + ('a' - 'A');
+                        } else {
+                            capitalize_next = false;
+                        }
+                    } else if (c == ' ' or c == '\t' or c == '\n' or c == '\r') {
+                        // 遇到空白字符，下一个字符应该大写
+                        capitalize_next = true;
+                    } else {
+                        capitalize_next = false;
+                    }
+                },
+            }
+
+            buffer[j] = transformed;
+            j += 1;
+        }
+
+        return j;
     }
 };

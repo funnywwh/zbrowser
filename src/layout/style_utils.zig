@@ -94,6 +94,16 @@ pub fn parseWordBreak(value: []const u8) box.WordBreak {
     return .normal;
 }
 
+/// 解析text-transform属性值
+pub fn parseTextTransform(value: []const u8) box.TextTransform {
+    if (std.mem.eql(u8, value, "none")) return .none;
+    if (std.mem.eql(u8, value, "uppercase")) return .uppercase;
+    if (std.mem.eql(u8, value, "lowercase")) return .lowercase;
+    if (std.mem.eql(u8, value, "capitalize")) return .capitalize;
+    // 默认返回none
+    return .none;
+}
+
 /// 解析text-decoration属性值
 pub fn parseTextDecoration(value: []const u8) box.TextDecoration {
     if (std.mem.eql(u8, value, "none")) return .none;
@@ -515,6 +525,11 @@ pub fn applyStyleToLayoutBox(layout_box: *box.LayoutBox, computed_style: *const 
     // 解析word-break
     if (getPropertyKeyword(computed_style, "word-break")) |word_break_value| {
         layout_box.word_break = parseWordBreak(word_break_value);
+    }
+
+    // 解析text-transform
+    if (getPropertyKeyword(computed_style, "text-transform")) |text_transform_value| {
+        layout_box.text_transform = parseTextTransform(text_transform_value);
     }
 
     // 解析border-radius

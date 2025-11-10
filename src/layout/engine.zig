@@ -65,6 +65,7 @@ pub const LayoutEngine = struct {
         layout_box.white_space = .normal; // 默认正常处理空白字符
         layout_box.word_wrap = .normal; // 默认正常换行
         layout_box.word_break = .normal; // 默认正常断行
+        layout_box.text_transform = .none; // 默认不转换
         layout_box.children = std.ArrayList(*box.LayoutBox){
             .items = &[_]*box.LayoutBox{},
             .capacity = 0,
