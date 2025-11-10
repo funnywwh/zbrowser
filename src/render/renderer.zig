@@ -298,7 +298,8 @@ pub const Renderer = struct {
         // 从computed_style中解析border-width属性
         // 简化：使用包含块宽度作为参考（实际应该使用元素的宽度）
         const containing_width: f32 = 800; // 简化：使用固定值
-        if (style_utils.getPropertyLength(computed_style, "border-width", containing_width)) |width| {
+        const border_context = style_utils.createUnitContext(containing_width);
+        if (style_utils.getPropertyLength(computed_style, "border-width", border_context)) |width| {
             std.log.debug("[Renderer] getBorderWidth: found border-width property = {d:.1}", .{width});
             return width;
         }
@@ -320,7 +321,8 @@ pub const Renderer = struct {
         }
         // 如果没有设置border-width，检查border-top-width等单独属性
         // 简化：只检查border-top-width
-        if (style_utils.getPropertyLength(computed_style, "border-top-width", containing_width)) |width| {
+        const border_top_context = style_utils.createUnitContext(containing_width);
+        if (style_utils.getPropertyLength(computed_style, "border-top-width", border_top_context)) |width| {
             std.log.debug("[Renderer] getBorderWidth: found border-top-width property = {d:.1}", .{width});
             return width;
         }
@@ -421,7 +423,8 @@ pub const Renderer = struct {
 
         // 解析font-size
         const containing_width: f32 = 800; // 简化：使用固定值
-        if (style_utils.getPropertyLength(computed_style, "font-size", containing_width)) |size| {
+        const font_size_context = style_utils.createUnitContext(containing_width);
+        if (style_utils.getPropertyLength(computed_style, "font-size", font_size_context)) |size| {
             font.size = size;
         }
 

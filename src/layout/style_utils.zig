@@ -67,19 +67,58 @@ fn parsePxValue(str: []const u8) ?f32 {
     return null;
 }
 
-/// 解析长度值（px单位）为f32
-/// TODO: 支持更多单位（em, rem, %, vw, vh等）
-pub fn parseLength(value: css_parser.Value, containing_size: f32) f32 {
+/// CSS单位计算上下文
+/// 包含计算相对单位所需的所有信息
+pub const UnitContext = struct {
+    /// 包含块尺寸（用于百分比计算）
+    containing_size: f32,
+    /// 父元素字体大小（用于em单位，默认16px）
+    parent_font_size: f32 = 16.0,
+    /// 根元素字体大小（用于rem单位，默认16px）
+    root_font_size: f32 = 16.0,
+    /// 视口宽度（用于vw单位）
+    viewport_width: f32 = 800.0,
+    /// 视口高度（用于vh单位）
+    viewport_height: f32 = 600.0,
+};
+
+/// 解析长度值为f32
+/// 支持单位：px, em, rem, %, vw, vh, vmin, vmax
+pub fn parseLength(value: css_parser.Value, context: UnitContext) f32 {
     return switch (value) {
         .length => |l| {
+            const num_value = @as(f32, @floatCast(l.value));
+            
+            // 根据单位类型计算
             if (std.mem.eql(u8, l.unit, "px")) {
-                return @as(f32, @floatCast(l.value));
+                return num_value;
+            } else if (std.mem.eql(u8, l.unit, "em")) {
+                // em: 相对于父元素字体大小
+                return num_value * context.parent_font_size;
+            } else if (std.mem.eql(u8, l.unit, "rem")) {
+                // rem: 相对于根元素字体大小
+                return num_value * context.root_font_size;
+            } else if (std.mem.eql(u8, l.unit, "vw")) {
+                // vw: 视口宽度的1%
+                return num_value * context.viewport_width / 100.0;
+            } else if (std.mem.eql(u8, l.unit, "vh")) {
+                // vh: 视口高度的1%
+                return num_value * context.viewport_height / 100.0;
+            } else if (std.mem.eql(u8, l.unit, "vmin")) {
+                // vmin: 视口宽度和高度中较小值的1%
+                const min_viewport = @min(context.viewport_width, context.viewport_height);
+                return num_value * min_viewport / 100.0;
+            } else if (std.mem.eql(u8, l.unit, "vmax")) {
+                // vmax: 视口宽度和高度中较大值的1%
+                const max_viewport = @max(context.viewport_width, context.viewport_height);
+                return num_value * max_viewport / 100.0;
             }
-            // TODO: 支持其他单位
+            // 未知单位，返回0
             return 0;
         },
         .percentage => |p| {
-            return containing_size * @as(f32, @floatCast(p / 100.0));
+            // 百分比：相对于包含块尺寸
+            return context.containing_size * @as(f32, @floatCast(p / 100.0));
         },
         else => 0,
     };
@@ -100,24 +139,54 @@ pub fn getPropertyKeyword(computed_style: *const cascade.ComputedStyle, name: []
 }
 
 /// 从ComputedStyle获取长度值
-pub fn getPropertyLength(computed_style: *const cascade.ComputedStyle, name: []const u8, containing_size: f32) ?f32 {
+/// 支持单位：px, em, rem, %, vw, vh, vmin, vmax
+pub fn getPropertyLength(computed_style: *const cascade.ComputedStyle, name: []const u8, context: UnitContext) ?f32 {
     if (computed_style.getProperty(name)) |decl| {
         // 只返回长度值，如果是其他类型（如关键字），返回null
         return switch (decl.value) {
             .length => |l| {
+                const num_value = @as(f32, @floatCast(l.value));
+                
+                // 根据单位类型计算
                 if (std.mem.eql(u8, l.unit, "px")) {
-                    return @as(f32, @floatCast(l.value));
+                    return num_value;
+                } else if (std.mem.eql(u8, l.unit, "em")) {
+                    return num_value * context.parent_font_size;
+                } else if (std.mem.eql(u8, l.unit, "rem")) {
+                    return num_value * context.root_font_size;
+                } else if (std.mem.eql(u8, l.unit, "vw")) {
+                    return num_value * context.viewport_width / 100.0;
+                } else if (std.mem.eql(u8, l.unit, "vh")) {
+                    return num_value * context.viewport_height / 100.0;
+                } else if (std.mem.eql(u8, l.unit, "vmin")) {
+                    const min_viewport = @min(context.viewport_width, context.viewport_height);
+                    return num_value * min_viewport / 100.0;
+                } else if (std.mem.eql(u8, l.unit, "vmax")) {
+                    const max_viewport = @max(context.viewport_width, context.viewport_height);
+                    return num_value * max_viewport / 100.0;
                 }
-                // TODO: 支持其他单位
+                // 未知单位，返回null
                 return null;
             },
             .percentage => |p| {
-                return containing_size * @as(f32, @floatCast(p / 100.0));
+                return context.containing_size * @as(f32, @floatCast(p / 100.0));
             },
             else => null, // 关键字值或其他类型，返回null
         };
     }
     return null;
+}
+
+/// 创建单位计算上下文（简化版本，使用默认值）
+/// 用于向后兼容，当只需要containing_size时使用
+pub fn createUnitContext(containing_size: f32) UnitContext {
+    return UnitContext{
+        .containing_size = containing_size,
+        .parent_font_size = 16.0,
+        .root_font_size = 16.0,
+        .viewport_width = 800.0,
+        .viewport_height = 600.0,
+    };
 }
 
 /// 从ComputedStyle获取颜色值
@@ -165,17 +234,22 @@ pub fn applyStyleToLayoutBox(layout_box: *box.LayoutBox, computed_style: *const 
     }
 
     // 解析定位属性（top, right, bottom, left）
-    if (getPropertyLength(computed_style, "top", containing_size.height)) |top| {
+    // TODO: 获取实际的字体大小和视口尺寸
+    const top_context = createUnitContext(containing_size.height);
+    if (getPropertyLength(computed_style, "top", top_context)) |top| {
         layout_box.position_top = top;
         std.log.debug("[StyleUtils] applyStyleToLayoutBox: position_top={d:.1}", .{top});
     }
-    if (getPropertyLength(computed_style, "right", containing_size.width)) |right| {
+    const right_context = createUnitContext(containing_size.width);
+    if (getPropertyLength(computed_style, "right", right_context)) |right| {
         layout_box.position_right = right;
     }
-    if (getPropertyLength(computed_style, "bottom", containing_size.height)) |bottom| {
+    const bottom_context = createUnitContext(containing_size.height);
+    if (getPropertyLength(computed_style, "bottom", bottom_context)) |bottom| {
         layout_box.position_bottom = bottom;
     }
-    if (getPropertyLength(computed_style, "left", containing_size.width)) |left| {
+    const left_context = createUnitContext(containing_size.width);
+    if (getPropertyLength(computed_style, "left", left_context)) |left| {
         layout_box.position_left = left;
         std.log.debug("[StyleUtils] applyStyleToLayoutBox: position_left={d:.1}", .{left});
     }
@@ -199,22 +273,27 @@ pub fn applyStyleToLayoutBox(layout_box: *box.LayoutBox, computed_style: *const 
 /// - margin-top, margin-right, margin-bottom, margin-left (单独属性)
 fn parseMargin(layout_box: *box.LayoutBox, computed_style: *const cascade.ComputedStyle, containing_size: box.Size) void {
     // 先检查单独的margin属性
-    if (getPropertyLength(computed_style, "margin-top", containing_size.height)) |top| {
+    const margin_top_context = createUnitContext(containing_size.height);
+    if (getPropertyLength(computed_style, "margin-top", margin_top_context)) |top| {
         layout_box.box_model.margin.top = top;
     }
-    if (getPropertyLength(computed_style, "margin-right", containing_size.width)) |right| {
+    const margin_right_context = createUnitContext(containing_size.width);
+    if (getPropertyLength(computed_style, "margin-right", margin_right_context)) |right| {
         layout_box.box_model.margin.right = right;
     }
-    if (getPropertyLength(computed_style, "margin-bottom", containing_size.height)) |bottom| {
+    const margin_bottom_context = createUnitContext(containing_size.height);
+    if (getPropertyLength(computed_style, "margin-bottom", margin_bottom_context)) |bottom| {
         layout_box.box_model.margin.bottom = bottom;
     }
-    if (getPropertyLength(computed_style, "margin-left", containing_size.width)) |left| {
+    const margin_left_context = createUnitContext(containing_size.width);
+    if (getPropertyLength(computed_style, "margin-left", margin_left_context)) |left| {
         layout_box.box_model.margin.left = left;
     }
 
     // 检查margin简写属性（会覆盖单独属性）
     // 先尝试从length获取（如果margin是单个值，可能被解析为length）
-    if (getPropertyLength(computed_style, "margin", containing_size.width)) |margin_length| {
+    const margin_context = createUnitContext(containing_size.width);
+    if (getPropertyLength(computed_style, "margin", margin_context)) |margin_length| {
         // 单个长度值，所有边都是这个值
         layout_box.box_model.margin.top = margin_length;
         layout_box.box_model.margin.right = margin_length;
@@ -308,22 +387,27 @@ fn parseMarginShorthand(layout_box: *box.LayoutBox, margin_value: []const u8, _:
 /// - padding-top, padding-right, padding-bottom, padding-left (单独属性)
 fn parsePadding(layout_box: *box.LayoutBox, computed_style: *const cascade.ComputedStyle, containing_size: box.Size) void {
     // 先检查单独的padding属性
-    if (getPropertyLength(computed_style, "padding-top", containing_size.height)) |top| {
+    const padding_top_context = createUnitContext(containing_size.height);
+    if (getPropertyLength(computed_style, "padding-top", padding_top_context)) |top| {
         layout_box.box_model.padding.top = top;
     }
-    if (getPropertyLength(computed_style, "padding-right", containing_size.width)) |right| {
+    const padding_right_context = createUnitContext(containing_size.width);
+    if (getPropertyLength(computed_style, "padding-right", padding_right_context)) |right| {
         layout_box.box_model.padding.right = right;
     }
-    if (getPropertyLength(computed_style, "padding-bottom", containing_size.height)) |bottom| {
+    const padding_bottom_context = createUnitContext(containing_size.height);
+    if (getPropertyLength(computed_style, "padding-bottom", padding_bottom_context)) |bottom| {
         layout_box.box_model.padding.bottom = bottom;
     }
-    if (getPropertyLength(computed_style, "padding-left", containing_size.width)) |left| {
+    const padding_left_context = createUnitContext(containing_size.width);
+    if (getPropertyLength(computed_style, "padding-left", padding_left_context)) |left| {
         layout_box.box_model.padding.left = left;
     }
 
     // 检查padding简写属性（会覆盖单独属性）
     // 先尝试从length获取（如果padding是单个值，可能被解析为length）
-    if (getPropertyLength(computed_style, "padding", containing_size.width)) |padding_length| {
+    const padding_context = createUnitContext(containing_size.width);
+    if (getPropertyLength(computed_style, "padding", padding_context)) |padding_length| {
         // 单个长度值，所有边都是这个值
         layout_box.box_model.padding.top = padding_length;
         layout_box.box_model.padding.right = padding_length;
@@ -504,7 +588,8 @@ pub fn getFlexShrink(computed_style: *const cascade.ComputedStyle) f32 {
 /// 返回null表示auto
 pub fn getFlexBasis(computed_style: *const cascade.ComputedStyle, containing_size: f32) ?f32 {
     // 先检查flex-basis属性
-    if (getPropertyLength(computed_style, "flex-basis", containing_size)) |basis| {
+    const context = createUnitContext(containing_size);
+    if (getPropertyLength(computed_style, "flex-basis", context)) |basis| {
         return basis;
     }
     // 检查flex简写属性（简化实现：只支持单个值，如"1"表示flex-grow=1）
@@ -636,12 +721,13 @@ fn parseGapShorthand(gap_value: []const u8) ?[2]f32 {
 /// 从ComputedStyle获取row-gap值
 pub fn getRowGap(computed_style: *const cascade.ComputedStyle, containing_size: f32) f32 {
     // 先查找 row-gap
-    if (getPropertyLength(computed_style, "row-gap", containing_size)) |gap| {
+    const context = createUnitContext(containing_size);
+    if (getPropertyLength(computed_style, "row-gap", context)) |gap| {
         return gap;
     }
     // 检查gap简写属性
     // gap可能是长度值（单个值）或关键字值（多值属性，如 "10px 20px"）
-    if (getPropertyLength(computed_style, "gap", containing_size)) |gap| {
+    if (getPropertyLength(computed_style, "gap", context)) |gap| {
         // 单个长度值，同时用于row-gap和column-gap
         return gap;
     }
@@ -657,12 +743,13 @@ pub fn getRowGap(computed_style: *const cascade.ComputedStyle, containing_size: 
 /// 从ComputedStyle获取column-gap值
 pub fn getColumnGap(computed_style: *const cascade.ComputedStyle, containing_size: f32) f32 {
     // 先查找 column-gap
-    if (getPropertyLength(computed_style, "column-gap", containing_size)) |gap| {
+    const context = createUnitContext(containing_size);
+    if (getPropertyLength(computed_style, "column-gap", context)) |gap| {
         return gap;
     }
     // 检查gap简写属性
     // gap可能是长度值（单个值）或关键字值（多值属性，如 "10px 20px"）
-    if (getPropertyLength(computed_style, "gap", containing_size)) |gap| {
+    if (getPropertyLength(computed_style, "gap", context)) |gap| {
         // 单个长度值，同时用于row-gap和column-gap
         return gap;
     }
