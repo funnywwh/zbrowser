@@ -173,7 +173,7 @@ pub fn main() !void {
     }
 
     // 使用固定尺寸（1920x10000）
-    const render_width: u32 = 1920;
+    const render_width: u32 = 800;
     const render_height: u32 = 10000;
 
     std.log.info("渲染页面到PNG ({d}x{d})...", .{ render_width, render_height });
