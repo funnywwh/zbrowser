@@ -28,7 +28,16 @@ pub const ComputedStyle = struct {
     }
 
     pub fn getProperty(self: *const ComputedStyle, name: []const u8) ?*const parser.Declaration {
-        return self.properties.getPtr(name);
+        const result = self.properties.getPtr(name);
+        if (result == null) {
+            // 调试：列出所有属性名
+            var it = self.properties.iterator();
+            std.log.warn("[Cascade] getProperty - name='{s}' not found. Available properties:", .{name});
+            while (it.next()) |entry| {
+                std.log.warn("[Cascade] getProperty -   '{s}'", .{entry.key_ptr.*});
+            }
+        }
+        return result;
     }
 };
 
@@ -146,6 +155,7 @@ pub const Cascade = struct {
                     .allocator = self.allocator,
                 };
 
+                std.log.warn("[Cascade] computeStyle - adding inline style property '{s}'", .{name});
                 // 内联样式总是覆盖之前的样式
                 // 注意：使用复制的 name 作为 key，而不是 decl.name（可能已被释放）
                 if (computed.properties.fetchRemove(name)) |entry| {
@@ -160,7 +170,7 @@ pub const Cascade = struct {
                         mutable_value.deinit(self.allocator);
                         return err;
                     };
-                    std.log.debug("[Cascade] computeStyle: inline style '{s}' overwrote existing property", .{name});
+                    std.log.warn("[Cascade] computeStyle: inline style '{s}' overwrote existing property", .{name});
                 } else {
                     computed.properties.put(name, new_decl) catch |err| {
                         self.allocator.free(name);
@@ -168,9 +178,16 @@ pub const Cascade = struct {
                         mutable_value.deinit(self.allocator);
                         return err;
                     };
-                    std.log.debug("[Cascade] computeStyle: inline style '{s}' added to computed properties", .{name});
+                    std.log.warn("[Cascade] computeStyle: inline style '{s}' added to computed properties", .{name});
                 }
             }
+        }
+
+        // 调试：列出所有属性
+        std.log.warn("[Cascade] computeStyle - final properties for element:", .{});
+        var it = computed.properties.iterator();
+        while (it.next()) |entry| {
+            std.log.warn("[Cascade] computeStyle -   '{s}'", .{entry.key_ptr.*});
         }
 
         return computed;
@@ -328,6 +345,7 @@ pub const Cascade = struct {
                 .allocator = self.allocator,
             };
 
+            std.log.warn("[Cascade] parseInlineStyle - parsed property '{s}' = '{s}'", .{ property_name, value_str });
             try declarations.append(self.allocator, decl);
         }
 

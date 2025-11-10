@@ -528,14 +528,72 @@ pub const Parser = struct {
             try self.advance();
         }
 
-        // 如果只有一个token，直接使用已收集的token字符串
+        // 如果只有一个token，尝试解析为特定类型（length, percentage, color等）
         if (token_count == 1) {
-            // 使用已收集的token字符串创建关键字值
             const keyword = value_parts.items[0];
-            // 注意：不能直接返回，因为value_parts会在defer中释放
-            // 需要复制字符串
+
+            // 检查是否是颜色值（以#开头）
+            if (keyword.len > 0 and keyword[0] == '#') {
+                const hash_value = keyword[1..];
+                if (hash_value.len == 3 or hash_value.len == 6) {
+                    // 尝试解析颜色
+                    if (self.parseColorFromString(hash_value)) |color| {
+                        self.allocator.free(keyword);
+                        _ = value_parts.pop();
+                        return Value{ .color = color };
+                    } else |_| {
+                        // 解析失败，作为关键字处理
+                    }
+                }
+            }
+
+            // 检查是否是percentage（以%结尾）
+            if (keyword.len > 0 and keyword[keyword.len - 1] == '%') {
+                const pct_str = keyword[0 .. keyword.len - 1];
+                if (std.fmt.parseFloat(f64, pct_str)) |pct| {
+                    self.allocator.free(keyword);
+                    _ = value_parts.pop();
+                    return Value{ .percentage = pct };
+                } else |_| {
+                    // 解析失败，作为关键字处理
+                }
+            }
+
+            // 检查是否是dimension（包含数字和单位，如"100px"）
+            // 查找数字和单位的边界
+            var num_end: usize = 0;
+            var has_unit = false;
+            for (keyword, 0..) |c, i| {
+                if (std.ascii.isDigit(c) or c == '.' or c == '-' or c == '+') {
+                    num_end = i + 1;
+                } else if (std.ascii.isAlphabetic(c)) {
+                    has_unit = true;
+                    break;
+                } else {
+                    break;
+                }
+            }
+            if (has_unit and num_end > 0 and num_end < keyword.len) {
+                const num_str_part = keyword[0..num_end];
+                const unit_str = keyword[num_end..];
+                if (std.fmt.parseFloat(f64, num_str_part)) |num| {
+                    const unit_copy = try self.allocator.dupe(u8, unit_str);
+                    self.allocator.free(keyword);
+                    _ = value_parts.pop();
+                    return Value{
+                        .length = .{
+                            .value = num,
+                            .unit = unit_copy,
+                        },
+                    };
+                } else |_| {
+                    // 解析失败，作为关键字处理
+                }
+            }
+
+            // 默认作为关键字处理
             const keyword_copy = try self.allocator.dupe(u8, keyword);
-            // 从value_parts中移除，避免defer释放
+            self.allocator.free(keyword);
             _ = value_parts.pop();
             return Value{ .keyword = keyword_copy };
         }
@@ -674,6 +732,26 @@ pub const Parser = struct {
 
     /// 解析颜色值
     fn parseColor(self: *Self, hash: []const u8) !Value.Color {
+        _ = self;
+        // 解析#rrggbb或#rgb格式
+        if (hash.len == 3) {
+            // #rgb格式
+            const r = try std.fmt.parseInt(u8, &[_]u8{ hash[0], hash[0] }, 16);
+            const g = try std.fmt.parseInt(u8, &[_]u8{ hash[1], hash[1] }, 16);
+            const b = try std.fmt.parseInt(u8, &[_]u8{ hash[2], hash[2] }, 16);
+            return Value.Color{ .r = r, .g = g, .b = b };
+        } else if (hash.len == 6) {
+            // #rrggbb格式
+            const r = try std.fmt.parseInt(u8, hash[0..2], 16);
+            const g = try std.fmt.parseInt(u8, hash[2..4], 16);
+            const b = try std.fmt.parseInt(u8, hash[4..6], 16);
+            return Value.Color{ .r = r, .g = g, .b = b };
+        }
+        return error.InvalidColor;
+    }
+
+    /// 从字符串解析颜色值（用于parseValueList中的单值解析）
+    fn parseColorFromString(self: *Self, hash: []const u8) !Value.Color {
         _ = self;
         // 解析#rrggbb或#rgb格式
         if (hash.len == 3) {

@@ -49,22 +49,22 @@ test "parse CSS with multiple rules" {
     var stylesheet = try parser.parse();
     defer stylesheet.deinit();
 
-    std.debug.assert(stylesheet.rules.items.len == 2);
+    try testing.expectEqual(@as(usize, 2), stylesheet.rules.items.len);
 
     const rule1 = stylesheet.rules.items[0];
     const sel1 = &rule1.selectors.items[0];
-    std.debug.assert(sel1.sequences.items.len == 1);
-    std.debug.assert(sel1.sequences.items[0].selectors.items.len == 1);
-    std.debug.assert(sel1.sequences.items[0].selectors.items[0].selector_type == .type);
-    std.debug.assert(std.mem.eql(u8, sel1.sequences.items[0].selectors.items[0].value, "div"));
-    std.debug.assert(rule1.declarations.items[0].name.len > 0);
+    try testing.expectEqual(@as(usize, 1), sel1.sequences.items.len);
+    try testing.expectEqual(@as(usize, 1), sel1.sequences.items[0].selectors.items.len);
+    try testing.expectEqual(selector.SimpleSelectorType.type, sel1.sequences.items[0].selectors.items[0].selector_type);
+    try testing.expectEqualStrings("div", sel1.sequences.items[0].selectors.items[0].value);
+    try testing.expect(rule1.declarations.items[0].name.len > 0);
 
     const rule2 = stylesheet.rules.items[1];
     const sel2 = &rule2.selectors.items[0];
-    std.debug.assert(sel2.sequences.items.len == 1);
-    std.debug.assert(sel2.sequences.items[0].selectors.items.len == 1);
-    std.debug.assert(sel2.sequences.items[0].selectors.items[0].selector_type == .type);
-    std.debug.assert(std.mem.eql(u8, sel2.sequences.items[0].selectors.items[0].value, "p"));
+    try testing.expectEqual(@as(usize, 1), sel2.sequences.items.len);
+    try testing.expectEqual(@as(usize, 1), sel2.sequences.items[0].selectors.items.len);
+    try testing.expectEqual(selector.SimpleSelectorType.type, sel2.sequences.items[0].selectors.items[0].selector_type);
+    try testing.expectEqualStrings("p", sel2.sequences.items[0].selectors.items[0].value);
 }
 
 test "parse CSS with length values" {
@@ -78,20 +78,20 @@ test "parse CSS with length values" {
     var stylesheet = try parser.parse();
     defer stylesheet.deinit();
 
-    std.debug.assert(stylesheet.rules.items.len == 1);
+    try testing.expectEqual(@as(usize, 1), stylesheet.rules.items.len);
     const rule = stylesheet.rules.items[0];
-    std.debug.assert(rule.declarations.items.len == 2);
+    try testing.expectEqual(@as(usize, 2), rule.declarations.items.len);
 
     const width_decl = rule.declarations.items[0];
-    std.debug.assert(std.mem.eql(u8, width_decl.name, "width"));
-    std.debug.assert(width_decl.value == .length);
-    std.debug.assert(width_decl.value.length.value == 100.0);
-    std.debug.assert(std.mem.eql(u8, width_decl.value.length.unit, "px"));
+    try testing.expectEqualStrings("width", width_decl.name);
+    try testing.expect(width_decl.value == .length);
+    try testing.expectEqual(@as(f64, 100.0), width_decl.value.length.value);
+    try testing.expectEqualStrings("px", width_decl.value.length.unit);
 
     const height_decl = rule.declarations.items[1];
-    std.debug.assert(std.mem.eql(u8, height_decl.name, "height"));
-    std.debug.assert(height_decl.value == .percentage);
-    std.debug.assert(height_decl.value.percentage == 50.0);
+    try testing.expectEqualStrings("height", height_decl.name);
+    try testing.expect(height_decl.value == .percentage);
+    try testing.expectEqual(@as(f64, 50.0), height_decl.value.percentage);
 }
 
 test "parse CSS with color values" {
@@ -105,15 +105,15 @@ test "parse CSS with color values" {
     var stylesheet = try parser.parse();
     defer stylesheet.deinit();
 
-    std.debug.assert(stylesheet.rules.items.len == 1);
+    try testing.expectEqual(@as(usize, 1), stylesheet.rules.items.len);
     const rule = stylesheet.rules.items[0];
-    std.debug.assert(rule.declarations.items.len == 2);
+    try testing.expectEqual(@as(usize, 2), rule.declarations.items.len);
 
     const bg_decl = rule.declarations.items[0];
-    std.debug.assert(bg_decl.value == .color);
-    std.debug.assert(bg_decl.value.color.r == 255);
-    std.debug.assert(bg_decl.value.color.g == 0);
-    std.debug.assert(bg_decl.value.color.b == 0);
+    try testing.expect(bg_decl.value == .color);
+    try testing.expectEqual(@as(u8, 255), bg_decl.value.color.r);
+    try testing.expectEqual(@as(u8, 0), bg_decl.value.color.g);
+    try testing.expectEqual(@as(u8, 0), bg_decl.value.color.b);
 }
 
 test "parse CSS with important" {
@@ -127,11 +127,11 @@ test "parse CSS with important" {
     var stylesheet = try parser.parse();
     defer stylesheet.deinit();
 
-    std.debug.assert(stylesheet.rules.items.len == 1);
+    try testing.expectEqual(@as(usize, 1), stylesheet.rules.items.len);
     const rule = stylesheet.rules.items[0];
-    std.debug.assert(rule.declarations.items.len == 1);
+    try testing.expectEqual(@as(usize, 1), rule.declarations.items.len);
     const decl = rule.declarations.items[0];
-    std.debug.assert(decl.important == true);
+    try testing.expect(decl.important == true);
 }
 
 test "parse CSS with comments" {

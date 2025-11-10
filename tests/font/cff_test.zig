@@ -144,7 +144,12 @@ test "TtfParser boundary - empty CFF table" {
     // 当前实现应该优雅地处理这种情况
     const result = ttf.TtfParser.init(allocator, data);
     // 由于数据不完整，初始化可能会失败，这是预期的
-    _ = result catch {};
+    if (result) |parser| {
+        var parser_var = parser;
+        parser_var.deinit(allocator);
+    } else |_| {
+        // 初始化失败是预期的，因为数据不完整
+    }
 }
 
 // 测试OTF字体错误情况 - 无效的CFF数据

@@ -42,6 +42,31 @@ pub fn parseFloatType(value: []const u8) box.FloatType {
     return .none;
 }
 
+/// 从字符串解析px单位的值
+/// 支持格式："10px"、"0"（作为0px）
+/// 返回解析的数值，如果解析失败返回null
+fn parsePxValue(str: []const u8) ?f32 {
+    const trimmed = std.mem.trim(u8, str, " \t\n\r");
+    if (trimmed.len == 0) return null;
+
+    // 解析px单位
+    if (std.mem.endsWith(u8, trimmed, "px")) {
+        const num_str = trimmed[0 .. trimmed.len - 2];
+        if (std.fmt.parseFloat(f32, num_str)) |num| {
+            return num;
+        } else |_| {
+            return null;
+        }
+    }
+
+    // 支持 "0" 作为 0px
+    if (std.mem.eql(u8, trimmed, "0")) {
+        return 0;
+    }
+
+    return null;
+}
+
 /// 解析长度值（px单位）为f32
 /// TODO: 支持更多单位（em, rem, %, vw, vh等）
 pub fn parseLength(value: css_parser.Value, containing_size: f32) f32 {
@@ -63,11 +88,14 @@ pub fn parseLength(value: css_parser.Value, containing_size: f32) f32 {
 /// 从ComputedStyle获取属性值（字符串）
 pub fn getPropertyKeyword(computed_style: *const cascade.ComputedStyle, name: []const u8) ?[]const u8 {
     if (computed_style.getProperty(name)) |decl| {
-        return switch (decl.value) {
+        const result = switch (decl.value) {
             .keyword => |k| k,
             else => null,
         };
+        std.log.warn("[StyleUtils] getPropertyKeyword - name='{s}', found={}, result={?s}", .{ name, true, result });
+        return result;
     }
+    std.log.warn("[StyleUtils] getPropertyKeyword - name='{s}', not found", .{name});
     return null;
 }
 
@@ -205,71 +233,70 @@ fn parseMargin(layout_box: *box.LayoutBox, computed_style: *const cascade.Comput
     }
 }
 
-/// 解析margin简写属性
-/// 格式：margin: <top> <right> <bottom> <left>
-/// 或：margin: <vertical> <horizontal>
-/// 或：margin: <all>
-fn parseMarginShorthand(layout_box: *box.LayoutBox, margin_value: []const u8, _: box.Size) void {
+/// 四边值结构
+const FourSides = struct {
+    top: f32,
+    right: f32,
+    bottom: f32,
+    left: f32,
+};
+
+/// 解析四边简写属性值
+/// 格式：<top> <right> <bottom> <left> 或 <vertical> <horizontal> 或 <all>
+/// 返回解析的四边值，如果解析失败返回null
+fn parseFourSidesShorthand(value_str: []const u8) ?FourSides {
     // 按空格分割值
-    var parts = std.mem.splitSequence(u8, margin_value, " ");
+    var parts = std.mem.splitSequence(u8, value_str, " ");
     var values: [4]?f32 = .{ null, null, null, null };
     var count: usize = 0;
 
     while (parts.next()) |part| {
         if (count >= 4) break; // 最多4个值
 
-        const trimmed = std.mem.trim(u8, part, " \t\n\r");
-        if (trimmed.len == 0) continue;
-
-        // 解析长度值（简化：只支持px）
-        if (std.mem.endsWith(u8, trimmed, "px")) {
-            const num_str = trimmed[0 .. trimmed.len - 2];
-            if (std.fmt.parseFloat(f32, num_str)) |num| {
-                values[count] = num;
-                count += 1;
-            } else |_| {}
-        } else if (std.mem.eql(u8, trimmed, "0")) {
-            // 支持 "0" 作为 0px
-            values[count] = 0;
+        if (parsePxValue(part)) |num| {
+            values[count] = num;
             count += 1;
         }
     }
 
-    // 根据值的数量应用margin
+    // 根据值的数量应用
     if (count == 1) {
         // 单个值：所有边都是这个值
-        const value = values[0] orelse return;
-        layout_box.box_model.margin.top = value;
-        layout_box.box_model.margin.right = value;
-        layout_box.box_model.margin.bottom = value;
-        layout_box.box_model.margin.left = value;
+        const value = values[0] orelse return null;
+        return FourSides{ .top = value, .right = value, .bottom = value, .left = value };
     } else if (count == 2) {
         // 两个值：上下 左右
-        const vertical = values[0] orelse return;
-        const horizontal = values[1] orelse return;
-        layout_box.box_model.margin.top = vertical;
-        layout_box.box_model.margin.right = horizontal;
-        layout_box.box_model.margin.bottom = vertical;
-        layout_box.box_model.margin.left = horizontal;
+        const vertical = values[0] orelse return null;
+        const horizontal = values[1] orelse return null;
+        return FourSides{ .top = vertical, .right = horizontal, .bottom = vertical, .left = horizontal };
     } else if (count == 3) {
         // 三个值：上 左右 下
-        const top = values[0] orelse return;
-        const horizontal = values[1] orelse return;
-        const bottom = values[2] orelse return;
-        layout_box.box_model.margin.top = top;
-        layout_box.box_model.margin.right = horizontal;
-        layout_box.box_model.margin.bottom = bottom;
-        layout_box.box_model.margin.left = horizontal;
+        const top = values[0] orelse return null;
+        const horizontal = values[1] orelse return null;
+        const bottom = values[2] orelse return null;
+        return FourSides{ .top = top, .right = horizontal, .bottom = bottom, .left = horizontal };
     } else if (count == 4) {
         // 四个值：上 右 下 左
-        const top = values[0] orelse return;
-        const right = values[1] orelse return;
-        const bottom = values[2] orelse return;
-        const left = values[3] orelse return;
-        layout_box.box_model.margin.top = top;
-        layout_box.box_model.margin.right = right;
-        layout_box.box_model.margin.bottom = bottom;
-        layout_box.box_model.margin.left = left;
+        const top = values[0] orelse return null;
+        const right = values[1] orelse return null;
+        const bottom = values[2] orelse return null;
+        const left = values[3] orelse return null;
+        return FourSides{ .top = top, .right = right, .bottom = bottom, .left = left };
+    }
+
+    return null;
+}
+
+/// 解析margin简写属性
+/// 格式：margin: <top> <right> <bottom> <left>
+/// 或：margin: <vertical> <horizontal>
+/// 或：margin: <all>
+fn parseMarginShorthand(layout_box: *box.LayoutBox, margin_value: []const u8, _: box.Size) void {
+    if (parseFourSidesShorthand(margin_value)) |sides| {
+        layout_box.box_model.margin.top = sides.top;
+        layout_box.box_model.margin.right = sides.right;
+        layout_box.box_model.margin.bottom = sides.bottom;
+        layout_box.box_model.margin.left = sides.left;
     }
 }
 
@@ -320,66 +347,11 @@ fn parsePadding(layout_box: *box.LayoutBox, computed_style: *const cascade.Compu
 /// 或：padding: <vertical> <horizontal>
 /// 或：padding: <all>
 fn parsePaddingShorthand(layout_box: *box.LayoutBox, padding_value: []const u8, _: box.Size) void {
-    // 按空格分割值
-    var parts = std.mem.splitSequence(u8, padding_value, " ");
-    var values: [4]?f32 = .{ null, null, null, null };
-    var count: usize = 0;
-
-    while (parts.next()) |part| {
-        if (count >= 4) break; // 最多4个值
-
-        const trimmed = std.mem.trim(u8, part, " \t\n\r");
-        if (trimmed.len == 0) continue;
-
-        // 解析长度值（简化：只支持px）
-        if (std.mem.endsWith(u8, trimmed, "px")) {
-            const num_str = trimmed[0 .. trimmed.len - 2];
-            if (std.fmt.parseFloat(f32, num_str)) |num| {
-                values[count] = num;
-                count += 1;
-            } else |_| {}
-        } else if (std.mem.eql(u8, trimmed, "0")) {
-            // 支持 "0" 作为 0px
-            values[count] = 0;
-            count += 1;
-        }
-    }
-
-    // 根据值的数量应用padding
-    if (count == 1) {
-        // 单个值：所有边都是这个值
-        const value = values[0] orelse return;
-        layout_box.box_model.padding.top = value;
-        layout_box.box_model.padding.right = value;
-        layout_box.box_model.padding.bottom = value;
-        layout_box.box_model.padding.left = value;
-    } else if (count == 2) {
-        // 两个值：上下 左右
-        const vertical = values[0] orelse return;
-        const horizontal = values[1] orelse return;
-        layout_box.box_model.padding.top = vertical;
-        layout_box.box_model.padding.right = horizontal;
-        layout_box.box_model.padding.bottom = vertical;
-        layout_box.box_model.padding.left = horizontal;
-    } else if (count == 3) {
-        // 三个值：上 左右 下
-        const top = values[0] orelse return;
-        const horizontal = values[1] orelse return;
-        const bottom = values[2] orelse return;
-        layout_box.box_model.padding.top = top;
-        layout_box.box_model.padding.right = horizontal;
-        layout_box.box_model.padding.bottom = bottom;
-        layout_box.box_model.padding.left = horizontal;
-    } else if (count == 4) {
-        // 四个值：上 右 下 左
-        const top = values[0] orelse return;
-        const right = values[1] orelse return;
-        const bottom = values[2] orelse return;
-        const left = values[3] orelse return;
-        layout_box.box_model.padding.top = top;
-        layout_box.box_model.padding.right = right;
-        layout_box.box_model.padding.bottom = bottom;
-        layout_box.box_model.padding.left = left;
+    if (parseFourSidesShorthand(padding_value)) |sides| {
+        layout_box.box_model.padding.top = sides.top;
+        layout_box.box_model.padding.right = sides.right;
+        layout_box.box_model.padding.bottom = sides.bottom;
+        layout_box.box_model.padding.left = sides.left;
     }
 }
 
@@ -569,6 +541,7 @@ pub fn getAlignContent(computed_style: *const cascade.ComputedStyle) AlignConten
 /// 解析grid-template-rows/columns（简化：只支持固定值，如"100px 200px"）
 /// TODO: 完整实现需要支持repeat(), minmax(), fr单位等
 pub fn parseGridTemplate(value: []const u8, allocator: std.mem.Allocator) !std.ArrayList(f32) {
+    std.log.warn("[StyleUtils] parseGridTemplate - value='{s}'", .{value});
     var tracks = std.ArrayList(f32){
         .items = &[_]f32{},
         .capacity = 0,
@@ -578,16 +551,14 @@ pub fn parseGridTemplate(value: []const u8, allocator: std.mem.Allocator) !std.A
     // 简化实现：按空格分割，解析每个值
     var iter = std.mem.splitSequence(u8, value, " ");
     while (iter.next()) |track_str| {
-        const trimmed = std.mem.trim(u8, track_str, " \t\n\r");
-        if (trimmed.len == 0) continue;
-
-        // 解析长度值（简化：只支持px）
-        if (std.mem.endsWith(u8, trimmed, "px")) {
-            const num_str = trimmed[0 .. trimmed.len - 2];
-            const num = std.fmt.parseFloat(f32, num_str) catch continue;
+        if (parsePxValue(track_str)) |num| {
+            std.log.warn("[StyleUtils] parseGridTemplate - parsed track: {d}", .{num});
             try tracks.append(allocator, num);
+        } else {
+            std.log.warn("[StyleUtils] parseGridTemplate - failed to parse track: '{s}'", .{track_str});
         }
     }
+    std.log.warn("[StyleUtils] parseGridTemplate - tracks.len={d}", .{tracks.items.len});
 
     return tracks;
 }
@@ -605,14 +576,61 @@ pub fn getGridTemplateRows(computed_style: *const cascade.ComputedStyle, allocat
 }
 
 pub fn getGridTemplateColumns(computed_style: *const cascade.ComputedStyle, allocator: std.mem.Allocator) !std.ArrayList(f32) {
-    if (getPropertyKeyword(computed_style, "grid-template-columns")) |value| {
-        return parseGridTemplate(value, allocator);
+    if (computed_style.getProperty("grid-template-columns")) |decl| {
+        std.log.warn("[StyleUtils] getGridTemplateColumns - found property, value type: {}", .{decl.value});
+        const value_str = switch (decl.value) {
+            .keyword => |k| k,
+            .length => |l| blk: {
+                // 将长度值转换为字符串（简化：只支持px）
+                var buf: [32]u8 = undefined;
+                const str = std.fmt.bufPrint(&buf, "{d}px", .{l.value}) catch "0px";
+                break :blk str;
+            },
+            else => {
+                std.log.warn("[StyleUtils] getGridTemplateColumns - unsupported value type", .{});
+                return std.ArrayList(f32){
+                    .items = &[_]f32{},
+                    .capacity = 0,
+                };
+            },
+        };
+        std.log.warn("[StyleUtils] getGridTemplateColumns - value_str='{s}'", .{value_str});
+        return parseGridTemplate(value_str, allocator);
     }
+    std.log.warn("[StyleUtils] getGridTemplateColumns - property not found", .{});
     // 默认返回空列表
     return std.ArrayList(f32){
         .items = &[_]f32{},
         .capacity = 0,
     };
+}
+
+/// 解析gap简写属性值
+/// 格式：<row-gap> <column-gap> 或 <all>
+/// 返回解析的gap值数组，如果解析失败返回null
+fn parseGapShorthand(gap_value: []const u8) ?[2]f32 {
+    var values: [2]f32 = undefined;
+    var count: usize = 0;
+
+    var iter = std.mem.splitSequence(u8, gap_value, " ");
+    while (iter.next()) |value_str| {
+        if (count >= 2) break; // 最多解析2个值
+
+        if (parsePxValue(value_str)) |num| {
+            values[count] = num;
+            count += 1;
+        }
+    }
+
+    if (count == 0) return null;
+
+    // 如果只有一个值，同时用于row-gap和column-gap
+    if (count == 1) {
+        return [2]f32{ values[0], values[0] };
+    }
+
+    // 两个值：第一个是row-gap，第二个是column-gap
+    return values;
 }
 
 /// 从ComputedStyle获取row-gap值
@@ -629,31 +647,8 @@ pub fn getRowGap(computed_style: *const cascade.ComputedStyle, containing_size: 
     }
     if (getPropertyKeyword(computed_style, "gap")) |gap_value| {
         // 解析gap简写属性：可能是单个值或两个值（row-gap column-gap）
-        // 使用固定大小的数组，最多支持2个值
-        var values: [2]f32 = undefined;
-        var count: usize = 0;
-
-        var iter = std.mem.splitSequence(u8, gap_value, " ");
-        while (iter.next()) |value_str| {
-            if (count >= 2) break; // 最多解析2个值
-
-            const trimmed = std.mem.trim(u8, value_str, " \t\n\r");
-            if (trimmed.len == 0) continue;
-
-            // 解析长度值（简化：只支持px）
-            if (std.mem.endsWith(u8, trimmed, "px")) {
-                const num_str = trimmed[0 .. trimmed.len - 2];
-                if (std.fmt.parseFloat(f32, num_str)) |num| {
-                    values[count] = num;
-                    count += 1;
-                } else |_| {}
-            }
-        }
-
-        // 如果只有一个值，同时用于row-gap和column-gap
-        // 如果有两个值，第一个是row-gap
-        if (count > 0) {
-            return values[0];
+        if (parseGapShorthand(gap_value)) |gaps| {
+            return gaps[0]; // 第一个值是row-gap
         }
     }
     return 0.0; // 默认值
@@ -673,33 +668,8 @@ pub fn getColumnGap(computed_style: *const cascade.ComputedStyle, containing_siz
     }
     if (getPropertyKeyword(computed_style, "gap")) |gap_value| {
         // 解析gap简写属性：可能是单个值或两个值（row-gap column-gap）
-        // 使用固定大小的数组，最多支持2个值
-        var values: [2]f32 = undefined;
-        var count: usize = 0;
-
-        var iter = std.mem.splitSequence(u8, gap_value, " ");
-        while (iter.next()) |value_str| {
-            if (count >= 2) break; // 最多解析2个值
-
-            const trimmed = std.mem.trim(u8, value_str, " \t\n\r");
-            if (trimmed.len == 0) continue;
-
-            // 解析长度值（简化：只支持px）
-            if (std.mem.endsWith(u8, trimmed, "px")) {
-                const num_str = trimmed[0 .. trimmed.len - 2];
-                if (std.fmt.parseFloat(f32, num_str)) |num| {
-                    values[count] = num;
-                    count += 1;
-                } else |_| {}
-            }
-        }
-
-        // 如果只有一个值，同时用于row-gap和column-gap
-        // 如果有两个值，第二个是column-gap
-        if (count == 1) {
-            return values[0];
-        } else if (count >= 2) {
-            return values[1];
+        if (parseGapShorthand(gap_value)) |gaps| {
+            return gaps[1]; // 第二个值是column-gap（如果只有一个值，gaps[1]也是该值）
         }
     }
     return 0.0; // 默认值
@@ -813,7 +783,10 @@ pub fn getGridJustifyContent(computed_style: *const cascade.ComputedStyle) GridJ
 /// 从ComputedStyle获取align-content属性
 pub fn getGridAlignContent(computed_style: *const cascade.ComputedStyle) GridAlignContent {
     if (getPropertyKeyword(computed_style, "align-content")) |value| {
-        return parseGridAlignContent(value);
+        const result = parseGridAlignContent(value);
+        std.log.warn("[StyleUtils] getGridAlignContent - value='{s}', result={}", .{ value, result });
+        return result;
     }
+    std.log.warn("[StyleUtils] getGridAlignContent - no align-content property, returning .start", .{});
     return .start; // 默认值
 }
