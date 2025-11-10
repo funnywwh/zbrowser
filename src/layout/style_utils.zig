@@ -483,7 +483,84 @@ pub fn applyStyleToLayoutBox(layout_box: *box.LayoutBox, computed_style: *const 
         layout_box.box_model.max_height = max_height;
     }
 
-    // TODO: 解析border
+    // 解析border（简写属性）
+    // 格式：border: <width> <style> <color>
+    // 例如：border: 2px solid #2196f3
+    if (getPropertyKeyword(computed_style, "border")) |border_value| {
+        if (parseBorderShorthand(border_value, width_context)) |border_info| {
+            // 应用border宽度到所有边
+            if (border_info.width) |width| {
+                layout_box.box_model.border.top = width;
+                layout_box.box_model.border.right = width;
+                layout_box.box_model.border.bottom = width;
+                layout_box.box_model.border.left = width;
+            }
+        }
+    } else {
+        // 如果没有border简写属性，尝试解析单独的border-width属性
+        const border_width_context = createUnitContext(containing_size.width);
+        if (getPropertyLength(computed_style, "border-width", border_width_context)) |width| {
+            layout_box.box_model.border.top = width;
+            layout_box.box_model.border.right = width;
+            layout_box.box_model.border.bottom = width;
+            layout_box.box_model.border.left = width;
+        } else {
+            // 尝试解析单独的border-top-width等属性
+            if (getPropertyLength(computed_style, "border-top-width", border_width_context)) |width| {
+                layout_box.box_model.border.top = width;
+            }
+            if (getPropertyLength(computed_style, "border-right-width", border_width_context)) |width| {
+                layout_box.box_model.border.right = width;
+            }
+            if (getPropertyLength(computed_style, "border-bottom-width", border_width_context)) |width| {
+                layout_box.box_model.border.bottom = width;
+            }
+            if (getPropertyLength(computed_style, "border-left-width", border_width_context)) |width| {
+                layout_box.box_model.border.left = width;
+            }
+        }
+    }
+}
+
+/// 解析border简写属性
+/// 格式：border: <width> <style> <color>
+/// 例如：border: 2px solid #2196f3
+/// 返回解析的宽度、样式和颜色（用于布局阶段只需要宽度）
+fn parseBorderShorthand(border_value: []const u8, _: UnitContext) ?struct { width: ?f32, style: ?[]const u8 } {
+    // 按空格分割值
+    var parts = std.mem.splitSequence(u8, border_value, " ");
+    var width: ?f32 = null;
+    var style: ?[]const u8 = null;
+
+    while (parts.next()) |part| {
+        const trimmed = std.mem.trim(u8, part, " \t\n\r");
+        if (trimmed.len == 0) continue;
+
+        // 检查是否是长度值（如 "2px"）
+        if (parsePxValue(trimmed)) |px_value| {
+            width = px_value;
+            continue;
+        }
+
+        // 检查是否是边框样式关键字（solid, dashed, dotted等）
+        if (std.mem.eql(u8, trimmed, "solid") or
+            std.mem.eql(u8, trimmed, "dashed") or
+            std.mem.eql(u8, trimmed, "dotted") or
+            std.mem.eql(u8, trimmed, "double") or
+            std.mem.eql(u8, trimmed, "none"))
+        {
+            style = trimmed;
+            continue;
+        }
+
+        // 检查是否是颜色值（以#开头）- 在布局阶段不需要颜色，但可以识别
+        if (trimmed.len > 0 and trimmed[0] == '#') {
+            // 颜色值，跳过（布局阶段不需要）
+            continue;
+        }
+    }
+
+    return .{ .width = width, .style = style };
 }
 
 /// 解析margin属性

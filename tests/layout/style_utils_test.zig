@@ -912,3 +912,93 @@ test "applyStyleToLayoutBox with max-width and max-height" {
     try testing.expect(layout_box.box_model.max_height != null);
     try testing.expectEqual(@as(f32, 300.0), layout_box.box_model.max_height.?);
 }
+
+test "applyStyleToLayoutBox with border shorthand" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, node);
+
+    // 设置inline style属性
+    if (node.asElement()) |elem| {
+        try elem.setAttribute("style", "border: 2px solid #2196f3;", allocator);
+    }
+
+    var layout_box = box.LayoutBox.init(node, allocator);
+    defer layout_box.deinit();
+
+    var cascade_engine = cascade.Cascade.init(allocator);
+    var computed_style = try cascade_engine.computeStyle(node, &[_]css_parser.Stylesheet{});
+    defer computed_style.deinit();
+
+    const containing_size = box.Size{ .width = 800, .height = 600 };
+    style_utils.applyStyleToLayoutBox(&layout_box, &computed_style, containing_size);
+
+    // 检查border宽度是否正确应用
+    try testing.expectEqual(@as(f32, 2.0), layout_box.box_model.border.top);
+    try testing.expectEqual(@as(f32, 2.0), layout_box.box_model.border.right);
+    try testing.expectEqual(@as(f32, 2.0), layout_box.box_model.border.bottom);
+    try testing.expectEqual(@as(f32, 2.0), layout_box.box_model.border.left);
+}
+
+test "applyStyleToLayoutBox with border-width" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, node);
+
+    // 设置inline style属性
+    if (node.asElement()) |elem| {
+        try elem.setAttribute("style", "border-width: 5px;", allocator);
+    }
+
+    var layout_box = box.LayoutBox.init(node, allocator);
+    defer layout_box.deinit();
+
+    var cascade_engine = cascade.Cascade.init(allocator);
+    var computed_style = try cascade_engine.computeStyle(node, &[_]css_parser.Stylesheet{});
+    defer computed_style.deinit();
+
+    const containing_size = box.Size{ .width = 800, .height = 600 };
+    style_utils.applyStyleToLayoutBox(&layout_box, &computed_style, containing_size);
+
+    // 检查border宽度是否正确应用
+    try testing.expectEqual(@as(f32, 5.0), layout_box.box_model.border.top);
+    try testing.expectEqual(@as(f32, 5.0), layout_box.box_model.border.right);
+    try testing.expectEqual(@as(f32, 5.0), layout_box.box_model.border.bottom);
+    try testing.expectEqual(@as(f32, 5.0), layout_box.box_model.border.left);
+}
+
+test "applyStyleToLayoutBox with individual border widths" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, node);
+
+    // 设置inline style属性
+    if (node.asElement()) |elem| {
+        try elem.setAttribute("style", "border-top-width: 1px; border-right-width: 2px; border-bottom-width: 3px; border-left-width: 4px;", allocator);
+    }
+
+    var layout_box = box.LayoutBox.init(node, allocator);
+    defer layout_box.deinit();
+
+    var cascade_engine = cascade.Cascade.init(allocator);
+    var computed_style = try cascade_engine.computeStyle(node, &[_]css_parser.Stylesheet{});
+    defer computed_style.deinit();
+
+    const containing_size = box.Size{ .width = 800, .height = 600 };
+    style_utils.applyStyleToLayoutBox(&layout_box, &computed_style, containing_size);
+
+    // 检查各个border宽度是否正确应用
+    try testing.expectEqual(@as(f32, 1.0), layout_box.box_model.border.top);
+    try testing.expectEqual(@as(f32, 2.0), layout_box.box_model.border.right);
+    try testing.expectEqual(@as(f32, 3.0), layout_box.box_model.border.bottom);
+    try testing.expectEqual(@as(f32, 4.0), layout_box.box_model.border.left);
+}
