@@ -153,6 +153,16 @@ pub const LayoutBox = struct {
     /// 浮动类型（none, left, right）
     float: FloatType,
 
+    /// Grid行位置（grid-row属性）
+    /// 如果值为null，表示使用自动放置
+    grid_row_start: ?usize,
+    grid_row_end: ?usize,
+
+    /// Grid列位置（grid-column属性）
+    /// 如果值为null，表示使用自动放置
+    grid_column_start: ?usize,
+    grid_column_end: ?usize,
+
     /// 子布局框列表
     children: std.ArrayList(*LayoutBox),
 
@@ -185,6 +195,10 @@ pub const LayoutBox = struct {
             .position_bottom = null,
             .position_left = null,
             .float = .none,
+            .grid_row_start = null,
+            .grid_row_end = null,
+            .grid_column_start = null,
+            .grid_column_end = null,
             .children = std.ArrayList(*LayoutBox){
                 .items = &[_]*LayoutBox{},
                 .capacity = 0,

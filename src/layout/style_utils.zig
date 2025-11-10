@@ -260,6 +260,16 @@ pub fn applyStyleToLayoutBox(layout_box: *box.LayoutBox, computed_style: *const 
     // 解析padding
     parsePadding(layout_box, computed_style, containing_size);
 
+    // 解析grid-row和grid-column（Grid子元素的属性）
+    if (getGridRow(computed_style)) |grid_row| {
+        layout_box.grid_row_start = grid_row.start;
+        layout_box.grid_row_end = grid_row.end;
+    }
+    if (getGridColumn(computed_style)) |grid_column| {
+        layout_box.grid_column_start = grid_column.start;
+        layout_box.grid_column_end = grid_column.end;
+    }
+
     // TODO: 解析border
     // TODO: 解析width、height
     // TODO: 解析box-sizing
@@ -760,6 +770,91 @@ pub fn getColumnGap(computed_style: *const cascade.ComputedStyle, containing_siz
         }
     }
     return 0.0; // 默认值
+}
+
+/// Grid行/列位置解析结果
+pub const GridLine = struct {
+    start: ?usize,
+    end: ?usize,
+};
+
+/// 解析grid-row或grid-column属性值
+/// 支持格式：
+/// - "1 / 3" - 从第1行/列到第3行/列（不包含第3行/列，即跨越2行/列）
+/// - "1" - 只指定起始位置，结束位置自动（即只占1行/列）
+/// - "span 2" - 跨越2行/列（需要知道起始位置，但这里简化处理，返回null表示需要自动计算）
+/// 返回解析结果，如果解析失败返回null
+pub fn parseGridLine(value: []const u8) ?GridLine {
+    // 去除前后空格
+    var trimmed = std.mem.trim(u8, value, " \t\n\r");
+    if (trimmed.len == 0) return null;
+
+    // 检查是否包含 "/"（表示范围）
+    if (std.mem.indexOf(u8, trimmed, "/")) |slash_pos| {
+        // 格式：start / end
+        const start_str = std.mem.trim(u8, trimmed[0..slash_pos], " \t\n\r");
+        const end_str = std.mem.trim(u8, trimmed[slash_pos + 1..], " \t\n\r");
+
+        // 解析起始位置
+        const start = parseGridLineNumber(start_str) orelse return null;
+        // 解析结束位置
+        const end = parseGridLineNumber(end_str) orelse return null;
+
+        // 验证：结束位置必须大于起始位置
+        if (end <= start) return null;
+
+        return GridLine{
+            .start = start,
+            .end = end,
+        };
+    }
+
+    // 检查是否是 "span N" 格式
+    if (std.mem.startsWith(u8, trimmed, "span ")) {
+        // 简化处理：span格式需要知道起始位置，这里返回null表示需要自动计算
+        // TODO: 完整实现需要支持span格式
+        return null;
+    }
+
+    // 单个数字：只指定起始位置
+    if (parseGridLineNumber(trimmed)) |start| {
+        return GridLine{
+            .start = start,
+            .end = start + 1, // 默认只占1行/列
+        };
+    }
+
+    return null;
+}
+
+/// 解析grid行/列号（支持正整数）
+/// 返回解析的行/列号（从1开始），如果解析失败返回null
+fn parseGridLineNumber(str: []const u8) ?usize {
+    // 去除前后空格
+    const trimmed = std.mem.trim(u8, str, " \t\n\r");
+    if (trimmed.len == 0) return null;
+
+    // 解析整数
+    const num = std.fmt.parseInt(usize, trimmed, 10) catch return null;
+    // Grid行/列号从1开始，0无效
+    if (num == 0) return null;
+    return num;
+}
+
+/// 从ComputedStyle获取grid-row属性值
+pub fn getGridRow(computed_style: *const cascade.ComputedStyle) ?GridLine {
+    if (getPropertyKeyword(computed_style, "grid-row")) |value| {
+        return parseGridLine(value);
+    }
+    return null;
+}
+
+/// 从ComputedStyle获取grid-column属性值
+pub fn getGridColumn(computed_style: *const cascade.ComputedStyle) ?GridLine {
+    if (getPropertyKeyword(computed_style, "grid-column")) |value| {
+        return parseGridLine(value);
+    }
+    return null;
 }
 
 /// Grid对齐类型

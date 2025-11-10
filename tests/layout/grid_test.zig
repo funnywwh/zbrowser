@@ -3,6 +3,8 @@ const testing = std.testing;
 const grid = @import("grid");
 const box = @import("box");
 const css = @import("css");
+const cascade = @import("cascade");
+const style_utils = @import("style_utils");
 const test_helpers = @import("../test_helpers.zig");
 const dom = @import("dom");
 
@@ -1328,110 +1330,115 @@ test "layoutGrid boundary - many items auto-placement" {
     }
 }
 
-// TODO: 实现grid-row和grid-column属性支持
-// 当前Grid布局只支持自动放置，不支持显式指定grid-row和grid-column
-// 以下测试用例用于验证功能需求，当前会失败，待实现后启用
-// test "layoutGrid with grid-column span" {
-//     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-//     defer _ = gpa.deinit();
-//     const allocator = gpa.allocator();
-//
-//     // 创建测试节点
-//     const container_node = try test_helpers.createTestElement(allocator, "div");
-//     defer test_helpers.freeNode(allocator, container_node);
-//
-//     // 设置inline style属性
-//     if (container_node.asElement()) |elem| {
-//         try elem.setAttribute("style", "display: grid; grid-template-columns: 100px 100px 100px; grid-template-rows: 50px 50px;", allocator);
-//     }
-//
-//     const item1_node = try test_helpers.createTestElement(allocator, "div");
-//     defer test_helpers.freeNode(allocator, item1_node);
-//
-//     // 设置grid-column: 1 / 3（跨越2列）
-//     if (item1_node.asElement()) |elem| {
-//         try elem.setAttribute("style", "grid-column: 1 / 3;", allocator);
-//     }
-//
-//     // 创建布局框
-//     var container_box = box.LayoutBox.init(container_node, allocator);
-//     container_box.display = .grid;
-//     container_box.box_model.content.x = 0;
-//     container_box.box_model.content.y = 0;
-//     container_box.box_model.content.width = 300;
-//     container_box.box_model.content.height = 100;
-//     defer container_box.deinit();
-//
-//     var item1_box = box.LayoutBox.init(item1_node, allocator);
-//     defer item1_box.deinit();
-//
-//     // 添加子元素
-//     try container_box.children.append(allocator, &item1_box);
-//     item1_box.parent = &container_box;
-//
-//     // 执行Grid布局
-//     const containing_block = box.Size{ .width = 300, .height = 100 };
-//     grid.layoutGrid(&container_box, containing_block, &[_]css.Stylesheet{});
-//
-//     // 检查布局结果
-//     try testing.expect(container_box.is_layouted);
-//     try testing.expect(item1_box.is_layouted);
-//
-//     // item1应该跨越第1列和第2列（宽度应该是200px + gap）
-//     try testing.expect(item1_box.box_model.content.width >= 200.0);
-//     try testing.expect(item1_box.box_model.content.x >= 0);
-// }
+test "layoutGrid with grid-column span" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
 
-// test "layoutGrid with grid-row span" {
-//     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-//     defer _ = gpa.deinit();
-//     const allocator = gpa.allocator();
-//
-//     // 创建测试节点
-//     const container_node = try test_helpers.createTestElement(allocator, "div");
-//     defer test_helpers.freeNode(allocator, container_node);
-//
-//     // 设置inline style属性
-//     if (container_node.asElement()) |elem| {
-//         try elem.setAttribute("style", "display: grid; grid-template-columns: 100px; grid-template-rows: 50px 50px 50px;", allocator);
-//     }
-//
-//     const item1_node = try test_helpers.createTestElement(allocator, "div");
-//     defer test_helpers.freeNode(allocator, item1_node);
-//
-//     // 设置grid-row: 2 / 4（跨越2行）
-//     if (item1_node.asElement()) |elem| {
-//         try elem.setAttribute("style", "grid-row: 2 / 4;", allocator);
-//     }
-//
-//     // 创建布局框
-//     var container_box = box.LayoutBox.init(container_node, allocator);
-//     container_box.display = .grid;
-//     container_box.box_model.content.x = 0;
-//     container_box.box_model.content.y = 0;
-//     container_box.box_model.content.width = 100;
-//     container_box.box_model.content.height = 150;
-//     defer container_box.deinit();
-//
-//     var item1_box = box.LayoutBox.init(item1_node, allocator);
-//     defer item1_box.deinit();
-//
-//     // 添加子元素
-//     try container_box.children.append(allocator, &item1_box);
-//     item1_box.parent = &container_box;
-//
-//     // 执行Grid布局
-//     const containing_block = box.Size{ .width = 100, .height = 150 };
-//     grid.layoutGrid(&container_box, containing_block, &[_]css.Stylesheet{});
-//
-//     // 检查布局结果
-//     try testing.expect(container_box.is_layouted);
-//     try testing.expect(item1_box.is_layouted);
-//
-//     // item1应该跨越第2行和第3行（高度应该是100px + gap）
-//     try testing.expect(item1_box.box_model.content.height >= 100.0);
-//     try testing.expect(item1_box.box_model.content.y >= 50.0); // 从第2行开始
-// }
+    // 创建测试节点
+    const container_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, container_node);
+
+    // 设置inline style属性
+    if (container_node.asElement()) |elem| {
+        try elem.setAttribute("style", "display: grid; grid-template-columns: 100px 100px 100px; grid-template-rows: 50px 50px;", allocator);
+    }
+
+    const item1_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, item1_node);
+
+    // 设置grid-column: 1 / 3（跨越2列）
+    if (item1_node.asElement()) |elem| {
+        try elem.setAttribute("style", "grid-column: 1 / 3;", allocator);
+    }
+
+    // 创建布局框
+    var container_box = box.LayoutBox.init(container_node, allocator);
+    container_box.display = .grid;
+    container_box.box_model.content.x = 0;
+    container_box.box_model.content.y = 0;
+    container_box.box_model.content.width = 300;
+    container_box.box_model.content.height = 100;
+    defer container_box.deinit();
+
+    var item1_box = box.LayoutBox.init(item1_node, allocator);
+    defer item1_box.deinit();
+
+    // 添加子元素
+    try container_box.children.append(allocator, &item1_box);
+    item1_box.parent = &container_box;
+
+    // 执行Grid布局（需要重新计算样式以应用grid-column）
+    const containing_block = box.Size{ .width = 300, .height = 100 };
+    var cascade_engine = cascade.Cascade.init(allocator);
+    var computed_style = try cascade_engine.computeStyle(item1_node, &[_]css.Stylesheet{});
+    defer computed_style.deinit();
+    style_utils.applyStyleToLayoutBox(&item1_box, &computed_style, containing_block);
+    grid.layoutGrid(&container_box, containing_block, &[_]css.Stylesheet{});
+
+    // 检查布局结果
+    try testing.expect(container_box.is_layouted);
+    try testing.expect(item1_box.is_layouted);
+
+    // item1应该跨越第1列和第2列（宽度应该是200px + gap）
+    try testing.expect(item1_box.box_model.content.width >= 200.0);
+    try testing.expect(item1_box.box_model.content.x >= 0);
+}
+
+test "layoutGrid with grid-row span" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 创建测试节点
+    const container_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, container_node);
+
+    // 设置inline style属性
+    if (container_node.asElement()) |elem| {
+        try elem.setAttribute("style", "display: grid; grid-template-columns: 100px; grid-template-rows: 50px 50px 50px;", allocator);
+    }
+
+    const item1_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, item1_node);
+
+    // 设置grid-row: 2 / 4（跨越2行）
+    if (item1_node.asElement()) |elem| {
+        try elem.setAttribute("style", "grid-row: 2 / 4;", allocator);
+    }
+
+    // 创建布局框
+    var container_box = box.LayoutBox.init(container_node, allocator);
+    container_box.display = .grid;
+    container_box.box_model.content.x = 0;
+    container_box.box_model.content.y = 0;
+    container_box.box_model.content.width = 100;
+    container_box.box_model.content.height = 150;
+    defer container_box.deinit();
+
+    var item1_box = box.LayoutBox.init(item1_node, allocator);
+    defer item1_box.deinit();
+
+    // 添加子元素
+    try container_box.children.append(allocator, &item1_box);
+    item1_box.parent = &container_box;
+
+    // 执行Grid布局（需要重新计算样式以应用grid-row）
+    const containing_block = box.Size{ .width = 100, .height = 150 };
+    var cascade_engine = cascade.Cascade.init(allocator);
+    var computed_style = try cascade_engine.computeStyle(item1_node, &[_]css.Stylesheet{});
+    defer computed_style.deinit();
+    style_utils.applyStyleToLayoutBox(&item1_box, &computed_style, containing_block);
+    grid.layoutGrid(&container_box, containing_block, &[_]css.Stylesheet{});
+
+    // 检查布局结果
+    try testing.expect(container_box.is_layouted);
+    try testing.expect(item1_box.is_layouted);
+
+    // item1应该跨越第2行和第3行（高度应该是100px + gap）
+    try testing.expect(item1_box.box_model.content.height >= 100.0);
+    try testing.expect(item1_box.box_model.content.y >= 50.0); // 从第2行开始
+}
 
 test "layoutGrid boundary - single column grid" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};

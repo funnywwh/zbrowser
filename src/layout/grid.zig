@@ -177,42 +177,103 @@ pub fn layoutGrid(layout_box: *box.LayoutBox, containing_block: box.Size, styles
     var col: usize = 0;
 
     for (layout_box.children.items) |child| {
-        // 边界检查：确保row和col在有效范围内
-        if (row >= row_positions.items.len) {
-            std.log.warn("[Grid] layoutGrid - row={d}超出范围! row_positions.len={d}, 跳过item", .{ row, row_positions.items.len });
-            child.is_layouted = true;
-            continue;
+        // 检查是否有显式指定的grid-row和grid-column
+        var use_explicit_position = false;
+        var item_row: usize = 0;
+        var item_col: usize = 0;
+        var item_row_span: usize = 1;
+        var item_col_span: usize = 1;
+
+        // 检查grid-row
+        if (child.grid_row_start) |row_start| {
+            // Grid行号从1开始，转换为数组索引（从0开始）
+            if (row_start > 0 and row_start <= row_positions.items.len) {
+                item_row = row_start - 1;
+                use_explicit_position = true;
+                // 检查是否有结束位置
+                if (child.grid_row_end) |row_end| {
+                    if (row_end > row_start and row_end <= row_positions.items.len + 1) {
+                        item_row_span = row_end - row_start;
+                    }
+                }
+            } else {
+                std.log.warn("[Grid] layoutGrid - grid-row-start={d}超出范围! row_positions.len={d}, 使用自动放置", .{ row_start, row_positions.items.len });
+            }
         }
-        if (col >= column_positions.items.len) {
-            std.log.warn("[Grid] layoutGrid - col={d}超出范围! column_positions.len={d}, 重置col=0, row+1", .{ col, column_positions.items.len });
-            col = 0;
-            row += 1;
+
+        // 检查grid-column
+        if (child.grid_column_start) |col_start| {
+            // Grid列号从1开始，转换为数组索引（从0开始）
+            if (col_start > 0 and col_start <= column_positions.items.len) {
+                item_col = col_start - 1;
+                use_explicit_position = true;
+                // 检查是否有结束位置
+                if (child.grid_column_end) |col_end| {
+                    if (col_end > col_start and col_end <= column_positions.items.len + 1) {
+                        item_col_span = col_end - col_start;
+                    }
+                }
+            } else {
+                std.log.warn("[Grid] layoutGrid - grid-column-start={d}超出范围! column_positions.len={d}, 使用自动放置", .{ col_start, column_positions.items.len });
+            }
+        }
+
+        // 如果没有显式指定位置，使用自动放置
+        if (!use_explicit_position) {
+            // 边界检查：确保row和col在有效范围内
             if (row >= row_positions.items.len) {
                 std.log.warn("[Grid] layoutGrid - row={d}超出范围! row_positions.len={d}, 跳过item", .{ row, row_positions.items.len });
                 child.is_layouted = true;
                 continue;
             }
+            if (col >= column_positions.items.len) {
+                std.log.warn("[Grid] layoutGrid - col={d}超出范围! column_positions.len={d}, 重置col=0, row+1", .{ col, column_positions.items.len });
+                col = 0;
+                row += 1;
+                if (row >= row_positions.items.len) {
+                    std.log.warn("[Grid] layoutGrid - row={d}超出范围! row_positions.len={d}, 跳过item", .{ row, row_positions.items.len });
+                    child.is_layouted = true;
+                    continue;
+                }
+            }
+            item_row = row;
+            item_col = col;
         }
-        // 计算网格cell的位置和尺寸
-        const cell_x = container_x + column_positions.items[col] + grid_offset.x;
-        const cell_y = container_y + row_positions.items[row] + grid_offset.y;
-        std.log.warn("[Grid] layoutGrid - placing item: row={d}, col={d}, row_positions[{d}]={d}, cell_y={d}, container_y={d}, grid_offset.y={d}", .{ row, col, row, row_positions.items[row], cell_y, container_y, grid_offset.y });
 
-        // 计算cell尺寸
+        // 边界检查：确保item_row和item_col在有效范围内
+        if (item_row >= row_positions.items.len) {
+            std.log.warn("[Grid] layoutGrid - item_row={d}超出范围! row_positions.len={d}, 跳过item", .{ item_row, row_positions.items.len });
+            child.is_layouted = true;
+            continue;
+        }
+        if (item_col >= column_positions.items.len) {
+            std.log.warn("[Grid] layoutGrid - item_col={d}超出范围! column_positions.len={d}, 跳过item", .{ item_col, column_positions.items.len });
+            child.is_layouted = true;
+            continue;
+        }
+
+        // 计算网格cell的位置和尺寸
+        const cell_x = container_x + column_positions.items[item_col] + grid_offset.x;
+        const cell_y = container_y + row_positions.items[item_row] + grid_offset.y;
+        std.log.warn("[Grid] layoutGrid - placing item: row={d}, col={d}, row_span={d}, col_span={d}, row_positions[{d}]={d}, cell_y={d}, container_y={d}, grid_offset.y={d}", .{ item_row, item_col, item_row_span, item_col_span, item_row, row_positions.items[item_row], cell_y, container_y, grid_offset.y });
+
+        // 计算cell尺寸（考虑跨越的行/列）
         // column_positions存储每列的起始位置（包括gap的累积位置）
-        // 宽度 = 下一列的起始位置 - 当前列的起始位置 - gap（如果有下一列）
-        const cell_width = if (col + 1 < column_positions.items.len)
-            column_positions.items[col + 1] - column_positions.items[col] - column_gap
+        // 宽度 = 结束列的起始位置 - 起始列的起始位置 - gap（如果有结束列）
+        const end_col = @min(item_col + item_col_span, column_positions.items.len);
+        const cell_width = if (end_col < column_positions.items.len)
+            column_positions.items[end_col] - column_positions.items[item_col] - column_gap
         else if (column_positions.items.len > 0)
-            layout_box.box_model.content.width - column_positions.items[col] - grid_offset.x
+            layout_box.box_model.content.width - column_positions.items[item_col] - grid_offset.x
         else
             100.0; // 默认值
         // row_positions存储每行的起始位置（包括gap的累积位置）
-        // 高度 = 下一行的起始位置 - 当前行的起始位置 - gap（如果有下一行）
-        const cell_height = if (row + 1 < row_positions.items.len)
-            row_positions.items[row + 1] - row_positions.items[row] - row_gap
+        // 高度 = 结束行的起始位置 - 起始行的起始位置 - gap（如果有结束行）
+        const end_row = @min(item_row + item_row_span, row_positions.items.len);
+        const cell_height = if (end_row < row_positions.items.len)
+            row_positions.items[end_row] - row_positions.items[item_row] - row_gap
         else if (row_positions.items.len > 0)
-            layout_box.box_model.content.height - row_positions.items[row] - grid_offset.y
+            layout_box.box_model.content.height - row_positions.items[item_row] - grid_offset.y
         else
             100.0; // 默认值
 
@@ -246,11 +307,13 @@ pub fn layoutGrid(layout_box: *box.LayoutBox, containing_block: box.Size, styles
             child.box_model.content.height = original_height;
         }
 
-        // 更新网格位置
-        col += 1;
-        if (col >= columns) {
-            col = 0;
-            row += 1;
+        // 更新网格位置（仅用于自动放置）
+        if (!use_explicit_position) {
+            col += 1;
+            if (col >= columns) {
+                col = 0;
+                row += 1;
+            }
         }
         std.log.warn("[Grid] layoutGrid - after update: row={d}, col={d}, columns={d}", .{ row, col, columns });
 
