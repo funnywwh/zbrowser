@@ -389,8 +389,11 @@ pub const Renderer = struct {
                     rect.y + (actual_line_height - font.size) / 2.0 + font.size * ascent_ratio
                 else
                     rect.y + font.size * ascent_ratio;
-                std.log.debug("[Renderer] renderContent: calling fillText at ({d:.1}, {d:.1}), text=\"{s}\", rect=({d:.1}, {d:.1}, {d:.1}x{d:.1}), font_size={d:.1}, text_align={}", .{ text_x, baseline_y, text_content, rect.x, rect.y, rect.width, rect.height, font.size, if (layout_box.parent) |p| p.text_align else .left });
-                self.render_backend.fillText(text_content, text_x, baseline_y, font, color);
+                // 获取letter-spacing（从父元素继承）
+                const letter_spacing = if (layout_box.parent) |parent| parent.letter_spacing else null;
+                
+                std.log.debug("[Renderer] renderContent: calling fillText at ({d:.1}, {d:.1}), text=\"{s}\", rect=({d:.1}, {d:.1}, {d:.1}x{d:.1}), font_size={d:.1}, text_align={}, letter_spacing={?}", .{ text_x, baseline_y, text_content, rect.x, rect.y, rect.width, rect.height, font.size, if (layout_box.parent) |p| p.text_align else .left, letter_spacing });
+                self.render_backend.fillText(text_content, text_x, baseline_y, font, color, letter_spacing);
                 
                 // 绘制文本装饰（text-decoration）
                 // 获取父元素的text-decoration属性（文本节点继承父元素的装饰）

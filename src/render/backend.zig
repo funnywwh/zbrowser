@@ -81,7 +81,7 @@ pub const RenderBackend = struct {
         fillRect: *const fn (self: *RenderBackend, rect: Rect, color: Color) void,
         strokeRect: *const fn (self: *RenderBackend, rect: Rect, color: Color, width: f32) void,
         strokeDashedRect: *const fn (self: *RenderBackend, rect: Rect, color: Color, width: f32) void,
-        fillText: *const fn (self: *RenderBackend, text: []const u8, x: f32, y: f32, font: Font, color: Color) void,
+        fillText: *const fn (self: *RenderBackend, text: []const u8, x: f32, y: f32, font: Font, color: Color, letter_spacing: ?f32) void,
         drawImage: *const fn (self: *RenderBackend, image: *Image, src_rect: Rect, dst_rect: Rect) void,
 
         // 路径绘制
@@ -129,8 +129,8 @@ pub const RenderBackend = struct {
     }
 
     /// 调用fillText
-    pub fn fillText(self: *RenderBackend, text: []const u8, x: f32, y: f32, font: Font, color: Color) void {
-        self.vtable.fillText(self, text, x, y, font, color);
+    pub fn fillText(self: *RenderBackend, text: []const u8, x: f32, y: f32, font: Font, color: Color, letter_spacing: ?f32) void {
+        self.vtable.fillText(self, text, x, y, font, color, letter_spacing);
     }
 
     /// 调用drawImage

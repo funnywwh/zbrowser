@@ -478,13 +478,13 @@ pub const CpuRenderBackend = struct {
         }
     }
 
-    fn fillTextImpl(self_ptr: *backend.RenderBackend, text: []const u8, x: f32, y: f32, font: backend.Font, color: backend.Color) void {
+    fn fillTextImpl(self_ptr: *backend.RenderBackend, text: []const u8, x: f32, y: f32, font: backend.Font, color: backend.Color, letter_spacing: ?f32) void {
         const self = fromRenderBackend(self_ptr);
-        log.debug("fillText: text=\"{s}\", x={d:.1}, y={d:.1}, font_size={d:.1}, color=#{x:0>2}{x:0>2}{x:0>2}\n", .{
+        log.debug("fillText: text=\"{s}\", x={d:.1}, y={d:.1}, font_size={d:.1}, color=#{x:0>2}{x:0>2}{x:0>2}, letter_spacing={?}\n", .{
             text,    x,       y,       font.size,
-            color.r, color.g, color.b,
+            color.r, color.g, color.b, letter_spacing,
         });
-        fillTextInternal(self, text, x, y, font, color);
+        fillTextInternal(self, text, x, y, font, color, letter_spacing);
     }
 
     /// 计算文本的实际渲染宽度（不渲染，只计算）
@@ -756,7 +756,7 @@ pub const CpuRenderBackend = struct {
     /// 1. 字符宽度计算（考虑字距、连字等）
     /// 2. 文本换行和对齐
     /// 3. 抗锯齿处理
-    fn fillTextInternal(self: *CpuRenderBackend, text: []const u8, x: f32, y: f32, font: backend.Font, color: backend.Color) void {
+    fn fillTextInternal(self: *CpuRenderBackend, text: []const u8, x: f32, y: f32, font: backend.Font, color: backend.Color, letter_spacing: ?f32) void {
         // 如果文本为空，不绘制
         if (text.len == 0) {
             return;
@@ -793,7 +793,7 @@ pub const CpuRenderBackend = struct {
                 const chinese_font_face = self.font_manager.getFont("ChineseFont") orelse self.tryLoadChineseFont() catch null;
 
                 // 按字符分别渲染，对每个字符使用合适的字体
-                self.renderTextWithMixedFonts(face, chinese_font_face, text, x, y, font.size, color) catch |err| {
+                self.renderTextWithMixedFonts(face, chinese_font_face, text, x, y, font.size, color, letter_spacing) catch |err| {
                     // 如果渲染失败，使用占位符
                     log.debug("fillTextInternal: renderTextWithMixedFonts failed: {}, using placeholder\n", .{err});
                     self.renderTextPlaceholder(text, x, y, font, color);
@@ -885,7 +885,7 @@ pub const CpuRenderBackend = struct {
             }
 
             // 使用字体回退机制渲染文本
-            self.renderTextWithFontFallback(fallback_fonts.items, text, x, y, font.size, color) catch |err| {
+            self.renderTextWithFontFallback(fallback_fonts.items, text, x, y, font.size, color, letter_spacing) catch |err| {
                 // 如果所有字体都失败，回退到占位符
                 log.debug("fillTextInternal: all fonts failed: {}, falling back to placeholder\n", .{err});
                 self.renderTextPlaceholder(text, x, y, font, color);
@@ -1236,6 +1236,7 @@ pub const CpuRenderBackend = struct {
     /// 参数：
     /// - primary_font: 主字体（用于大部分字符）
     /// - fallback_font: 备用字体（用于主字体不支持的字符，如中文汉字）
+    /// - letter_spacing: 字符间距（如果为null，表示使用默认间距）
     fn renderTextWithMixedFonts(
         self: *CpuRenderBackend,
         primary_font: *font_module.FontFace,
@@ -1245,6 +1246,7 @@ pub const CpuRenderBackend = struct {
         y: f32,
         font_size: f32,
         color: backend.Color,
+        letter_spacing: ?f32,
     ) !void {
         // 获取主字体度量信息
         const font_metrics = try primary_font.getFontMetrics();
@@ -1318,6 +1320,13 @@ pub const CpuRenderBackend = struct {
                 // 如果备用字体也不支持，跳过这个字符
                 const placeholder_width = font_size * 0.6;
                 current_x += placeholder_width;
+                
+                // 应用letter-spacing（如果不是最后一个字符）
+                if (letter_spacing) |spacing| {
+                    if (i < text.len) {
+                        current_x += spacing;
+                    }
+                }
                 continue;
             }
 
@@ -1344,12 +1353,20 @@ pub const CpuRenderBackend = struct {
 
             const advance_width = @as(f32, @floatFromInt(h_metrics.advance_width));
             current_x += advance_width * scale;
+            
+            // 应用letter-spacing（如果不是最后一个字符）
+            if (letter_spacing) |spacing| {
+                if (i < text.len) {
+                    current_x += spacing;
+                }
+            }
         }
     }
 
     /// 使用字体回退列表渲染文本
     /// 按字符逐个尝试字体列表，直到找到支持该字符的字体
     /// 如果所有字体都不支持某个字符，跳过该字符（不绘制）
+    /// - letter_spacing: 字符间距（如果为null，表示使用默认间距）
     fn renderTextWithFontFallback(
         self: *CpuRenderBackend,
         font_faces: []*font_module.FontFace,
@@ -1358,6 +1375,7 @@ pub const CpuRenderBackend = struct {
         y: f32,
         font_size: f32,
         color: backend.Color,
+        letter_spacing: ?f32,
     ) !void {
         if (font_faces.len == 0) {
             return error.NoFontAvailable;
@@ -1422,6 +1440,13 @@ pub const CpuRenderBackend = struct {
                     // 如果获取字形失败，跳过这个字符
                     const placeholder_width = font_size * 0.6;
                     current_x += placeholder_width;
+                    
+                    // 应用letter-spacing（如果不是最后一个字符）
+                    if (letter_spacing) |spacing| {
+                        if (i < text.len) {
+                            current_x += spacing;
+                        }
+                    }
                     continue;
                 };
                 std.log.warn("[CpuBackend] renderTextWithFontFallback: got glyph, points.len={d}", .{glyph.points.items.len});
@@ -1459,6 +1484,13 @@ pub const CpuRenderBackend = struct {
                 else
                     advance_width * scale;
                 current_x += adjusted_advance;
+                
+                // 应用letter-spacing（如果不是最后一个字符）
+                if (letter_spacing) |spacing| {
+                    if (i < text.len) {
+                        current_x += spacing;
+                    }
+                }
             } else {
                 // 所有已加载字体都不支持这个字符，尝试动态加载支持该字符的字体
                 const fallback_font = self.tryLoadFallbackFontForCodepoint(codepoint) catch null;
@@ -1511,12 +1543,26 @@ pub const CpuRenderBackend = struct {
                         // 移动到下一个字符位置
                         const advance_width = @as(f32, @floatFromInt(h_metrics.advance_width));
                         current_x += advance_width * scale;
+                        
+                        // 应用letter-spacing（如果不是最后一个字符）
+                        if (letter_spacing) |spacing| {
+                            if (i < text.len) {
+                                current_x += spacing;
+                            }
+                        }
                         continue;
                     }
                 }
                 // 如果所有字体都不支持这个字符，跳过（不绘制占位符框）
                 const placeholder_width = font_size * 0.6;
                 current_x += placeholder_width;
+                
+                // 应用letter-spacing（如果不是最后一个字符）
+                if (letter_spacing) |spacing| {
+                    if (i < text.len) {
+                        current_x += spacing;
+                    }
+                }
             }
         }
     }
@@ -1531,6 +1577,7 @@ pub const CpuRenderBackend = struct {
         y: f32,
         font_size: f32,
         color: backend.Color,
+        letter_spacing: ?f32,
     ) !void {
         // 初始化Hinting（如果尚未初始化）
         // 获取hinting表
@@ -1618,6 +1665,13 @@ pub const CpuRenderBackend = struct {
                 else
                     advance_width * scale;
                 current_x += adjusted_advance;
+                
+                // 应用letter-spacing（如果不是最后一个字符）
+                if (letter_spacing) |spacing| {
+                    if (i < text.len) {
+                        current_x += spacing;
+                    }
+                }
             } else {
                 // 如果找不到字形，返回错误，让调用者回退到其他字体
                 // 调试：检查"韩"字（U+97E9）是否找不到字形
