@@ -37,7 +37,7 @@ pub const Renderer = struct {
             std.log.debug("[Renderer] renderLayoutBox: display=none, skipping", .{});
             return;
         }
-        
+
         // 跳过title、head、meta、script、style等元数据标签（它们不应该在页面中渲染）
         if (layout_box.node.node_type == .element) {
             if (layout_box.node.asElement()) |elem| {
@@ -47,7 +47,8 @@ pub const Renderer = struct {
                     std.mem.eql(u8, tag_name, "meta") or
                     std.mem.eql(u8, tag_name, "script") or
                     std.mem.eql(u8, tag_name, "style") or
-                    std.mem.eql(u8, tag_name, "link")) {
+                    std.mem.eql(u8, tag_name, "link"))
+                {
                     std.log.debug("[Renderer] renderLayoutBox: skipping metadata tag '{s}'", .{tag_name});
                     return;
                 }
@@ -171,7 +172,7 @@ pub const Renderer = struct {
                 std.log.debug("[Renderer] renderContent: text is empty, skipping", .{});
                 return;
             }
-            
+
             // 检查是否只包含空白字符
             var is_whitespace_only = true;
             for (text_content) |c| {
@@ -193,11 +194,13 @@ pub const Renderer = struct {
                 // 重新计算父元素的样式（用于文本节点继承）
                 var cascade_engine = cascade.Cascade.init(self.allocator);
                 var parent_computed_style = try cascade_engine.computeStyle(parent.node, self.stylesheets);
-                
+
                 // 如果当前样式为空或没有font-size，使用父元素的样式
                 if (computed_style.getProperty("font-size") == null) {
                     parent_computed_style_opt = parent_computed_style;
-                    text_computed_style = &parent_computed_style;
+                    // 注意：必须使用parent_computed_style_opt的地址，而不是parent_computed_style的地址
+                    // 因为parent_computed_style在if块结束后会被销毁
+                    text_computed_style = &parent_computed_style_opt.?;
                 } else {
                     parent_computed_style.deinit();
                 }
@@ -340,11 +343,11 @@ pub const Renderer = struct {
         var width: ?f32 = null;
         var style: ?[]const u8 = null;
         var color: ?css_parser.Value.Color = null;
-        
+
         while (parts.next()) |part| {
             const trimmed = std.mem.trim(u8, part, " \t\n\r");
             if (trimmed.len == 0) continue;
-            
+
             // 检查是否是长度值（如 "2px"）
             if (std.mem.indexOfScalar(u8, trimmed, 'p') != null and std.mem.indexOfScalar(u8, trimmed, 'x') != null) {
                 const px_pos = std.mem.indexOfScalar(u8, trimmed, 'p') orelse continue;
@@ -356,7 +359,7 @@ pub const Renderer = struct {
                     } else |_| {}
                 }
             }
-            
+
             // 检查是否是颜色值（以#开头）
             if (trimmed.len > 0 and trimmed[0] == '#') {
                 const color_hash = trimmed[1..]; // 去掉#号
@@ -365,7 +368,7 @@ pub const Renderer = struct {
                     continue;
                 }
             }
-            
+
             // 检查是否是边框样式关键字（solid, dashed, dotted等）
             if (std.mem.eql(u8, trimmed, "solid") or
                 std.mem.eql(u8, trimmed, "dashed") or
@@ -377,7 +380,7 @@ pub const Renderer = struct {
                 continue;
             }
         }
-        
+
         return .{ .width = width, .style = style, .color = color };
     }
 
