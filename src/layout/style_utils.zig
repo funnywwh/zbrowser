@@ -62,6 +62,16 @@ pub fn parseTextDecoration(value: []const u8) box.TextDecoration {
     return .none;
 }
 
+/// 解析overflow属性值
+pub fn parseOverflow(value: []const u8) box.Overflow {
+    if (std.mem.eql(u8, value, "visible")) return .visible;
+    if (std.mem.eql(u8, value, "hidden")) return .hidden;
+    if (std.mem.eql(u8, value, "scroll")) return .scroll;
+    if (std.mem.eql(u8, value, "auto")) return .auto;
+    // 默认返回visible
+    return .visible;
+}
+
 /// 解析line-height属性值
 /// 支持格式：
 /// - 数字值（如"1.5"，表示字体大小的倍数）
@@ -399,6 +409,11 @@ pub fn applyStyleToLayoutBox(layout_box: *box.LayoutBox, computed_style: *const 
     } else if (getPropertyLength(computed_style, "line-height", createUnitContext(containing_size.width))) |line_height_length| {
         // line-height是长度值（如20px）
         layout_box.line_height = .{ .length = line_height_length };
+    }
+
+    // 解析overflow
+    if (getPropertyKeyword(computed_style, "overflow")) |overflow_value| {
+        layout_box.overflow = parseOverflow(overflow_value);
     }
 
     // 解析border-radius

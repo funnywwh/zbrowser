@@ -160,6 +160,14 @@ pub const LineHeight = union(enum) {
     normal,
 };
 
+/// 溢出处理类型（overflow属性）
+pub const Overflow = enum {
+    visible, // 默认值，不裁剪溢出内容
+    hidden,  // 隐藏溢出内容
+    scroll,  // 显示滚动条（简化实现：等同于hidden）
+    auto,    // 自动（简化实现：等同于hidden）
+};
+
 /// 布局框（每个DOM元素对应一个布局框）
 pub const LayoutBox = struct {
     /// 对应的DOM节点
@@ -204,6 +212,9 @@ pub const LayoutBox = struct {
     /// 行高（line-height属性）
     line_height: LineHeight,
 
+    /// 溢出处理（overflow属性）
+    overflow: Overflow,
+
     /// 子布局框列表
     children: std.ArrayList(*LayoutBox),
 
@@ -244,6 +255,7 @@ pub const LayoutBox = struct {
             .text_align = .left, // 默认左对齐
             .text_decoration = .none, // 默认无装饰
             .line_height = .normal, // 默认行高
+            .overflow = .visible, // 默认不裁剪
             .children = std.ArrayList(*LayoutBox){
                 .items = &[_]*LayoutBox{},
                 .capacity = 0,

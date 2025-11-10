@@ -104,15 +104,35 @@ pub const Renderer = struct {
             try self.renderBackground(layout_box, &computed_style, border_rect);
         }
 
-        // 2. 递归渲染子节点（先渲染子节点，确保文本在背景之上）
+        // 2. 处理overflow属性（如果为hidden、scroll或auto，需要裁剪）
+        const needs_clip = layout_box.overflow != .visible;
+        if (needs_clip) {
+            // 保存当前状态
+            self.render_backend.save();
+            // 设置裁剪区域为内容区域（包含padding）
+            const clip_rect = backend.Rect.init(
+                content_box_rect.x,
+                content_box_rect.y,
+                content_box_rect.width,
+                content_box_rect.height,
+            );
+            self.render_backend.clip(clip_rect);
+        }
+
+        // 3. 递归渲染子节点（先渲染子节点，确保文本在背景之上）
         for (layout_box.children.items) |child| {
             try self.renderLayoutBox(child);
         }
 
-        // 3. 绘制内容（文本）- 在子节点之后绘制，确保文本在最上层
+        // 4. 绘制内容（文本）- 在子节点之后绘制，确保文本在最上层
         try self.renderContent(layout_box, &computed_style, content_rect);
 
-        // 4. 绘制边框（最后绘制，确保边框在最上层）
+        // 5. 恢复裁剪状态（如果设置了）
+        if (needs_clip) {
+            self.render_backend.restore();
+        }
+
+        // 6. 绘制边框（最后绘制，确保边框在最上层）
         try self.renderBorder(layout_box, &computed_style, border_rect);
     }
 

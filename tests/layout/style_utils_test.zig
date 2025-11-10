@@ -805,3 +805,50 @@ test "getFlexProperties with flex shorthand - none keyword" {
     try testing.expectEqual(@as(f32, 0.0), flex_props.shrink);
     try testing.expect(flex_props.basis == null); // auto
 }
+
+test "parseOverflow - all overflow types" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+
+    // 测试所有overflow值
+    try testing.expectEqual(box.Overflow.visible, style_utils.parseOverflow("visible"));
+    try testing.expectEqual(box.Overflow.hidden, style_utils.parseOverflow("hidden"));
+    try testing.expectEqual(box.Overflow.scroll, style_utils.parseOverflow("scroll"));
+    try testing.expectEqual(box.Overflow.auto, style_utils.parseOverflow("auto"));
+}
+
+test "parseOverflow boundary_case - unknown value" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+
+    // 未知值应该返回默认值visible
+    const overflow = style_utils.parseOverflow("unknown");
+    try testing.expectEqual(box.Overflow.visible, overflow);
+}
+
+test "applyStyleToLayoutBox with overflow" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, node);
+
+    // 设置inline style属性
+    if (node.asElement()) |elem| {
+        try elem.setAttribute("style", "overflow: hidden;", allocator);
+    }
+
+    var layout_box = box.LayoutBox.init(node, allocator);
+    defer layout_box.deinit();
+
+    var cascade_engine = cascade.Cascade.init(allocator);
+    var computed_style = try cascade_engine.computeStyle(node, &[_]css_parser.Stylesheet{});
+    defer computed_style.deinit();
+
+    const containing_size = box.Size{ .width = 800, .height = 600 };
+    style_utils.applyStyleToLayoutBox(&layout_box, &computed_style, containing_size);
+
+    // 检查overflow是否正确应用
+    try testing.expectEqual(box.Overflow.hidden, layout_box.overflow);
+}
