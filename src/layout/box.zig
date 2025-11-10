@@ -185,6 +185,19 @@ pub const WhiteSpace = enum {
     pre_line, // 保留换行符（合并空格，保留换行符，自动换行）
 };
 
+/// 单词换行方式（word-wrap/overflow-wrap属性）
+pub const WordWrap = enum {
+    normal, // 正常换行（只在正常单词边界换行）
+    break_word, // 允许在任意位置换行（长单词可以断行）
+};
+
+/// 单词断行方式（word-break属性）
+pub const WordBreak = enum {
+    normal, // 正常断行（使用默认断行规则）
+    break_all, // 允许在任意字符间断行
+    keep_all, // 保持所有（CJK文本不断行，非CJK文本正常断行）
+};
+
 /// 行高类型（line-height属性）
 pub const LineHeight = union(enum) {
     /// 数字值（如1.5，表示字体大小的倍数）
@@ -274,6 +287,14 @@ pub const LayoutBox = struct {
     /// 控制空白字符（空格、换行符、制表符）的处理方式
     white_space: WhiteSpace,
 
+    /// 单词换行方式（word-wrap/overflow-wrap属性）
+    /// 控制长单词是否可以在任意位置换行
+    word_wrap: WordWrap,
+
+    /// 单词断行方式（word-break属性）
+    /// 控制单词内部的断行规则
+    word_break: WordBreak,
+
     /// 子布局框列表
     children: std.ArrayList(*LayoutBox),
 
@@ -324,6 +345,8 @@ pub const LayoutBox = struct {
             .z_index = null, // 默认使用auto堆叠顺序
             .vertical_align = .baseline, // 默认基线对齐
             .white_space = .normal, // 默认正常处理空白字符
+            .word_wrap = .normal, // 默认正常换行
+            .word_break = .normal, // 默认正常断行
             .children = std.ArrayList(*LayoutBox){
                 .items = &[_]*LayoutBox{},
                 .capacity = 0,

@@ -1434,3 +1434,99 @@ test "parseWhiteSpace - all values" {
     // 无效值应该返回默认值normal
     try testing.expectEqual(box.WhiteSpace.normal, style_utils.parseWhiteSpace("invalid"));
 }
+
+test "applyStyleToLayoutBox with word-wrap" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, node);
+
+    // 设置inline style属性
+    if (node.asElement()) |elem| {
+        try elem.setAttribute("style", "word-wrap: break-word;", allocator);
+    }
+
+    var layout_box = box.LayoutBox.init(node, allocator);
+    defer layout_box.deinit();
+
+    var cascade_engine = cascade.Cascade.init(allocator);
+    var computed_style = try cascade_engine.computeStyle(node, &[_]css_parser.Stylesheet{});
+    defer computed_style.deinit();
+
+    const containing_size = box.Size{ .width = 800, .height = 600 };
+    style_utils.applyStyleToLayoutBox(&layout_box, &computed_style, containing_size);
+
+    // 检查word-wrap是否正确应用
+    try testing.expectEqual(box.WordWrap.break_word, layout_box.word_wrap);
+}
+
+test "applyStyleToLayoutBox with overflow-wrap" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, node);
+
+    // 设置inline style属性（overflow-wrap是word-wrap的别名）
+    if (node.asElement()) |elem| {
+        try elem.setAttribute("style", "overflow-wrap: break-word;", allocator);
+    }
+
+    var layout_box = box.LayoutBox.init(node, allocator);
+    defer layout_box.deinit();
+
+    var cascade_engine = cascade.Cascade.init(allocator);
+    var computed_style = try cascade_engine.computeStyle(node, &[_]css_parser.Stylesheet{});
+    defer computed_style.deinit();
+
+    const containing_size = box.Size{ .width = 800, .height = 600 };
+    style_utils.applyStyleToLayoutBox(&layout_box, &computed_style, containing_size);
+
+    // 检查overflow-wrap是否正确应用（应该映射到word_wrap）
+    try testing.expectEqual(box.WordWrap.break_word, layout_box.word_wrap);
+}
+
+test "applyStyleToLayoutBox with word-break" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, node);
+
+    // 设置inline style属性
+    if (node.asElement()) |elem| {
+        try elem.setAttribute("style", "word-break: break-all;", allocator);
+    }
+
+    var layout_box = box.LayoutBox.init(node, allocator);
+    defer layout_box.deinit();
+
+    var cascade_engine = cascade.Cascade.init(allocator);
+    var computed_style = try cascade_engine.computeStyle(node, &[_]css_parser.Stylesheet{});
+    defer computed_style.deinit();
+
+    const containing_size = box.Size{ .width = 800, .height = 600 };
+    style_utils.applyStyleToLayoutBox(&layout_box, &computed_style, containing_size);
+
+    // 检查word-break是否正确应用
+    try testing.expectEqual(box.WordBreak.break_all, layout_box.word_break);
+}
+
+test "parseWordWrap - all values" {
+    try testing.expectEqual(box.WordWrap.normal, style_utils.parseWordWrap("normal"));
+    try testing.expectEqual(box.WordWrap.break_word, style_utils.parseWordWrap("break-word"));
+    // 无效值应该返回默认值normal
+    try testing.expectEqual(box.WordWrap.normal, style_utils.parseWordWrap("invalid"));
+}
+
+test "parseWordBreak - all values" {
+    try testing.expectEqual(box.WordBreak.normal, style_utils.parseWordBreak("normal"));
+    try testing.expectEqual(box.WordBreak.break_all, style_utils.parseWordBreak("break-all"));
+    try testing.expectEqual(box.WordBreak.keep_all, style_utils.parseWordBreak("keep-all"));
+    // 无效值应该返回默认值normal
+    try testing.expectEqual(box.WordBreak.normal, style_utils.parseWordBreak("invalid"));
+}

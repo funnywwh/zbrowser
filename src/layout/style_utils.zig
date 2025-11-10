@@ -77,6 +77,23 @@ pub fn parseWhiteSpace(value: []const u8) box.WhiteSpace {
     return .normal;
 }
 
+/// 解析word-wrap/overflow-wrap属性值
+pub fn parseWordWrap(value: []const u8) box.WordWrap {
+    if (std.mem.eql(u8, value, "normal")) return .normal;
+    if (std.mem.eql(u8, value, "break-word")) return .break_word;
+    // 默认返回normal
+    return .normal;
+}
+
+/// 解析word-break属性值
+pub fn parseWordBreak(value: []const u8) box.WordBreak {
+    if (std.mem.eql(u8, value, "normal")) return .normal;
+    if (std.mem.eql(u8, value, "break-all")) return .break_all;
+    if (std.mem.eql(u8, value, "keep-all")) return .keep_all;
+    // 默认返回normal
+    return .normal;
+}
+
 /// 解析text-decoration属性值
 pub fn parseTextDecoration(value: []const u8) box.TextDecoration {
     if (std.mem.eql(u8, value, "none")) return .none;
@@ -486,6 +503,18 @@ pub fn applyStyleToLayoutBox(layout_box: *box.LayoutBox, computed_style: *const 
     // 解析white-space
     if (getPropertyKeyword(computed_style, "white-space")) |white_space_value| {
         layout_box.white_space = parseWhiteSpace(white_space_value);
+    }
+
+    // 解析word-wrap/overflow-wrap（overflow-wrap是word-wrap的别名）
+    if (getPropertyKeyword(computed_style, "word-wrap")) |word_wrap_value| {
+        layout_box.word_wrap = parseWordWrap(word_wrap_value);
+    } else if (getPropertyKeyword(computed_style, "overflow-wrap")) |overflow_wrap_value| {
+        layout_box.word_wrap = parseWordWrap(overflow_wrap_value);
+    }
+
+    // 解析word-break
+    if (getPropertyKeyword(computed_style, "word-break")) |word_break_value| {
+        layout_box.word_break = parseWordBreak(word_break_value);
     }
 
     // 解析border-radius
