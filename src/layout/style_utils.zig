@@ -52,6 +52,20 @@ pub fn parseTextAlign(value: []const u8) box.TextAlign {
     return .left;
 }
 
+/// 解析vertical-align属性值
+pub fn parseVerticalAlign(value: []const u8) box.VerticalAlign {
+    if (std.mem.eql(u8, value, "baseline")) return .baseline;
+    if (std.mem.eql(u8, value, "top")) return .top;
+    if (std.mem.eql(u8, value, "middle")) return .middle;
+    if (std.mem.eql(u8, value, "bottom")) return .bottom;
+    if (std.mem.eql(u8, value, "sub")) return .sub;
+    if (std.mem.eql(u8, value, "super")) return .super;
+    if (std.mem.eql(u8, value, "text-top")) return .text_top;
+    if (std.mem.eql(u8, value, "text-bottom")) return .text_bottom;
+    // 默认返回baseline
+    return .baseline;
+}
+
 /// 解析text-decoration属性值
 pub fn parseTextDecoration(value: []const u8) box.TextDecoration {
     if (std.mem.eql(u8, value, "none")) return .none;
@@ -451,6 +465,11 @@ pub fn applyStyleToLayoutBox(layout_box: *box.LayoutBox, computed_style: *const 
                 // 解析失败，使用默认值null（auto）
             }
         }
+    }
+
+    // 解析vertical-align
+    if (getPropertyKeyword(computed_style, "vertical-align")) |vertical_align_value| {
+        layout_box.vertical_align = parseVerticalAlign(vertical_align_value);
     }
 
     // 解析border-radius

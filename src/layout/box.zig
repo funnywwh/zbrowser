@@ -164,6 +164,18 @@ pub const TextDecoration = enum {
     overline,
 };
 
+/// 垂直对齐方式（vertical-align属性）
+pub const VerticalAlign = enum {
+    baseline, // 基线对齐（默认）
+    top, // 顶部对齐
+    middle, // 中间对齐
+    bottom, // 底部对齐
+    sub, // 下标
+    super, // 上标
+    text_top, // 文本顶部
+    text_bottom, // 文本底部
+};
+
 /// 行高类型（line-height属性）
 pub const LineHeight = union(enum) {
     /// 数字值（如1.5，表示字体大小的倍数）
@@ -245,6 +257,10 @@ pub const LayoutBox = struct {
     /// 只对positioned元素（relative、absolute、fixed、sticky）有效
     z_index: ?i32,
 
+    /// 垂直对齐方式（vertical-align属性）
+    /// 用于inline元素和table-cell元素的垂直对齐
+    vertical_align: VerticalAlign,
+
     /// 子布局框列表
     children: std.ArrayList(*LayoutBox),
 
@@ -293,6 +309,7 @@ pub const LayoutBox = struct {
             .letter_spacing = null, // 默认无额外字符间距
             .opacity = 1.0, // 默认完全不透明
             .z_index = null, // 默认使用auto堆叠顺序
+            .vertical_align = .baseline, // 默认基线对齐
             .children = std.ArrayList(*LayoutBox){
                 .items = &[_]*LayoutBox{},
                 .capacity = 0,

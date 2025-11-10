@@ -1276,3 +1276,97 @@ test "applyStyleToLayoutBox with z-index zero" {
     try testing.expect(layout_box.z_index != null);
     try testing.expectEqual(@as(i32, 0), layout_box.z_index.?);
 }
+
+test "applyStyleToLayoutBox with vertical-align" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const node = try test_helpers.createTestElement(allocator, "span");
+    defer test_helpers.freeNode(allocator, node);
+
+    // 设置inline style属性
+    if (node.asElement()) |elem| {
+        try elem.setAttribute("style", "vertical-align: top;", allocator);
+    }
+
+    var layout_box = box.LayoutBox.init(node, allocator);
+    defer layout_box.deinit();
+
+    var cascade_engine = cascade.Cascade.init(allocator);
+    var computed_style = try cascade_engine.computeStyle(node, &[_]css_parser.Stylesheet{});
+    defer computed_style.deinit();
+
+    const containing_size = box.Size{ .width = 800, .height = 600 };
+    style_utils.applyStyleToLayoutBox(&layout_box, &computed_style, containing_size);
+
+    // 检查vertical-align是否正确应用
+    try testing.expectEqual(box.VerticalAlign.top, layout_box.vertical_align);
+}
+
+test "applyStyleToLayoutBox with vertical-align middle" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const node = try test_helpers.createTestElement(allocator, "span");
+    defer test_helpers.freeNode(allocator, node);
+
+    // 设置inline style属性
+    if (node.asElement()) |elem| {
+        try elem.setAttribute("style", "vertical-align: middle;", allocator);
+    }
+
+    var layout_box = box.LayoutBox.init(node, allocator);
+    defer layout_box.deinit();
+
+    var cascade_engine = cascade.Cascade.init(allocator);
+    var computed_style = try cascade_engine.computeStyle(node, &[_]css_parser.Stylesheet{});
+    defer computed_style.deinit();
+
+    const containing_size = box.Size{ .width = 800, .height = 600 };
+    style_utils.applyStyleToLayoutBox(&layout_box, &computed_style, containing_size);
+
+    // 检查vertical-align是否正确应用
+    try testing.expectEqual(box.VerticalAlign.middle, layout_box.vertical_align);
+}
+
+test "applyStyleToLayoutBox with vertical-align baseline" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const node = try test_helpers.createTestElement(allocator, "span");
+    defer test_helpers.freeNode(allocator, node);
+
+    // 设置inline style属性
+    if (node.asElement()) |elem| {
+        try elem.setAttribute("style", "vertical-align: baseline;", allocator);
+    }
+
+    var layout_box = box.LayoutBox.init(node, allocator);
+    defer layout_box.deinit();
+
+    var cascade_engine = cascade.Cascade.init(allocator);
+    var computed_style = try cascade_engine.computeStyle(node, &[_]css_parser.Stylesheet{});
+    defer computed_style.deinit();
+
+    const containing_size = box.Size{ .width = 800, .height = 600 };
+    style_utils.applyStyleToLayoutBox(&layout_box, &computed_style, containing_size);
+
+    // 检查vertical-align是否正确应用
+    try testing.expectEqual(box.VerticalAlign.baseline, layout_box.vertical_align);
+}
+
+test "parseVerticalAlign - all values" {
+    try testing.expectEqual(box.VerticalAlign.baseline, style_utils.parseVerticalAlign("baseline"));
+    try testing.expectEqual(box.VerticalAlign.top, style_utils.parseVerticalAlign("top"));
+    try testing.expectEqual(box.VerticalAlign.middle, style_utils.parseVerticalAlign("middle"));
+    try testing.expectEqual(box.VerticalAlign.bottom, style_utils.parseVerticalAlign("bottom"));
+    try testing.expectEqual(box.VerticalAlign.sub, style_utils.parseVerticalAlign("sub"));
+    try testing.expectEqual(box.VerticalAlign.super, style_utils.parseVerticalAlign("super"));
+    try testing.expectEqual(box.VerticalAlign.text_top, style_utils.parseVerticalAlign("text-top"));
+    try testing.expectEqual(box.VerticalAlign.text_bottom, style_utils.parseVerticalAlign("text-bottom"));
+    // 无效值应该返回默认值baseline
+    try testing.expectEqual(box.VerticalAlign.baseline, style_utils.parseVerticalAlign("invalid"));
+}
