@@ -40,11 +40,16 @@ pub const LayoutEngine = struct {
         };
         layout_box.display = .block;
         layout_box.position = .static;
+        layout_box.position_top = null;
+        layout_box.position_right = null;
+        layout_box.position_bottom = null;
+        layout_box.position_left = null;
         layout_box.float = .none;
         layout_box.grid_row_start = null;
         layout_box.grid_row_end = null;
         layout_box.grid_column_start = null;
         layout_box.grid_column_end = null;
+        layout_box.text_align = .left; // 默认左对齐
         layout_box.children = std.ArrayList(*box.LayoutBox){
             .items = &[_]*box.LayoutBox{},
             .capacity = 0,
