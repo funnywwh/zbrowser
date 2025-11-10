@@ -136,6 +136,14 @@ pub const TextAlign = enum {
     justify,
 };
 
+/// 文本装饰类型（text-decoration属性）
+pub const TextDecoration = enum {
+    none,
+    underline,
+    line_through,
+    overline,
+};
+
 /// 布局框（每个DOM元素对应一个布局框）
 pub const LayoutBox = struct {
     /// 对应的DOM节点
@@ -174,6 +182,9 @@ pub const LayoutBox = struct {
     /// 文本对齐方式（text-align属性）
     text_align: TextAlign,
 
+    /// 文本装饰方式（text-decoration属性）
+    text_decoration: TextDecoration,
+
     /// 子布局框列表
     children: std.ArrayList(*LayoutBox),
 
@@ -211,6 +222,7 @@ pub const LayoutBox = struct {
             .grid_column_start = null,
             .grid_column_end = null,
             .text_align = .left, // 默认左对齐
+            .text_decoration = .none, // 默认无装饰
             .children = std.ArrayList(*LayoutBox){
                 .items = &[_]*LayoutBox{},
                 .capacity = 0,

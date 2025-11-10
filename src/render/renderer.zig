@@ -261,6 +261,40 @@ pub const Renderer = struct {
                 const baseline_y = rect.y + font.size * ascent_ratio;
                 std.log.debug("[Renderer] renderContent: calling fillText at ({d:.1}, {d:.1}), text=\"{s}\", rect=({d:.1}, {d:.1}, {d:.1}x{d:.1}), font_size={d:.1}, text_align={}", .{ text_x, baseline_y, text_content, rect.x, rect.y, rect.width, rect.height, font.size, if (layout_box.parent) |p| p.text_align else .left });
                 self.render_backend.fillText(text_content, text_x, baseline_y, font, color);
+                
+                // 绘制文本装饰（text-decoration）
+                // 获取父元素的text-decoration属性（文本节点继承父元素的装饰）
+                const text_decoration = if (layout_box.parent) |parent| parent.text_decoration else .none;
+                if (text_decoration != .none) {
+                    // 计算文本宽度（使用估算值）
+                    const char_width = font.size * 0.7;
+                    const text_width = char_width * @as(f32, @floatFromInt(text_content.len));
+                    
+                    // 计算装饰线的位置和宽度
+                    const decoration_width = @max(1.0, font.size * 0.05); // 装饰线宽度约为字体大小的5%
+                    
+                    switch (text_decoration) {
+                        .underline => {
+                            // 下划线：在基线下方
+                            const underline_y = baseline_y + font.size * 0.2; // 基线下方约20%字体大小
+                            const decoration_rect = backend.Rect.init(text_x, underline_y, text_width, decoration_width);
+                            self.render_backend.fillRect(decoration_rect, color);
+                        },
+                        .line_through => {
+                            // 删除线：在文本中间
+                            const strikethrough_y = baseline_y - font.size * 0.3; // 基线下方约30%字体大小（文本中间）
+                            const decoration_rect = backend.Rect.init(text_x, strikethrough_y, text_width, decoration_width);
+                            self.render_backend.fillRect(decoration_rect, color);
+                        },
+                        .overline => {
+                            // 上划线：在文本上方
+                            const overline_y = baseline_y - font.size * 0.7; // 基线下方约70%字体大小（文本上方）
+                            const decoration_rect = backend.Rect.init(text_x, overline_y, text_width, decoration_width);
+                            self.render_backend.fillRect(decoration_rect, color);
+                        },
+                        .none => {}, // 不会到达这里
+                    }
+                }
             } else {
                 std.log.debug("[Renderer] renderContent: no text color, skipping", .{});
             }

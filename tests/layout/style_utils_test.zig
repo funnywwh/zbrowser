@@ -290,6 +290,19 @@ test "parseTextAlign boundary_case - unknown value" {
     try testing.expectEqual(box.TextAlign.left, style_utils.parseTextAlign(""));
 }
 
+test "parseTextDecoration - all text decoration types" {
+    try testing.expectEqual(box.TextDecoration.none, style_utils.parseTextDecoration("none"));
+    try testing.expectEqual(box.TextDecoration.underline, style_utils.parseTextDecoration("underline"));
+    try testing.expectEqual(box.TextDecoration.line_through, style_utils.parseTextDecoration("line-through"));
+    try testing.expectEqual(box.TextDecoration.overline, style_utils.parseTextDecoration("overline"));
+}
+
+test "parseTextDecoration boundary_case - unknown value" {
+    // 未知值应该返回默认值none
+    try testing.expectEqual(box.TextDecoration.none, style_utils.parseTextDecoration("unknown"));
+    try testing.expectEqual(box.TextDecoration.none, style_utils.parseTextDecoration(""));
+}
+
 test "parseGridTemplate with repeat() function" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
@@ -427,4 +440,58 @@ test "applyStyleToLayoutBox with text-align" {
 
     // 检查text-align是否正确应用
     try testing.expectEqual(box.TextAlign.center, layout_box.text_align);
+}
+
+test "applyStyleToLayoutBox with text-decoration" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, node);
+
+    // 设置inline style属性
+    if (node.asElement()) |elem| {
+        try elem.setAttribute("style", "text-decoration: underline;", allocator);
+    }
+
+    var layout_box = box.LayoutBox.init(node, allocator);
+    defer layout_box.deinit();
+
+    var cascade_engine = cascade.Cascade.init(allocator);
+    var computed_style = try cascade_engine.computeStyle(node, &[_]css_parser.Stylesheet{});
+    defer computed_style.deinit();
+
+    const containing_size = box.Size{ .width = 800, .height = 600 };
+    style_utils.applyStyleToLayoutBox(&layout_box, &computed_style, containing_size);
+
+    // 检查text-decoration是否正确应用
+    try testing.expectEqual(box.TextDecoration.underline, layout_box.text_decoration);
+}
+
+test "applyStyleToLayoutBox with text-decoration line-through" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, node);
+
+    // 设置inline style属性
+    if (node.asElement()) |elem| {
+        try elem.setAttribute("style", "text-decoration: line-through;", allocator);
+    }
+
+    var layout_box = box.LayoutBox.init(node, allocator);
+    defer layout_box.deinit();
+
+    var cascade_engine = cascade.Cascade.init(allocator);
+    var computed_style = try cascade_engine.computeStyle(node, &[_]css_parser.Stylesheet{});
+    defer computed_style.deinit();
+
+    const containing_size = box.Size{ .width = 800, .height = 600 };
+    style_utils.applyStyleToLayoutBox(&layout_box, &computed_style, containing_size);
+
+    // 检查text-decoration是否正确应用
+    try testing.expectEqual(box.TextDecoration.line_through, layout_box.text_decoration);
 }

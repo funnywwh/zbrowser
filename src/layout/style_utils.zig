@@ -52,6 +52,16 @@ pub fn parseTextAlign(value: []const u8) box.TextAlign {
     return .left;
 }
 
+/// 解析text-decoration属性值
+pub fn parseTextDecoration(value: []const u8) box.TextDecoration {
+    if (std.mem.eql(u8, value, "none")) return .none;
+    if (std.mem.eql(u8, value, "underline")) return .underline;
+    if (std.mem.eql(u8, value, "line-through")) return .line_through;
+    if (std.mem.eql(u8, value, "overline")) return .overline;
+    // 默认返回none
+    return .none;
+}
+
 /// 从字符串解析px单位的值
 /// 支持格式："10px"、"0"（作为0px）
 /// 返回解析的数值，如果解析失败返回null
@@ -283,6 +293,11 @@ pub fn applyStyleToLayoutBox(layout_box: *box.LayoutBox, computed_style: *const 
     // 解析text-align
     if (getPropertyKeyword(computed_style, "text-align")) |text_align_value| {
         layout_box.text_align = parseTextAlign(text_align_value);
+    }
+
+    // 解析text-decoration
+    if (getPropertyKeyword(computed_style, "text-decoration")) |text_decoration_value| {
+        layout_box.text_decoration = parseTextDecoration(text_decoration_value);
     }
 
     // 解析box-sizing（需要在width/height之前解析，因为width/height的解析依赖于box-sizing）

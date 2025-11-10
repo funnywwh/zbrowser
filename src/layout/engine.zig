@@ -50,6 +50,7 @@ pub const LayoutEngine = struct {
         layout_box.grid_column_start = null;
         layout_box.grid_column_end = null;
         layout_box.text_align = .left; // 默认左对齐
+        layout_box.text_decoration = .none; // 默认无装饰
         layout_box.children = std.ArrayList(*box.LayoutBox){
             .items = &[_]*box.LayoutBox{},
             .capacity = 0,
