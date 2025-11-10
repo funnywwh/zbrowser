@@ -285,9 +285,48 @@ pub fn applyStyleToLayoutBox(layout_box: *box.LayoutBox, computed_style: *const 
         layout_box.text_align = parseTextAlign(text_align_value);
     }
 
+    // 解析box-sizing（需要在width/height之前解析，因为width/height的解析依赖于box-sizing）
+    if (getPropertyKeyword(computed_style, "box-sizing")) |box_sizing_value| {
+        if (std.mem.eql(u8, box_sizing_value, "border-box")) {
+            layout_box.box_model.box_sizing = .border_box;
+        } else if (std.mem.eql(u8, box_sizing_value, "content-box")) {
+            layout_box.box_model.box_sizing = .content_box;
+        }
+    }
+
+    // 解析width和height
+    // 注意：width和height的解析需要考虑box-sizing
+    // 如果box-sizing是border-box，width/height包含padding和border
+    // 如果box-sizing是content-box，width/height只包含内容区域
+    const width_context = createUnitContext(containing_size.width);
+    if (getPropertyLength(computed_style, "width", width_context)) |width| {
+        // 根据box-sizing调整
+        if (layout_box.box_model.box_sizing == .border_box) {
+            // border-box: width包含padding和border，需要减去这些值得到content width
+            const padding_horizontal = layout_box.box_model.padding.left + layout_box.box_model.padding.right;
+            const border_horizontal = layout_box.box_model.border.left + layout_box.box_model.border.right;
+            layout_box.box_model.content.width = width - padding_horizontal - border_horizontal;
+        } else {
+            // content-box: width直接是content width
+            layout_box.box_model.content.width = width;
+        }
+    }
+    
+    const height_context = createUnitContext(containing_size.height);
+    if (getPropertyLength(computed_style, "height", height_context)) |height| {
+        // 根据box-sizing调整
+        if (layout_box.box_model.box_sizing == .border_box) {
+            // border-box: height包含padding和border，需要减去这些值得到content height
+            const padding_vertical = layout_box.box_model.padding.top + layout_box.box_model.padding.bottom;
+            const border_vertical = layout_box.box_model.border.top + layout_box.box_model.border.bottom;
+            layout_box.box_model.content.height = height - padding_vertical - border_vertical;
+        } else {
+            // content-box: height直接是content height
+            layout_box.box_model.content.height = height;
+        }
+    }
+
     // TODO: 解析border
-    // TODO: 解析width、height
-    // TODO: 解析box-sizing
 }
 
 /// 解析margin属性
