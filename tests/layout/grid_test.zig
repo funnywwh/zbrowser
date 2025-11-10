@@ -1385,6 +1385,152 @@ test "layoutGrid with grid-column span" {
     try testing.expect(item1_box.box_model.content.x >= 0);
 }
 
+test "layoutGrid with repeat() function" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 创建测试节点
+    const container_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, container_node);
+
+    // 设置inline style属性：使用repeat(3, 1fr)创建3列
+    if (container_node.asElement()) |elem| {
+        try elem.setAttribute("style", "display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: 50px;", allocator);
+    }
+
+    const item1_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, item1_node);
+
+    const item2_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, item2_node);
+
+    const item3_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, item3_node);
+
+    // 创建布局框
+    var container_box = box.LayoutBox.init(container_node, allocator);
+    container_box.display = .grid;
+    container_box.box_model.content.x = 0;
+    container_box.box_model.content.y = 0;
+    container_box.box_model.content.width = 300;
+    container_box.box_model.content.height = 50;
+    defer container_box.deinit();
+
+    var item1_box = box.LayoutBox.init(item1_node, allocator);
+    defer item1_box.deinit();
+
+    var item2_box = box.LayoutBox.init(item2_node, allocator);
+    defer item2_box.deinit();
+
+    var item3_box = box.LayoutBox.init(item3_node, allocator);
+    defer item3_box.deinit();
+
+    // 添加子元素
+    try container_box.children.append(allocator, &item1_box);
+    item1_box.parent = &container_box;
+    try container_box.children.append(allocator, &item2_box);
+    item2_box.parent = &container_box;
+    try container_box.children.append(allocator, &item3_box);
+    item3_box.parent = &container_box;
+
+    // 执行Grid布局
+    const containing_block = box.Size{ .width = 300, .height = 50 };
+    var cascade_engine = cascade.Cascade.init(allocator);
+    var computed_style = try cascade_engine.computeStyle(container_node, &[_]css.Stylesheet{});
+    defer computed_style.deinit();
+    style_utils.applyStyleToLayoutBox(&container_box, &computed_style, containing_block);
+    grid.layoutGrid(&container_box, containing_block, &[_]css.Stylesheet{});
+
+    // 检查布局结果
+    try testing.expect(container_box.is_layouted);
+    try testing.expect(item1_box.is_layouted);
+    try testing.expect(item2_box.is_layouted);
+    try testing.expect(item3_box.is_layouted);
+
+    // 3个items应该平均分配宽度（每个约100px，考虑gap）
+    // item1应该在左侧
+    try testing.expect(item1_box.box_model.content.x >= 0);
+    // item2应该在中间
+    try testing.expect(item2_box.box_model.content.x > item1_box.box_model.content.x);
+    // item3应该在右侧
+    try testing.expect(item3_box.box_model.content.x > item2_box.box_model.content.x);
+}
+
+test "layoutGrid with fr units" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 创建测试节点
+    const container_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, container_node);
+
+    // 设置inline style属性：使用1fr 2fr 1fr创建3列（比例为1:2:1）
+    if (container_node.asElement()) |elem| {
+        try elem.setAttribute("style", "display: grid; grid-template-columns: 1fr 2fr 1fr; grid-template-rows: 50px;", allocator);
+    }
+
+    const item1_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, item1_node);
+
+    const item2_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, item2_node);
+
+    const item3_node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, item3_node);
+
+    // 创建布局框
+    var container_box = box.LayoutBox.init(container_node, allocator);
+    container_box.display = .grid;
+    container_box.box_model.content.x = 0;
+    container_box.box_model.content.y = 0;
+    container_box.box_model.content.width = 400;
+    container_box.box_model.content.height = 50;
+    defer container_box.deinit();
+
+    var item1_box = box.LayoutBox.init(item1_node, allocator);
+    defer item1_box.deinit();
+
+    var item2_box = box.LayoutBox.init(item2_node, allocator);
+    defer item2_box.deinit();
+
+    var item3_box = box.LayoutBox.init(item3_node, allocator);
+    defer item3_box.deinit();
+
+    // 添加子元素
+    try container_box.children.append(allocator, &item1_box);
+    item1_box.parent = &container_box;
+    try container_box.children.append(allocator, &item2_box);
+    item2_box.parent = &container_box;
+    try container_box.children.append(allocator, &item3_box);
+    item3_box.parent = &container_box;
+
+    // 执行Grid布局
+    const containing_block = box.Size{ .width = 400, .height = 50 };
+    var cascade_engine = cascade.Cascade.init(allocator);
+    var computed_style = try cascade_engine.computeStyle(container_node, &[_]css.Stylesheet{});
+    defer computed_style.deinit();
+    style_utils.applyStyleToLayoutBox(&container_box, &computed_style, containing_block);
+    grid.layoutGrid(&container_box, containing_block, &[_]css.Stylesheet{});
+
+    // 检查布局结果
+    try testing.expect(container_box.is_layouted);
+    try testing.expect(item1_box.is_layouted);
+    try testing.expect(item2_box.is_layouted);
+    try testing.expect(item3_box.is_layouted);
+
+    // item2应该比item1和item3宽（比例为2:1）
+    try testing.expect(item2_box.box_model.content.width > item1_box.box_model.content.width);
+    try testing.expect(item2_box.box_model.content.width > item3_box.box_model.content.width);
+    // item1和item3的宽度应该相近
+    const width_diff = if (item1_box.box_model.content.width > item3_box.box_model.content.width)
+        item1_box.box_model.content.width - item3_box.box_model.content.width
+    else
+        item3_box.box_model.content.width - item1_box.box_model.content.width;
+    try testing.expect(width_diff < 10.0); // 允许小的误差
+}
+
 test "layoutGrid with grid-row span" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();

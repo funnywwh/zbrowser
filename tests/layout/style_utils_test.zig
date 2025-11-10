@@ -276,3 +276,155 @@ test "parseAlignContent boundary_case - unknown value" {
     try testing.expectEqual(style_utils.AlignContent.stretch, style_utils.parseAlignContent("unknown"));
     try testing.expectEqual(style_utils.AlignContent.stretch, style_utils.parseAlignContent(""));
 }
+
+test "parseTextAlign - all text align types" {
+    try testing.expectEqual(box.TextAlign.left, style_utils.parseTextAlign("left"));
+    try testing.expectEqual(box.TextAlign.center, style_utils.parseTextAlign("center"));
+    try testing.expectEqual(box.TextAlign.right, style_utils.parseTextAlign("right"));
+    try testing.expectEqual(box.TextAlign.justify, style_utils.parseTextAlign("justify"));
+}
+
+test "parseTextAlign boundary_case - unknown value" {
+    // 未知值应该返回默认值left
+    try testing.expectEqual(box.TextAlign.left, style_utils.parseTextAlign("unknown"));
+    try testing.expectEqual(box.TextAlign.left, style_utils.parseTextAlign(""));
+}
+
+test "parseGridTemplate with repeat() function" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 测试repeat(3, 1fr)
+    var tracks = try style_utils.parseGridTemplate("repeat(3, 1fr)", allocator);
+    defer tracks.deinit(allocator);
+    try testing.expectEqual(@as(usize, 3), tracks.items.len);
+    for (tracks.items) |track| {
+        try testing.expect(track == .fr);
+        try testing.expectEqual(@as(f32, 1.0), track.fr);
+    }
+
+    // 测试repeat(2, 100px)
+    var tracks2 = try style_utils.parseGridTemplate("repeat(2, 100px)", allocator);
+    defer tracks2.deinit(allocator);
+    try testing.expectEqual(@as(usize, 2), tracks2.items.len);
+    for (tracks2.items) |track| {
+        try testing.expect(track == .fixed);
+        try testing.expectEqual(@as(f32, 100.0), track.fixed);
+    }
+}
+
+test "parseGridTemplate with fr units" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 测试1fr 2fr 1fr
+    var tracks = try style_utils.parseGridTemplate("1fr 2fr 1fr", allocator);
+    defer tracks.deinit(allocator);
+    try testing.expectEqual(@as(usize, 3), tracks.items.len);
+    try testing.expect(tracks.items[0] == .fr);
+    try testing.expectEqual(@as(f32, 1.0), tracks.items[0].fr);
+    try testing.expect(tracks.items[1] == .fr);
+    try testing.expectEqual(@as(f32, 2.0), tracks.items[1].fr);
+    try testing.expect(tracks.items[2] == .fr);
+    try testing.expectEqual(@as(f32, 1.0), tracks.items[2].fr);
+}
+
+test "parseGridTemplate boundary_case - empty input" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    var tracks = try style_utils.parseGridTemplate("", allocator);
+    defer tracks.deinit(allocator);
+    try testing.expectEqual(@as(usize, 0), tracks.items.len);
+}
+
+test "applyStyleToLayoutBox with width and height" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, node);
+
+    // 设置inline style属性
+    if (node.asElement()) |elem| {
+        try elem.setAttribute("style", "width: 200px; height: 100px;", allocator);
+    }
+
+    var layout_box = box.LayoutBox.init(node, allocator);
+    defer layout_box.deinit();
+
+    var cascade_engine = cascade.Cascade.init(allocator);
+    var computed_style = try cascade_engine.computeStyle(node, &[_]css_parser.Stylesheet{});
+    defer computed_style.deinit();
+
+    const containing_size = box.Size{ .width = 800, .height = 600 };
+    style_utils.applyStyleToLayoutBox(&layout_box, &computed_style, containing_size);
+
+    // 检查width和height是否正确应用
+    try testing.expectEqual(@as(f32, 200.0), layout_box.box_model.content.width);
+    try testing.expectEqual(@as(f32, 100.0), layout_box.box_model.content.height);
+}
+
+test "applyStyleToLayoutBox with box-sizing border-box" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, node);
+
+    // 设置inline style属性：border-box，width包含padding和border
+    // 注意：border解析还未实现，这里只测试padding
+    if (node.asElement()) |elem| {
+        try elem.setAttribute("style", "box-sizing: border-box; width: 200px; height: 100px; padding: 10px;", allocator);
+    }
+
+    var layout_box = box.LayoutBox.init(node, allocator);
+    defer layout_box.deinit();
+
+    var cascade_engine = cascade.Cascade.init(allocator);
+    var computed_style = try cascade_engine.computeStyle(node, &[_]css_parser.Stylesheet{});
+    defer computed_style.deinit();
+
+    const containing_size = box.Size{ .width = 800, .height = 600 };
+    style_utils.applyStyleToLayoutBox(&layout_box, &computed_style, containing_size);
+
+    // 检查box-sizing是否正确设置
+    try testing.expectEqual(box.BoxSizing.border_box, layout_box.box_model.box_sizing);
+    
+    // 检查content width：200px - 10px*2 (padding) = 180px（border还未实现，暂时不考虑）
+    try testing.expectEqual(@as(f32, 180.0), layout_box.box_model.content.width);
+    // 检查content height：100px - 10px*2 (padding) = 80px（border还未实现，暂时不考虑）
+    try testing.expectEqual(@as(f32, 80.0), layout_box.box_model.content.height);
+}
+
+test "applyStyleToLayoutBox with text-align" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, node);
+
+    // 设置inline style属性
+    if (node.asElement()) |elem| {
+        try elem.setAttribute("style", "text-align: center;", allocator);
+    }
+
+    var layout_box = box.LayoutBox.init(node, allocator);
+    defer layout_box.deinit();
+
+    var cascade_engine = cascade.Cascade.init(allocator);
+    var computed_style = try cascade_engine.computeStyle(node, &[_]css_parser.Stylesheet{});
+    defer computed_style.deinit();
+
+    const containing_size = box.Size{ .width = 800, .height = 600 };
+    style_utils.applyStyleToLayoutBox(&layout_box, &computed_style, containing_size);
+
+    // 检查text-align是否正确应用
+    try testing.expectEqual(box.TextAlign.center, layout_box.text_align);
+}
