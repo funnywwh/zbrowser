@@ -820,7 +820,9 @@ pub fn parseGridAlignItems(value: []const u8) GridAlignItems {
 /// 解析justify-content属性
 pub fn parseGridJustifyContent(value: []const u8) GridJustifyContent {
     if (std.mem.eql(u8, value, "start")) return .start;
+    if (std.mem.eql(u8, value, "flex-start")) return .start; // flex-start是start的别名
     if (std.mem.eql(u8, value, "end")) return .end;
+    if (std.mem.eql(u8, value, "flex-end")) return .end; // flex-end是end的别名
     if (std.mem.eql(u8, value, "center")) return .center;
     if (std.mem.eql(u8, value, "stretch")) return .stretch;
     if (std.mem.eql(u8, value, "space-around")) return .space_around;
@@ -833,7 +835,9 @@ pub fn parseGridJustifyContent(value: []const u8) GridJustifyContent {
 /// 解析align-content属性
 pub fn parseGridAlignContent(value: []const u8) GridAlignContent {
     if (std.mem.eql(u8, value, "start")) return .start;
+    if (std.mem.eql(u8, value, "flex-start")) return .start; // flex-start是start的别名
     if (std.mem.eql(u8, value, "end")) return .end;
+    if (std.mem.eql(u8, value, "flex-end")) return .end; // flex-end是end的别名
     if (std.mem.eql(u8, value, "center")) return .center;
     if (std.mem.eql(u8, value, "stretch")) return .stretch;
     if (std.mem.eql(u8, value, "space-around")) return .space_around;

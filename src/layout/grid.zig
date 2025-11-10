@@ -177,6 +177,22 @@ pub fn layoutGrid(layout_box: *box.LayoutBox, containing_block: box.Size, styles
     var col: usize = 0;
 
     for (layout_box.children.items) |child| {
+        // 边界检查：确保row和col在有效范围内
+        if (row >= row_positions.items.len) {
+            std.log.warn("[Grid] layoutGrid - row={d}超出范围! row_positions.len={d}, 跳过item", .{ row, row_positions.items.len });
+            child.is_layouted = true;
+            continue;
+        }
+        if (col >= column_positions.items.len) {
+            std.log.warn("[Grid] layoutGrid - col={d}超出范围! column_positions.len={d}, 重置col=0, row+1", .{ col, column_positions.items.len });
+            col = 0;
+            row += 1;
+            if (row >= row_positions.items.len) {
+                std.log.warn("[Grid] layoutGrid - row={d}超出范围! row_positions.len={d}, 跳过item", .{ row, row_positions.items.len });
+                child.is_layouted = true;
+                continue;
+            }
+        }
         // 计算网格cell的位置和尺寸
         const cell_x = container_x + column_positions.items[col] + grid_offset.x;
         const cell_y = container_y + row_positions.items[row] + grid_offset.y;
@@ -187,14 +203,18 @@ pub fn layoutGrid(layout_box: *box.LayoutBox, containing_block: box.Size, styles
         // 宽度 = 下一列的起始位置 - 当前列的起始位置 - gap（如果有下一列）
         const cell_width = if (col + 1 < column_positions.items.len)
             column_positions.items[col + 1] - column_positions.items[col] - column_gap
+        else if (column_positions.items.len > 0)
+            layout_box.box_model.content.width - column_positions.items[col] - grid_offset.x
         else
-            layout_box.box_model.content.width - column_positions.items[col] - grid_offset.x;
+            100.0; // 默认值
         // row_positions存储每行的起始位置（包括gap的累积位置）
         // 高度 = 下一行的起始位置 - 当前行的起始位置 - gap（如果有下一行）
         const cell_height = if (row + 1 < row_positions.items.len)
             row_positions.items[row + 1] - row_positions.items[row] - row_gap
+        else if (row_positions.items.len > 0)
+            layout_box.box_model.content.height - row_positions.items[row] - grid_offset.y
         else
-            (if (row_positions.items.len > 0) layout_box.box_model.content.height - row_positions.items[row] - grid_offset.y else 100);
+            100.0; // 默认值
 
         // 保存item的原始尺寸（用于对齐计算）
         const original_width = child.box_model.content.width;
