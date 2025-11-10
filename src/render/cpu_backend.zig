@@ -377,12 +377,16 @@ pub const CpuRenderBackend = struct {
         const dash_length = @max(3, stroke_width * 3);
         const gap_length = @max(2, stroke_width * 2);
 
+        // 声明y变量（用于所有边框绘制）
+        var y: i32 = 0;
+        var dash_pos: i32 = 0;
+
         // 绘制上边框（虚线）
         const top_y_end = @min(end_y, start_y + stroke_width);
-        var y = start_y;
+        y = start_y;
         while (y < top_y_end) : (y += 1) {
             var x = start_x;
-            var dash_pos: i32 = 0;
+            dash_pos = 0;
             while (x < end_x) {
                 if (dash_pos < dash_length) {
                     // 绘制虚线段
@@ -406,7 +410,7 @@ pub const CpuRenderBackend = struct {
         y = bottom_y_start;
         while (y < end_y) : (y += 1) {
             var x = start_x;
-            var dash_pos: i32 = 0;
+            dash_pos = 0;
             while (x < end_x) {
                 if (dash_pos < dash_length) {
                     // 绘制虚线段
@@ -425,51 +429,51 @@ pub const CpuRenderBackend = struct {
             }
         }
 
-        // 绘制左边框（虚线）
+        // 绘制左边框（虚线）- 沿着y方向绘制
         const left_x_end = @min(end_x, start_x + stroke_width);
         y = start_y;
-        while (y < end_y) : (y += 1) {
-            var x = start_x;
-            var dash_pos: i32 = 0;
-            while (x < left_x_end) {
-                if (dash_pos < dash_length) {
-                    // 绘制虚线段
+        dash_pos = 0;
+        while (y < end_y) {
+            if (dash_pos < dash_length) {
+                // 绘制虚线段（在当前y坐标，绘制整个边框宽度）
+                var x = start_x;
+                while (x < left_x_end) : (x += 1) {
                     const index = (@as(usize, @intCast(y)) * self.width + @as(usize, @intCast(x))) * 4;
                     self.pixels[index] = color.r;
                     self.pixels[index + 1] = color.g;
                     self.pixels[index + 2] = color.b;
                     self.pixels[index + 3] = color.a;
-                    x += 1;
-                    dash_pos += 1;
-                } else {
-                    // 跳过间隔
-                    x += gap_length;
-                    dash_pos = 0;
                 }
+                y += 1;
+                dash_pos += 1;
+            } else {
+                // 跳过间隔
+                y += gap_length;
+                dash_pos = 0;
             }
         }
 
-        // 绘制右边框（虚线）
+        // 绘制右边框（虚线）- 沿着y方向绘制
         const right_x_start = @max(start_x, end_x - stroke_width);
-        y = start_y;
-        while (y < end_y) : (y += 1) {
-            var x = right_x_start;
-            var dash_pos: i32 = 0;
-            while (x < end_x) {
-                if (dash_pos < dash_length) {
-                    // 绘制虚线段
+        y = start_y; // 重用之前声明的y变量
+        dash_pos = 0;
+        while (y < end_y) {
+            if (dash_pos < dash_length) {
+                // 绘制虚线段（在当前y坐标，绘制整个边框宽度）
+                var x = right_x_start;
+                while (x < end_x) : (x += 1) {
                     const index = (@as(usize, @intCast(y)) * self.width + @as(usize, @intCast(x))) * 4;
                     self.pixels[index] = color.r;
                     self.pixels[index + 1] = color.g;
                     self.pixels[index + 2] = color.b;
                     self.pixels[index + 3] = color.a;
-                    x += 1;
-                    dash_pos += 1;
-                } else {
-                    // 跳过间隔
-                    x += gap_length;
-                    dash_pos = 0;
                 }
+                y += 1;
+                dash_pos += 1;
+            } else {
+                // 跳过间隔
+                y += gap_length;
+                dash_pos = 0;
             }
         }
     }
