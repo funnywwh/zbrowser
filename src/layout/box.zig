@@ -80,6 +80,22 @@ pub const BoxModel = struct {
     /// 如果为null，表示没有圆角（使用直角）
     border_radius: ?f32,
 
+    /// 最小宽度（min-width属性）
+    /// 如果为null，表示没有最小宽度限制
+    min_width: ?f32,
+
+    /// 最小高度（min-height属性）
+    /// 如果为null，表示没有最小高度限制
+    min_height: ?f32,
+
+    /// 最大宽度（max-width属性）
+    /// 如果为null，表示没有最大宽度限制
+    max_width: ?f32,
+
+    /// 最大高度（max-height属性）
+    /// 如果为null，表示没有最大高度限制
+    max_height: ?f32,
+
     /// 计算总尺寸（包含padding和border）
     pub fn totalSize(self: BoxModel) Size {
         const padding_horizontal = self.padding.horizontal();
@@ -240,6 +256,10 @@ pub const LayoutBox = struct {
                 .margin = Edges{ .top = 0, .right = 0, .bottom = 0, .left = 0 },
                 .box_sizing = .content_box,
                 .border_radius = null, // 默认无圆角
+                .min_width = null, // 默认无最小宽度限制
+                .min_height = null, // 默认无最小高度限制
+                .max_width = null, // 默认无最大宽度限制
+                .max_height = null, // 默认无最大高度限制
             },
             .display = .block,
             .position = .static,

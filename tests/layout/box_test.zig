@@ -98,6 +98,10 @@ test "BoxModel totalSize content-box" {
         },
         .box_sizing = .content_box,
         .border_radius = null,
+        .min_width = null,
+        .min_height = null,
+        .max_width = null,
+        .max_height = null,
     };
 
     const total = box_model.totalSize();
@@ -136,6 +140,10 @@ test "BoxModel totalSize border-box" {
         },
         .box_sizing = .border_box,
         .border_radius = null,
+        .min_width = null,
+        .min_height = null,
+        .max_width = null,
+        .max_height = null,
     };
 
     const total = box_model.totalSize();
@@ -361,6 +369,10 @@ test "BoxModel totalSize boundary_case - zero content" {
         },
         .box_sizing = .content_box,
         .border_radius = null,
+        .min_width = null,
+        .min_height = null,
+        .max_width = null,
+        .max_height = null,
     };
 
     const total = box_model.totalSize();
@@ -398,6 +410,10 @@ test "BoxModel totalSize boundary_case - zero padding and border" {
         },
         .box_sizing = .content_box,
         .border_radius = null,
+        .min_width = null,
+        .min_height = null,
+        .max_width = null,
+        .max_height = null,
     };
 
     const total = box_model.totalSize();

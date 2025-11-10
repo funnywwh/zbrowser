@@ -38,6 +38,10 @@ pub const LayoutEngine = struct {
             .margin = box.Edges{ .top = 0, .right = 0, .bottom = 0, .left = 0 },
             .box_sizing = .content_box,
             .border_radius = null, // 默认无圆角
+            .min_width = null, // 默认无最小宽度限制
+            .min_height = null, // 默认无最小高度限制
+            .max_width = null, // 默认无最大宽度限制
+            .max_height = null, // 默认无最大高度限制
         };
         layout_box.display = .block;
         layout_box.position = .static;

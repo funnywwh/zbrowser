@@ -852,3 +852,63 @@ test "applyStyleToLayoutBox with overflow" {
     // 检查overflow是否正确应用
     try testing.expectEqual(box.Overflow.hidden, layout_box.overflow);
 }
+
+test "applyStyleToLayoutBox with min-width and min-height" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, node);
+
+    // 设置inline style属性
+    if (node.asElement()) |elem| {
+        try elem.setAttribute("style", "min-width: 100px; min-height: 50px;", allocator);
+    }
+
+    var layout_box = box.LayoutBox.init(node, allocator);
+    defer layout_box.deinit();
+
+    var cascade_engine = cascade.Cascade.init(allocator);
+    var computed_style = try cascade_engine.computeStyle(node, &[_]css_parser.Stylesheet{});
+    defer computed_style.deinit();
+
+    const containing_size = box.Size{ .width = 800, .height = 600 };
+    style_utils.applyStyleToLayoutBox(&layout_box, &computed_style, containing_size);
+
+    // 检查min-width和min-height是否正确应用
+    try testing.expect(layout_box.box_model.min_width != null);
+    try testing.expectEqual(@as(f32, 100.0), layout_box.box_model.min_width.?);
+    try testing.expect(layout_box.box_model.min_height != null);
+    try testing.expectEqual(@as(f32, 50.0), layout_box.box_model.min_height.?);
+}
+
+test "applyStyleToLayoutBox with max-width and max-height" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, node);
+
+    // 设置inline style属性
+    if (node.asElement()) |elem| {
+        try elem.setAttribute("style", "max-width: 500px; max-height: 300px;", allocator);
+    }
+
+    var layout_box = box.LayoutBox.init(node, allocator);
+    defer layout_box.deinit();
+
+    var cascade_engine = cascade.Cascade.init(allocator);
+    var computed_style = try cascade_engine.computeStyle(node, &[_]css_parser.Stylesheet{});
+    defer computed_style.deinit();
+
+    const containing_size = box.Size{ .width = 800, .height = 600 };
+    style_utils.applyStyleToLayoutBox(&layout_box, &computed_style, containing_size);
+
+    // 检查max-width和max-height是否正确应用
+    try testing.expect(layout_box.box_model.max_width != null);
+    try testing.expectEqual(@as(f32, 500.0), layout_box.box_model.max_width.?);
+    try testing.expect(layout_box.box_model.max_height != null);
+    try testing.expectEqual(@as(f32, 300.0), layout_box.box_model.max_height.?);
+}

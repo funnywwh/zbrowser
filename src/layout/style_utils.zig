@@ -467,6 +467,22 @@ pub fn applyStyleToLayoutBox(layout_box: *box.LayoutBox, computed_style: *const 
         }
     }
 
+    // 解析min-width和min-height
+    if (getPropertyLength(computed_style, "min-width", width_context)) |min_width| {
+        layout_box.box_model.min_width = min_width;
+    }
+    if (getPropertyLength(computed_style, "min-height", height_context)) |min_height| {
+        layout_box.box_model.min_height = min_height;
+    }
+
+    // 解析max-width和max-height
+    if (getPropertyLength(computed_style, "max-width", width_context)) |max_width| {
+        layout_box.box_model.max_width = max_width;
+    }
+    if (getPropertyLength(computed_style, "max-height", height_context)) |max_height| {
+        layout_box.box_model.max_height = max_height;
+    }
+
     // TODO: 解析border
 }
 
