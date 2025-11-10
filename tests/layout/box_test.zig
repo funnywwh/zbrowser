@@ -233,3 +233,196 @@ test "Point basic operations" {
     try testing.expectEqual(@as(f32, 30), point2.x);
     try testing.expectEqual(@as(f32, 40), point2.y);
 }
+
+test "Rect contains boundary_case - point on left edge" {
+    const rect = box.Rect{
+        .x = 10,
+        .y = 20,
+        .width = 100,
+        .height = 50,
+    };
+
+    // 点在左边界上（包含）
+    try testing.expect(rect.contains(box.Point{ .x = 10, .y = 40 }));
+    // 点在右边界上（不包含，因为使用 < 而不是 <=）
+    try testing.expect(!rect.contains(box.Point{ .x = 110, .y = 40 }));
+    // 点在上边界上（包含）
+    try testing.expect(rect.contains(box.Point{ .x = 50, .y = 20 }));
+    // 点在下边界上（不包含，因为使用 < 而不是 <=）
+    try testing.expect(!rect.contains(box.Point{ .x = 50, .y = 70 }));
+}
+
+test "Rect intersects boundary_case - completely contained" {
+    const rect1 = box.Rect{
+        .x = 10,
+        .y = 20,
+        .width = 100,
+        .height = 50,
+    };
+
+    // rect2完全在rect1内
+    const rect2 = box.Rect{
+        .x = 30,
+        .y = 30,
+        .width = 50,
+        .height = 30,
+    };
+    try testing.expect(rect1.intersects(rect2));
+}
+
+test "Rect intersects boundary_case - completely containing" {
+    const rect1 = box.Rect{
+        .x = 10,
+        .y = 20,
+        .width = 100,
+        .height = 50,
+    };
+
+    // rect2完全包含rect1
+    const rect2 = box.Rect{
+        .x = 0,
+        .y = 0,
+        .width = 200,
+        .height = 100,
+    };
+    try testing.expect(rect1.intersects(rect2));
+}
+
+test "Rect intersects boundary_case - touching edges" {
+    const rect1 = box.Rect{
+        .x = 10,
+        .y = 20,
+        .width = 100,
+        .height = 50,
+    };
+
+    // rect2与rect1右边界相切（不相交，因为使用 <= 而不是 <）
+    const rect2 = box.Rect{
+        .x = 110,
+        .y = 20,
+        .width = 50,
+        .height = 50,
+    };
+    try testing.expect(!rect1.intersects(rect2));
+}
+
+test "Edges boundary_case - zero values" {
+    const edges = box.Edges{
+        .top = 0,
+        .right = 0,
+        .bottom = 0,
+        .left = 0,
+    };
+
+    try testing.expectEqual(@as(f32, 0), edges.horizontal());
+    try testing.expectEqual(@as(f32, 0), edges.vertical());
+}
+
+test "Edges boundary_case - negative values" {
+    const edges = box.Edges{
+        .top = -10,
+        .right = -20,
+        .bottom = -30,
+        .left = -40,
+    };
+
+    // 即使值为负，也应该正确计算
+    try testing.expectEqual(@as(f32, -60), edges.horizontal());
+    try testing.expectEqual(@as(f32, -40), edges.vertical());
+}
+
+test "BoxModel totalSize boundary_case - zero content" {
+    const box_model = box.BoxModel{
+        .content = box.Rect{
+            .x = 0,
+            .y = 0,
+            .width = 0,
+            .height = 0,
+        },
+        .padding = box.Edges{
+            .top = 10,
+            .right = 20,
+            .bottom = 30,
+            .left = 40,
+        },
+        .border = box.Edges{
+            .top = 5,
+            .right = 10,
+            .bottom = 15,
+            .left = 20,
+        },
+        .margin = box.Edges{
+            .top = 0,
+            .right = 0,
+            .bottom = 0,
+            .left = 0,
+        },
+        .box_sizing = .content_box,
+    };
+
+    const total = box_model.totalSize();
+    // content-box: width = 0 + 40 + 20 + 20 + 10 = 90
+    // height = 0 + 10 + 30 + 5 + 15 = 60
+    try testing.expectEqual(@as(f32, 90), total.width);
+    try testing.expectEqual(@as(f32, 60), total.height);
+}
+
+test "BoxModel totalSize boundary_case - zero padding and border" {
+    const box_model = box.BoxModel{
+        .content = box.Rect{
+            .x = 0,
+            .y = 0,
+            .width = 100,
+            .height = 50,
+        },
+        .padding = box.Edges{
+            .top = 0,
+            .right = 0,
+            .bottom = 0,
+            .left = 0,
+        },
+        .border = box.Edges{
+            .top = 0,
+            .right = 0,
+            .bottom = 0,
+            .left = 0,
+        },
+        .margin = box.Edges{
+            .top = 0,
+            .right = 0,
+            .bottom = 0,
+            .left = 0,
+        },
+        .box_sizing = .content_box,
+    };
+
+    const total = box_model.totalSize();
+    // content-box: width = 100 + 0 = 100
+    // height = 50 + 0 = 50
+    try testing.expectEqual(@as(f32, 100), total.width);
+    try testing.expectEqual(@as(f32, 50), total.height);
+}
+
+test "Rect boundary_case - zero width" {
+    const rect = box.Rect{
+        .x = 10,
+        .y = 20,
+        .width = 0,
+        .height = 50,
+    };
+
+    // 零宽度的矩形，点在x=10处应该不包含（因为 x < x + width = x < x + 0 = x < x，永远为false）
+    try testing.expect(!rect.contains(box.Point{ .x = 10, .y = 40 }));
+}
+
+test "Rect boundary_case - zero height" {
+    const rect = box.Rect{
+        .x = 10,
+        .y = 20,
+        .width = 100,
+        .height = 0,
+    };
+
+    // 零高度的矩形，点在y=20处应该不包含
+    try testing.expect(!rect.contains(box.Point{ .x = 50, .y = 20 }));
+}
