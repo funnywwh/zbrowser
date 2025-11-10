@@ -15,6 +15,7 @@ const style_utils = @import("style_utils");
 pub const LayoutEngine = struct {
     allocator: std.mem.Allocator,
     stylesheets: []const css_parser.Stylesheet = &[_]css_parser.Stylesheet{},
+    initial_viewport: ?box.Size = null, // 保存初始视口大小，用于fixed定位
 
     /// 初始化布局引擎
     pub fn init(allocator: std.mem.Allocator) LayoutEngine {
@@ -100,6 +101,11 @@ pub const LayoutEngine = struct {
     /// 执行布局计算
     /// 根据布局树的display类型，选择合适的布局算法
     pub fn layout(self: *LayoutEngine, layout_tree: *box.LayoutBox, viewport: box.Size, stylesheets: []const css_parser.Stylesheet) !void {
+        // 保存初始视口大小（第一次调用时）
+        if (self.initial_viewport == null) {
+            self.initial_viewport = viewport;
+        }
+        
         // 根据display类型选择布局算法
         switch (layout_tree.display) {
             .block => {
@@ -146,8 +152,9 @@ pub const LayoutEngine = struct {
             }
             position.layoutPosition(layout_tree, containing_block);
         } else if (layout_tree.position == .fixed) {
-            // fixed定位：始终相对于视口，不查找定位祖先
-            position.layoutPosition(layout_tree, viewport);
+            // fixed定位：始终相对于初始视口，不查找定位祖先
+            const fixed_viewport = self.initial_viewport orelse viewport;
+            position.layoutPosition(layout_tree, fixed_viewport);
         } else if (layout_tree.position != .static) {
             // 其他定位类型（sticky等）
             position.layoutPosition(layout_tree, viewport);
@@ -220,8 +227,9 @@ pub const LayoutEngine = struct {
                             std.log.debug("[LayoutEngine] No positioned ancestor found for '{s}', using viewport", .{child_node_type_str});
                         }
                     } else {
-                        // fixed定位：始终相对于视口，不查找定位祖先
-                        std.log.debug("[LayoutEngine] Fixed positioning for '{s}', using viewport", .{child_node_type_str});
+                        // fixed定位：始终相对于初始视口，不查找定位祖先
+                        containing_block = self.initial_viewport orelse viewport;
+                        std.log.debug("[LayoutEngine] Fixed positioning for '{s}', using initial viewport", .{child_node_type_str});
                     }
 
                     // 先应用定位（在递归布局子元素之前）
