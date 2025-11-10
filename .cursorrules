@@ -167,6 +167,271 @@
 - 测试中必须确保所有分配的资源都被正确释放，不能有任何内存泄漏
 - **禁止先写实现代码再补测试**：必须先有测试用例
 
+### 单元测试代码规范（详细要求）
+**所有测试代码必须遵循以下规范，确保测试质量、可维护性和完整性。**
+
+#### 测试代码结构模板
+每个测试函数必须遵循以下标准结构：
+
+```zig
+test "测试名称 - 描述性说明" {
+    // 1. 初始化内存分配器（必须使用GeneralPurposeAllocator）
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();  // 检查内存泄漏
+    const allocator = gpa.allocator();
+    
+    // 2. 准备测试数据
+    const test_data = "test input";
+    
+    // 3. 创建测试对象（如果需要）
+    var test_object = try TestObject.init(allocator);
+    defer test_object.deinit();  // 确保资源释放
+    
+    // 4. 执行测试操作
+    const result = try test_object.doSomething(test_data);
+    
+    // 5. 验证结果
+    try std.testing.expect(result != null);
+    try std.testing.expectEqual(expected_value, result.?);
+    
+    // 6. 清理资源（defer会自动执行）
+}
+```
+
+#### 测试命名规范
+- **格式**：`test "功能名称 - 测试场景"`
+- **正常情况**：`test "function_name - normal case"`
+- **边界情况**：`test "function_name boundary_case - description"`
+- **错误情况**：`test "function_name - error case"`
+- **示例**：
+  - `test "parseHTML - simple structure"`
+  - `test "FontManager boundary - empty cache"`
+  - `test "loadFont - file not found error"`
+
+#### 测试覆盖要求
+每个函数必须包含以下类型的测试：
+
+1. **正常情况测试**（至少1个）
+   - 测试函数在正常输入下的行为
+   - 验证返回值和副作用
+   - 示例：`test "parseHTML - simple structure"`
+
+2. **边界情况测试**（至少2-3个，详见边界测试规则）
+   - 空值/空集合
+   - 零值/最小值
+   - 最大值/极限值
+   - 特殊字符/Unicode
+   - 不完整/错误格式
+   - 示例：`test "parseHTML boundary_case - empty input"`
+
+3. **错误情况测试**（所有可能的错误路径）
+   - 无效输入
+   - 资源不足
+   - 文件不存在
+   - 格式错误
+   - 示例：`test "loadFont - file not found error"`
+
+4. **内存管理测试**（每个使用内存的函数）
+   - 验证无内存泄漏
+   - 验证资源正确释放
+   - 验证错误路径也释放资源
+
+#### 内存泄漏检测规范
+**所有测试必须使用GeneralPurposeAllocator并检查内存泄漏：**
+
+```zig
+test "example test" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();  // 必须检查返回值，确保无泄漏
+    const allocator = gpa.allocator();
+    
+    // 测试代码...
+    
+    // 测试结束时，gpa.deinit()会自动检查内存泄漏
+    // 如果有泄漏，测试会失败
+}
+```
+
+**重要规则**：
+- ✅ **必须使用 `GeneralPurposeAllocator`**：不能使用 `page_allocator` 或其他分配器
+- ✅ **必须检查 `deinit()` 返回值**：`defer _ = gpa.deinit();` 会检查是否有泄漏
+- ✅ **所有分配的资源必须释放**：使用 `defer` 确保释放
+- ✅ **错误路径也必须释放资源**：使用 `errdefer` 处理错误情况
+
+#### 测试断言规范
+使用Zig标准库的测试断言：
+
+```zig
+// 相等性断言
+try std.testing.expectEqual(expected, actual);
+try std.testing.expectEqualStrings(expected, actual);
+
+// 布尔断言
+try std.testing.expect(condition);
+try std.testing.expectError(expected_error, function());
+
+// 可选类型断言
+try std.testing.expect(result != null);
+try std.testing.expect(result == null);
+
+// 错误断言
+try std.testing.expectError(error.ExpectedError, function());
+```
+
+#### 测试数据准备规范
+1. **使用有意义的测试数据**：
+   ```zig
+   const html_content = "<html><body><p>Hello</p></body></html>";
+   const css_content = "body { color: red; }";
+   ```
+
+2. **创建测试辅助函数**（如果数据复杂）：
+   ```zig
+   fn createMinimalTTF(allocator: std.mem.Allocator) ![]u8 {
+       // 创建最小有效TTF数据
+   }
+   ```
+
+3. **使用测试辅助模块**（`tests/test_helpers.zig`）：
+   ```zig
+   const test_helpers = @import("test_helpers");
+   const doc = try test_helpers.createTestDocument(allocator);
+   defer test_helpers.cleanupTestDocument(allocator, doc);
+   ```
+
+#### 测试组织规范
+1. **测试文件结构**：
+   - 测试文件放在 `tests/` 目录
+   - 与 `src/` 目录结构对应
+   - 测试文件命名：`模块名_test.zig`
+
+2. **测试分组**：
+   ```zig
+   // 正常情况测试
+   test "function_name - normal case 1" { ... }
+   test "function_name - normal case 2" { ... }
+   
+   // 边界情况测试
+   test "function_name boundary_case - empty input" { ... }
+   test "function_name boundary_case - max value" { ... }
+   
+   // 错误情况测试
+   test "function_name - error case 1" { ... }
+   test "function_name - error case 2" { ... }
+   ```
+
+3. **测试辅助函数**：
+   - 复杂的测试数据创建函数放在测试文件顶部
+   - 可复用的辅助函数放在 `tests/test_helpers.zig`
+
+#### 测试代码质量要求
+1. **可读性**：
+   - 测试名称清晰描述测试内容
+   - 测试代码简洁明了
+   - 使用有意义的变量名
+
+2. **独立性**：
+   - 每个测试应该独立运行
+   - 不依赖其他测试的执行顺序
+   - 不共享状态
+
+3. **完整性**：
+   - 测试应该验证所有重要的行为
+   - 包括正常路径、边界路径、错误路径
+   - 验证返回值和副作用
+
+4. **性能**：
+   - 测试应该快速执行
+   - 避免不必要的资源分配
+   - 使用合适的测试数据大小
+
+#### 测试代码示例模板
+
+**示例1：简单函数测试**
+```zig
+test "calculateSum - normal case" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+    
+    const result = calculateSum(10, 20);
+    try std.testing.expectEqual(@as(i32, 30), result);
+}
+
+test "calculateSum boundary_case - zero values" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+    
+    const result = calculateSum(0, 0);
+    try std.testing.expectEqual(@as(i32, 0), result);
+}
+```
+
+**示例2：需要内存管理的测试**
+```zig
+test "parseHTML - simple structure" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+    
+    const html_content = "<html><body><p>Hello</p></body></html>";
+    const doc = try dom.Document.init(allocator);
+    defer doc.deinit();
+    
+    var parser = html.Parser.init(html_content, doc, allocator);
+    defer parser.deinit();
+    try parser.parse();
+    
+    const body = doc.getBody();
+    try std.testing.expect(body != null);
+}
+
+test "parseHTML boundary_case - empty input" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+    
+    const html_content = "";
+    const doc = try dom.Document.init(allocator);
+    defer doc.deinit();
+    
+    var parser = html.Parser.init(html_content, doc, allocator);
+    defer parser.deinit();
+    try parser.parse();
+    
+    // 空输入应该不会崩溃
+    try std.testing.expect(true);
+}
+```
+
+**示例3：错误情况测试**
+```zig
+test "loadFont - file not found error" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+    
+    var font_manager = font.FontManager.init(allocator);
+    defer font_manager.deinit();
+    
+    const result = font_manager.loadFont("nonexistent.ttf", "TestFont");
+    try std.testing.expectError(error.FileNotFound, result);
+}
+```
+
+#### 测试检查清单
+编写测试时，必须检查以下项目：
+- [ ] 是否使用了 `GeneralPurposeAllocator`？
+- [ ] 是否检查了 `gpa.deinit()` 的返回值？
+- [ ] 是否所有分配的资源都使用 `defer` 释放？
+- [ ] 是否测试了正常情况？
+- [ ] 是否测试了至少2-3个边界情况？
+- [ ] 是否测试了所有错误情况？
+- [ ] 测试名称是否清晰描述测试内容？
+- [ ] 测试是否独立运行（不依赖其他测试）？
+- [ ] 是否验证了返回值和副作用？
+
 ### 边界测试规则（必须遵循）
 **边界测试是测试要求的核心组成部分，每个函数都必须包含边界测试用例。**
 
