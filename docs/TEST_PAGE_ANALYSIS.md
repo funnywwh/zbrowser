@@ -19,12 +19,31 @@
 - ✅ Flexbox布局（基本功能）
 - ✅ Grid布局（基本功能，`grid-row` 和 `grid-column` 已实现）
 
-### 3. 文本样式（部分）
+### 3. 文本样式
 - ✅ `font-size`
-- ✅ `font-weight: bold, normal`
+- ✅ `font-weight: bold, normal, lighter`
+- ✅ `text-align` (left, center, right, justify)
+- ✅ `text-decoration` (none, underline, line-through, overline)
+- ✅ `line-height` (number, length, percent, normal)
+- ✅ `letter-spacing`
+- ✅ `vertical-align` (baseline, top, middle, bottom, sub, super, text-top, text-bottom)
 - ✅ 多语言支持（中文、日文、韩文、英文等）
 
-### 4. 其他
+### 4. 尺寸和盒模型
+- ✅ `width`, `height`
+- ✅ `min-width`, `min-height`
+- ✅ `max-width`, `max-height`
+- ✅ `box-sizing` (content-box, border-box)
+- ✅ `border` (width, style: solid, dashed)
+- ✅ `border-radius`
+
+### 5. 视觉效果
+- ✅ `opacity`
+- ✅ `z-index`
+- ✅ `overflow` (visible, hidden, scroll, auto)
+
+### 6. 其他
+- ✅ HTML实体解析（&lt;, &amp;, &quot;等）
 - ✅ 嵌套结构
 - ✅ 基本HTML元素（div, p, h1, h2, h3, span, strong, em等）
 
@@ -32,86 +51,55 @@
 
 ### 1. Grid布局相关
 
-#### ❌ `repeat()` 函数
-- **位置**: `grid-template-columns: repeat(3, 1fr)`, `grid-template-rows: repeat(3, 100px)`
+#### ⚠️ `minmax()` 函数
+- **位置**: `grid-template-columns: minmax(100px, 1fr)`
 - **状态**: 未实现
-- **代码位置**: `src/layout/style_utils.zig:637` 有TODO注释
-- **影响**: Grid布局无法使用 `repeat()` 语法
+- **影响**: Grid布局无法使用 `minmax()` 语法
 
-#### ❌ `fr` 单位（fractional unit）
-- **位置**: `grid-template-columns: repeat(3, 1fr)`
-- **状态**: 未实现
-- **代码位置**: `src/layout/style_utils.zig:637` 有TODO注释
-- **影响**: 无法使用 `fr` 单位实现响应式Grid布局
+#### ⚠️ Grid对齐属性完整实现
+- **位置**: `justify-items`, `align-items`, `justify-content`, `align-content`
+- **状态**: 部分实现（基本对齐已支持）
+- **影响**: 某些对齐选项可能不完全支持
 
-### 2. 文本样式相关
+### 2. Flexbox相关
 
-#### ❌ `font-weight: lighter`
-- **位置**: `.text-small { font-weight: lighter; }`
-- **状态**: 未实现
-- **当前支持**: 只支持 `bold` 和 `normal`
-- **代码位置**: `src/render/renderer.zig:436` 只检查 `bold`
-- **影响**: 无法显示细体文本
-
-#### ❌ `text-decoration`
-- **位置**: `text-decoration: underline`, `text-decoration: line-through`
-- **状态**: 未实现
-- **影响**: 无法显示下划线和删除线
-
-#### ❌ `text-align`
-- **位置**: `text-align: center`
-- **状态**: 未实现
-- **影响**: 无法实现文本居中对齐
-
-#### ❌ `line-height`
-- **位置**: `line-height: 1.5`, `line-height: 1.6`
-- **状态**: 可能未实现
-- **影响**: 无法控制行高
-
-### 3. 边框和背景相关
-
-#### ❌ `border-radius`
-- **位置**: `border-radius: 10px`
-- **状态**: 未实现
-- **影响**: 无法显示圆角边框
-
-#### ❌ `border-style: dashed`
-- **位置**: `border: 3px dashed #ffa726`
-- **状态**: 可能未实现
-- **影响**: 无法显示虚线边框
-
-### 4. Flexbox相关
-
-#### ❌ `flex` 简写属性
-- **位置**: `flex: 1`
-- **状态**: 未完全实现
-- **代码位置**: `src/layout/style_utils.zig:605` 有TODO注释
-- **当前支持**: 只支持单个值（如 `flex: 1` 表示 `flex-grow=1`）
+#### ⚠️ `flex` 简写属性完整实现
+- **位置**: `flex: 1 1 auto`
+- **状态**: 部分实现（支持单个值，如 `flex: 1`）
+- **当前支持**: 支持单个值（如 `flex: 1` 表示 `flex-grow=1`）
 - **影响**: 无法使用完整的 `flex` 简写语法（`flex-grow flex-shrink flex-basis`）
 
-### 5. HTML实体解析
-
-#### ❌ HTML实体解码
-- **位置**: `&lt;`, `&amp;`, `&quot;`, `&apos;`
+#### ⚠️ `align-content` 多行对齐
+- **位置**: `align-content: space-between`
 - **状态**: 未实现
-- **影响**: HTML实体无法正确显示，会显示为原始文本（如 `&lt;div&gt;` 而不是 `<div>`）
+- **影响**: 多行Flexbox无法使用 `align-content` 对齐
 
-### 6. 其他CSS属性
+### 3. 其他CSS属性
 
-#### ❌ `overflow`
-- **位置**: `overflow: hidden`
+#### ⚠️ `white-space`
+- **位置**: `white-space: nowrap`, `white-space: pre`
 - **状态**: 未实现
-- **影响**: 无法控制溢出内容的显示
+- **影响**: 无法控制空白字符的处理方式
 
-#### ❌ `width`, `height` 属性
-- **位置**: `width: 150px`, `height: 300px` 等
-- **状态**: 可能未实现
-- **影响**: 无法显式设置元素宽度和高度
+#### ⚠️ `word-wrap` / `word-break`
+- **位置**: `word-wrap: break-word`
+- **状态**: 未实现
+- **影响**: 无法控制单词换行行为
 
-#### ❌ `min-width`
-- **位置**: `min-width: 100px`
-- **状态**: 可能未实现
-- **影响**: 无法设置最小宽度
+#### ⚠️ `text-transform`
+- **位置**: `text-transform: uppercase`
+- **状态**: 未实现
+- **影响**: 无法转换文本大小写
+
+#### ⚠️ `box-shadow`
+- **位置**: `box-shadow: 2px 2px 4px rgba(0,0,0,0.2)`
+- **状态**: 未实现
+- **影响**: 无法显示阴影效果
+
+#### ⚠️ `transform`
+- **位置**: `transform: rotate(45deg)`
+- **状态**: 未实现
+- **影响**: 无法应用变换效果
 
 ## 未测试到的功能 ⚠️
 
@@ -134,22 +122,22 @@
 ## 优先级建议
 
 ### 高优先级（影响基本功能）
-1. **`repeat()` 函数和 `fr` 单位** - Grid布局的核心功能
-2. **`text-align`** - 文本对齐的基础功能
-3. **`width`, `height`** - 布局的基础属性
-4. **HTML实体解析** - 影响内容显示
+1. **`flex` 简写属性完整实现** - Flexbox使用便利性
+2. **`minmax()` 函数** - Grid布局的高级功能
+3. **`white-space`** - 控制空白字符处理
+4. **`word-wrap` / `word-break`** - 控制单词换行
 
 ### 中优先级（增强功能）
-1. **`border-radius`** - 现代UI设计常用
-2. **`text-decoration`** - 文本样式增强
-3. **`flex` 简写属性完整实现** - Flexbox使用便利性
-4. **`font-weight: lighter`** - 字体样式完整性
+1. **`align-content` 多行对齐** - Flexbox多行布局
+2. **`text-transform`** - 文本样式增强
+3. **`box-shadow`** - 视觉效果增强
+4. **Grid对齐属性完整实现** - Grid布局完善
 
 ### 低优先级（优化功能）
-1. **`line-height`** - 文本排版优化
-2. **`overflow`** - 布局控制
-3. **`min-width`, `min-height`** - 响应式布局
-4. **`border-style: dashed`** - 边框样式
+1. **`transform`** - 变换效果（需要复杂的矩阵计算）
+2. **CSS动画和过渡** - 动态效果
+3. **伪类选择器** - 交互效果
+4. **伪元素** - 内容生成
 
 ## 测试建议
 
@@ -170,16 +158,22 @@
 
 ## 总结
 
-**已实现功能**: 约 70%
-- 核心布局系统基本完整
-- 基础样式支持良好
-- 多语言支持完善
+**已实现功能**: 约 85%
+- ✅ 核心布局系统完整（block, inline, flex, grid, position, float）
+- ✅ 基础样式支持完善（margin, padding, border, background, color）
+- ✅ 文本样式完整（font-size, font-weight, text-align, text-decoration, line-height, letter-spacing, vertical-align）
+- ✅ 尺寸控制完整（width, height, min-width, min-height, max-width, max-height）
+- ✅ 视觉效果支持（opacity, z-index, overflow, border-radius, border-style）
+- ✅ Grid布局核心功能（repeat(), fr单位, grid-row, grid-column）
+- ✅ HTML实体解析
+- ✅ 多语言支持完善
 
-**未实现功能**: 约 30%
-- Grid布局高级特性（`repeat()`, `fr`）
-- 文本样式增强（`text-decoration`, `text-align`）
-- 边框样式（`border-radius`, `border-style`）
-- HTML实体解析
+**未实现功能**: 约 15%
+- ⚠️ Grid布局高级特性（`minmax()`）
+- ⚠️ Flexbox完整功能（`flex` 完整简写, `align-content`）
+- ⚠️ 文本处理（`white-space`, `word-wrap`, `text-transform`）
+- ⚠️ 视觉效果（`box-shadow`, `transform`）
+- ⚠️ 交互效果（伪类、伪元素、动画）
 
-**建议**: 优先实现高优先级功能，特别是Grid布局的 `repeat()` 和 `fr` 单位，以及基础的 `text-align` 和 `width`/`height` 属性。
+**建议**: 优先实现高优先级功能，特别是 `flex` 简写属性的完整实现和 `white-space` 属性，以提升布局和文本处理的完整性。
 

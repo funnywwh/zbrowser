@@ -26,8 +26,22 @@ ZBrowser是一个完全用Zig语言实现的headless浏览器渲染引擎，严�
   - ✅ flex-wrap换行处理（wrap, wrap-reverse）
   - ✅ align-content多行对齐（flex-start, flex-end, center, space-between, space-around, space-evenly, stretch）
   - ✅ flex-direction反向处理（row-reverse, column-reverse）
-- ✅ Grid布局基础框架
+- ✅ Grid布局（基本功能）
+  - ✅ grid-template-columns/rows解析
+  - ✅ repeat()函数支持
+  - ✅ fr单位（fractional unit）支持
+  - ✅ grid-row和grid-column属性
+  - ✅ gap、row-gap、column-gap支持
+  - ✅ 基本对齐（justify-content, align-content, justify-items, align-items）
 - ✅ 布局引擎主入口（构建布局树、执行布局）
+- ✅ CSS属性支持
+  - ✅ 尺寸属性（width, height, min-width, min-height, max-width, max-height）
+  - ✅ 盒模型（box-sizing: content-box, border-box）
+  - ✅ 边框（border-width, border-style: solid, dashed, border-radius）
+  - ✅ 文本样式（text-align, text-decoration, line-height, letter-spacing, vertical-align）
+  - ✅ 字体（font-size, font-weight: normal, bold, lighter）
+  - ✅ 视觉效果（opacity, z-index, overflow）
+- ✅ HTML实体解析（&lt;, &amp;, &quot;等）
 - ✅ 抽象渲染后端接口（RenderBackend VTable）
 - ✅ CPU渲染后端（软件光栅化、像素缓冲、基本图形绘制）
   - ✅ 基础绘制操作（fillRect、strokeRect、fillText）
