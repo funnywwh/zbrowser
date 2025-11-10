@@ -446,6 +446,9 @@ fn createFlexLines(
         if (current_line.item_indices.items.len > 0 and current_line.main_size + item_main_size > container_main_size) {
             std.log.warn("[Flexbox] createFlexLines: 需要换行, current_line.main_size={d:.1}, item_main_size={d:.1}, container_main_size={d:.1}", .{ current_line.main_size, item_main_size, container_main_size });
             // 完成当前行
+            // 注意：append会复制current_line，包括item_indices的ArrayList结构
+            // 但两个ArrayList会共享相同的内存，所以我们需要在append之前保存item_indices
+            // 或者确保在append之后不再使用current_line的item_indices
             flex_lines.append(allocator, current_line) catch |err| {
                 std.log.err("[Flexbox] createFlexLines: append flex_line失败, err={}", .{err});
                 current_line.item_indices.deinit(allocator);
@@ -453,8 +456,8 @@ fn createFlexLines(
             };
             std.log.warn("[Flexbox] createFlexLines: 添加了一行, flex_lines.len={d}", .{flex_lines.items.len});
 
-            // 创建新行
-            current_line.item_indices.deinit(allocator);
+            // 创建新行（注意：append后current_line已被移动，需要创建全新的FlexLine）
+            // 不能调用current_line.item_indices.deinit，因为item_indices已经被append复制了
             current_line = FlexLine{
                 .item_indices = std.ArrayList(usize){},
                 .main_size = 0,
