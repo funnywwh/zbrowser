@@ -1370,3 +1370,67 @@ test "parseVerticalAlign - all values" {
     // 无效值应该返回默认值baseline
     try testing.expectEqual(box.VerticalAlign.baseline, style_utils.parseVerticalAlign("invalid"));
 }
+
+test "applyStyleToLayoutBox with white-space" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const node = try test_helpers.createTestElement(allocator, "div");
+    defer test_helpers.freeNode(allocator, node);
+
+    // 设置inline style属性
+    if (node.asElement()) |elem| {
+        try elem.setAttribute("style", "white-space: nowrap;", allocator);
+    }
+
+    var layout_box = box.LayoutBox.init(node, allocator);
+    defer layout_box.deinit();
+
+    var cascade_engine = cascade.Cascade.init(allocator);
+    var computed_style = try cascade_engine.computeStyle(node, &[_]css_parser.Stylesheet{});
+    defer computed_style.deinit();
+
+    const containing_size = box.Size{ .width = 800, .height = 600 };
+    style_utils.applyStyleToLayoutBox(&layout_box, &computed_style, containing_size);
+
+    // 检查white-space是否正确应用
+    try testing.expectEqual(box.WhiteSpace.nowrap, layout_box.white_space);
+}
+
+test "applyStyleToLayoutBox with white-space pre" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const node = try test_helpers.createTestElement(allocator, "pre");
+    defer test_helpers.freeNode(allocator, node);
+
+    // 设置inline style属性
+    if (node.asElement()) |elem| {
+        try elem.setAttribute("style", "white-space: pre;", allocator);
+    }
+
+    var layout_box = box.LayoutBox.init(node, allocator);
+    defer layout_box.deinit();
+
+    var cascade_engine = cascade.Cascade.init(allocator);
+    var computed_style = try cascade_engine.computeStyle(node, &[_]css_parser.Stylesheet{});
+    defer computed_style.deinit();
+
+    const containing_size = box.Size{ .width = 800, .height = 600 };
+    style_utils.applyStyleToLayoutBox(&layout_box, &computed_style, containing_size);
+
+    // 检查white-space是否正确应用
+    try testing.expectEqual(box.WhiteSpace.pre, layout_box.white_space);
+}
+
+test "parseWhiteSpace - all values" {
+    try testing.expectEqual(box.WhiteSpace.normal, style_utils.parseWhiteSpace("normal"));
+    try testing.expectEqual(box.WhiteSpace.nowrap, style_utils.parseWhiteSpace("nowrap"));
+    try testing.expectEqual(box.WhiteSpace.pre, style_utils.parseWhiteSpace("pre"));
+    try testing.expectEqual(box.WhiteSpace.pre_wrap, style_utils.parseWhiteSpace("pre-wrap"));
+    try testing.expectEqual(box.WhiteSpace.pre_line, style_utils.parseWhiteSpace("pre-line"));
+    // 无效值应该返回默认值normal
+    try testing.expectEqual(box.WhiteSpace.normal, style_utils.parseWhiteSpace("invalid"));
+}

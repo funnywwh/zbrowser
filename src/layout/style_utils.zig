@@ -66,6 +66,17 @@ pub fn parseVerticalAlign(value: []const u8) box.VerticalAlign {
     return .baseline;
 }
 
+/// 解析white-space属性值
+pub fn parseWhiteSpace(value: []const u8) box.WhiteSpace {
+    if (std.mem.eql(u8, value, "normal")) return .normal;
+    if (std.mem.eql(u8, value, "nowrap")) return .nowrap;
+    if (std.mem.eql(u8, value, "pre")) return .pre;
+    if (std.mem.eql(u8, value, "pre-wrap")) return .pre_wrap;
+    if (std.mem.eql(u8, value, "pre-line")) return .pre_line;
+    // 默认返回normal
+    return .normal;
+}
+
 /// 解析text-decoration属性值
 pub fn parseTextDecoration(value: []const u8) box.TextDecoration {
     if (std.mem.eql(u8, value, "none")) return .none;
@@ -470,6 +481,11 @@ pub fn applyStyleToLayoutBox(layout_box: *box.LayoutBox, computed_style: *const 
     // 解析vertical-align
     if (getPropertyKeyword(computed_style, "vertical-align")) |vertical_align_value| {
         layout_box.vertical_align = parseVerticalAlign(vertical_align_value);
+    }
+
+    // 解析white-space
+    if (getPropertyKeyword(computed_style, "white-space")) |white_space_value| {
+        layout_box.white_space = parseWhiteSpace(white_space_value);
     }
 
     // 解析border-radius

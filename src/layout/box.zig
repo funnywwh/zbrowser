@@ -176,6 +176,15 @@ pub const VerticalAlign = enum {
     text_bottom, // 文本底部
 };
 
+/// 空白字符处理方式（white-space属性）
+pub const WhiteSpace = enum {
+    normal, // 正常处理（合并空白字符，自动换行）
+    nowrap, // 不换行（合并空白字符，但不换行）
+    pre, // 保留空白字符（保留所有空白字符，不自动换行）
+    pre_wrap, // 保留空白字符并换行（保留所有空白字符，自动换行）
+    pre_line, // 保留换行符（合并空格，保留换行符，自动换行）
+};
+
 /// 行高类型（line-height属性）
 pub const LineHeight = union(enum) {
     /// 数字值（如1.5，表示字体大小的倍数）
@@ -261,6 +270,10 @@ pub const LayoutBox = struct {
     /// 用于inline元素和table-cell元素的垂直对齐
     vertical_align: VerticalAlign,
 
+    /// 空白字符处理方式（white-space属性）
+    /// 控制空白字符（空格、换行符、制表符）的处理方式
+    white_space: WhiteSpace,
+
     /// 子布局框列表
     children: std.ArrayList(*LayoutBox),
 
@@ -310,6 +323,7 @@ pub const LayoutBox = struct {
             .opacity = 1.0, // 默认完全不透明
             .z_index = null, // 默认使用auto堆叠顺序
             .vertical_align = .baseline, // 默认基线对齐
+            .white_space = .normal, // 默认正常处理空白字符
             .children = std.ArrayList(*LayoutBox){
                 .items = &[_]*LayoutBox{},
                 .capacity = 0,

@@ -62,6 +62,7 @@ pub const LayoutEngine = struct {
         layout_box.opacity = 1.0; // 默认完全不透明
         layout_box.z_index = null; // 默认使用auto堆叠顺序
         layout_box.vertical_align = .baseline; // 默认基线对齐
+        layout_box.white_space = .normal; // 默认正常处理空白字符
         layout_box.children = std.ArrayList(*box.LayoutBox){
             .items = &[_]*box.LayoutBox{},
             .capacity = 0,
