@@ -399,14 +399,24 @@ pub const Renderer = struct {
                 return;
             }
 
+            // 应用white-space处理（空白字符处理）
+            // 获取父元素的white-space属性（文本节点继承父元素的处理方式）
+            const white_space = if (layout_box.parent) |parent| parent.white_space else .normal;
+            var processed_text = text_content;
+            var processed_buffer: [2048]u8 = undefined;
+            const processed_len = self.processWhiteSpace(text_content, white_space, &processed_buffer);
+            if (processed_len > 0) {
+                processed_text = processed_buffer[0..processed_len];
+            }
+
             // 应用text-transform转换
             // 获取父元素的text-transform属性（文本节点继承父元素的转换）
             const text_transform = if (layout_box.parent) |parent| parent.text_transform else .none;
-            var transformed_text = text_content;
-            var transformed_buffer: [1024]u8 = undefined;
+            var transformed_text = processed_text;
+            var transformed_buffer: [2048]u8 = undefined;
             if (text_transform != .none) {
                 // 应用文本转换
-                const transformed_len = self.applyTextTransform(text_content, text_transform, &transformed_buffer);
+                const transformed_len = self.applyTextTransform(processed_text, text_transform, &transformed_buffer);
                 if (transformed_len > 0) {
                     transformed_text = transformed_buffer[0..transformed_len];
                 }
@@ -776,6 +786,94 @@ pub const Renderer = struct {
         }
 
         return font;
+    }
+
+    /// 处理white-space属性
+    /// 根据white-space属性处理空白字符（合并、保留、换行等）
+    /// TODO: 完整实现需要：
+    /// 1. 在布局阶段处理换行（nowrap、pre等）
+    /// 2. 处理pre-wrap和pre-line的换行逻辑
+    /// 3. 与word-wrap和word-break配合使用
+    fn processWhiteSpace(self: *Renderer, text: []const u8, white_space: box.WhiteSpace, buffer: []u8) usize {
+        _ = self; // 未使用
+        var i: usize = 0;
+        var j: usize = 0;
+        var prev_was_whitespace = false;
+
+        switch (white_space) {
+            .normal => {
+                // normal: 合并空白字符，将连续的空白字符合并为一个空格
+                while (i < text.len and j < buffer.len) : (i += 1) {
+                    const c = text[i];
+                    if (c == ' ' or c == '\n' or c == '\r' or c == '\t') {
+                        if (!prev_was_whitespace) {
+                            buffer[j] = ' ';
+                            j += 1;
+                            prev_was_whitespace = true;
+                        }
+                    } else {
+                        buffer[j] = c;
+                        j += 1;
+                        prev_was_whitespace = false;
+                    }
+                }
+            },
+            .nowrap => {
+                // nowrap: 合并空白字符，但不换行（在渲染阶段只处理空白字符合并）
+                // 换行逻辑在布局阶段处理
+                while (i < text.len and j < buffer.len) : (i += 1) {
+                    const c = text[i];
+                    if (c == ' ' or c == '\n' or c == '\r' or c == '\t') {
+                        if (!prev_was_whitespace) {
+                            buffer[j] = ' ';
+                            j += 1;
+                            prev_was_whitespace = true;
+                        }
+                    } else {
+                        buffer[j] = c;
+                        j += 1;
+                        prev_was_whitespace = false;
+                    }
+                }
+            },
+            .pre => {
+                // pre: 保留所有空白字符（包括空格、换行符、制表符）
+                const len = @min(text.len, buffer.len);
+                @memcpy(buffer[0..len], text[0..len]);
+                return len;
+            },
+            .pre_wrap => {
+                // pre-wrap: 保留所有空白字符，但允许自动换行
+                const len = @min(text.len, buffer.len);
+                @memcpy(buffer[0..len], text[0..len]);
+                return len;
+            },
+            .pre_line => {
+                // pre-line: 保留换行符，但合并空格
+                while (i < text.len and j < buffer.len) : (i += 1) {
+                    const c = text[i];
+                    if (c == '\n' or c == '\r') {
+                        // 保留换行符
+                        buffer[j] = '\n';
+                        j += 1;
+                        prev_was_whitespace = false;
+                    } else if (c == ' ' or c == '\t') {
+                        // 合并空格和制表符
+                        if (!prev_was_whitespace) {
+                            buffer[j] = ' ';
+                            j += 1;
+                            prev_was_whitespace = true;
+                        }
+                    } else {
+                        buffer[j] = c;
+                        j += 1;
+                        prev_was_whitespace = false;
+                    }
+                }
+            },
+        }
+
+        return j;
     }
 
     /// 应用text-transform转换
