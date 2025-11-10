@@ -26,7 +26,7 @@ pub const FontManager = struct {
         // 先保存所有需要释放的资源
         var entries = std.ArrayList(struct { name: []const u8, face: *FontFace }){};
         defer entries.deinit(self.allocator);
-        
+
         var it = self.font_cache.iterator();
         while (it.next()) |entry| {
             entries.append(self.allocator, .{
@@ -34,19 +34,19 @@ pub const FontManager = struct {
                 .face = entry.value_ptr.*,
             }) catch break;
         }
-        
+
         // 释放字体面
         for (entries.items) |entry| {
             entry.face.deinit(self.allocator);
             self.allocator.destroy(entry.face);
         }
-        
+
         // 释放字体数据
         var it2 = self.font_data_cache.iterator();
         while (it2.next()) |entry| {
             self.allocator.free(entry.value_ptr.*);
         }
-        
+
         // 释放字体名称（需要转换为可变切片）
         for (entries.items) |entry| {
             // 字体名称是通过 dupe 分配的，需要释放
@@ -56,7 +56,7 @@ pub const FontManager = struct {
             const name_mutable = @constCast(entry.name);
             self.allocator.free(name_mutable);
         }
-        
+
         self.font_cache.deinit();
         self.font_data_cache.deinit();
     }
@@ -173,17 +173,17 @@ pub const FontFace = struct {
     pub fn getFontMetrics(self: *Self) !ttf.TtfParser.FontMetrics {
         return try self.ttf_parser.getFontMetrics();
     }
-    
+
     /// 获取fpgm表（Font Program）
     pub fn getFpgm(self: *Self) ?[]const u8 {
         return self.ttf_parser.getFpgm();
     }
-    
+
     /// 获取prep表（Control Value Program）
     pub fn getPrep(self: *Self) ?[]const u8 {
         return self.ttf_parser.getPrep();
     }
-    
+
     /// 获取cvt表（Control Value Table）
     pub fn getCvt(self: *Self) ?[]const u8 {
         return self.ttf_parser.getCvt();

@@ -767,6 +767,30 @@ pub const CpuRenderBackend = struct {
     }
 
     /// 尝试加载中文字体
+    /// 通用字体加载函数：遍历字体路径数组，尝试加载字体
+    /// 参数：
+    /// - font_paths: 字体路径数组
+    /// - font_name: 字体名称（用于缓存）
+    /// - log_prefix: 日志前缀（用于区分不同的字体类型）
+    /// 返回：成功加载的字体面，如果所有路径都失败则返回null
+    fn tryLoadFontFromPaths(
+        self: *CpuRenderBackend,
+        font_paths: []const []const u8,
+        font_name: []const u8,
+        log_prefix: []const u8,
+    ) !?*font_module.FontFace {
+        for (font_paths) |path| {
+            if (self.font_manager.loadFont(path, font_name)) |face| {
+                log.debug("Successfully loaded {s} font from: {s}\n", .{ log_prefix, path });
+                return face;
+            } else |_| {
+                // 继续尝试下一个路径
+                continue;
+            }
+        }
+        return null;
+    }
+
     /// 优先尝试加载支持中文的字体（包括简体、繁体）
     fn tryLoadChineseFont(self: *CpuRenderBackend) !?*font_module.FontFace {
         // 中文字体路径（按优先级排序）
@@ -808,17 +832,7 @@ pub const CpuRenderBackend = struct {
         };
 
         // 尝试加载中文字体
-        for (chinese_font_paths) |path| {
-            if (self.font_manager.loadFont(path, "ChineseFont")) |face| {
-                log.debug("Successfully loaded Chinese font from: {s}\n", .{path});
-                return face;
-            } else |_| {
-                // 继续尝试下一个路径
-                continue;
-            }
-        }
-
-        return null;
+        return try self.tryLoadFontFromPaths(&chinese_font_paths, "ChineseFont", "Chinese");
     }
 
     /// 尝试加载日文字体
@@ -840,17 +854,7 @@ pub const CpuRenderBackend = struct {
         };
 
         // 尝试加载日文字体
-        for (japanese_font_paths) |path| {
-            if (self.font_manager.loadFont(path, "JapaneseFont")) |face| {
-                log.debug("Successfully loaded Japanese font from: {s}\n", .{path});
-                return face;
-            } else |_| {
-                // 继续尝试下一个路径
-                continue;
-            }
-        }
-
-        return null;
+        return try self.tryLoadFontFromPaths(&japanese_font_paths, "JapaneseFont", "Japanese");
     }
 
     /// 尝试加载韩文字体
@@ -881,20 +885,11 @@ pub const CpuRenderBackend = struct {
         };
 
         // 尝试加载韩文字体
-        for (korean_font_paths) |path| {
-            if (self.font_manager.loadFont(path, "KoreanFont")) |face| {
-                log.debug("Successfully loaded Korean font from: {s}\n", .{path});
-                return face;
-            } else |err| {
-                // 输出错误信息以便调试
-                log.debug("Failed to load Korean font from {s}: {}\n", .{ path, err });
-                // 继续尝试下一个路径
-                continue;
-            }
+        const result = try self.tryLoadFontFromPaths(&korean_font_paths, "KoreanFont", "Korean");
+        if (result == null) {
+            log.warn("Warning: No Korean font found, Korean text may not display correctly\n", .{});
         }
-
-        log.warn("Warning: No Korean font found, Korean text may not display correctly\n", .{});
-        return null;
+        return result;
     }
 
     /// 尝试加载符号字体（Segoe UI Symbol）
@@ -904,15 +899,7 @@ pub const CpuRenderBackend = struct {
             "C:\\Windows\\Fonts\\SegoeUISymbol.ttf",
             "C:\\Windows\\Fonts\\seguisym.ttc",
         };
-        for (symbol_font_paths) |path| {
-            if (self.font_manager.loadFont(path, "SymbolFont")) |face| {
-                log.debug("Successfully loaded symbol font from: {s}\n", .{path});
-                return face;
-            } else |_| {
-                continue;
-            }
-        }
-        return null;
+        return try self.tryLoadFontFromPaths(&symbol_font_paths, "SymbolFont", "Symbol");
     }
 
     /// 尝试加载Emoji字体（Segoe UI Emoji）
@@ -922,15 +909,7 @@ pub const CpuRenderBackend = struct {
             "C:\\Windows\\Fonts\\SegoeUIEmoji.ttf",
             "C:\\Windows\\Fonts\\seguiemj.ttc",
         };
-        for (emoji_font_paths) |path| {
-            if (self.font_manager.loadFont(path, "EmojiFont")) |face| {
-                log.debug("Successfully loaded emoji font from: {s}\n", .{path});
-                return face;
-            } else |_| {
-                continue;
-            }
-        }
-        return null;
+        return try self.tryLoadFontFromPaths(&emoji_font_paths, "EmojiFont", "Emoji");
     }
 
     /// 根据字符码点尝试加载合适的回退字体

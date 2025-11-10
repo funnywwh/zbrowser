@@ -85,6 +85,22 @@ pub const TtfParser = struct {
         }
     };
 
+    /// 创建空字形（用于错误情况或空字形）
+    fn createEmptyGlyph(allocator: std.mem.Allocator, glyph_index: u16) !Glyph {
+        var points = std.ArrayList(Glyph.Point){};
+        errdefer points.deinit(allocator);
+        var instructions = std.ArrayList(u8){};
+        errdefer instructions.deinit(allocator);
+        var contour_end_points = std.ArrayList(usize){};
+        errdefer contour_end_points.deinit(allocator);
+        return Glyph{
+            .glyph_index = glyph_index,
+            .points = points,
+            .instructions = instructions,
+            .contour_end_points = contour_end_points,
+        };
+    }
+
     /// 初始化TTF解析器
     pub fn init(allocator: std.mem.Allocator, font_data: []const u8) !Self {
         if (font_data.len < 12) {
@@ -368,7 +384,7 @@ pub const TtfParser = struct {
     /// 返回：字形数据
     pub fn getGlyph(self: *Self, glyph_index: u16) !Glyph {
         std.log.warn("[TTF] getGlyph: called for glyph_index={d}", .{glyph_index});
-        
+
         // 先检查CFF表（OTF字体使用CFF表，不需要loca表）
         const cff_table = self.findTable("CFF ");
         if (cff_table) |cff_data| {
@@ -378,56 +394,22 @@ pub const TtfParser = struct {
             std.log.warn("[TTF] getGlyph: parseCffGlyph result: points.len={d}", .{result.points.items.len});
             return result;
         }
-        
+
         // 对于TrueType字体（使用glyf表），需要loca表
         // 解析loca表获取字形偏移量
         const loca_table = self.findTable("loca") orelse {
             std.log.warn("[TTF] getGlyph: no loca table found, returning empty glyph", .{});
-            // 如果没有loca表，返回空字形
-            var points = std.ArrayList(Glyph.Point){};
-            errdefer points.deinit(self.allocator);
-            var instructions = std.ArrayList(u8){};
-            errdefer instructions.deinit(self.allocator);
-            var contour_end_points = std.ArrayList(usize){};
-            errdefer contour_end_points.deinit(self.allocator);
-            return Glyph{
-                .glyph_index = glyph_index,
-                .points = points,
-                .instructions = instructions,
-                .contour_end_points = contour_end_points,
-            };
+            return try Self.createEmptyGlyph(self.allocator, glyph_index);
         };
 
         // 获取head表以确定loca格式
         const head_table = self.findTable("head") orelse {
             std.log.warn("[TTF] getGlyph: no head table found, returning empty glyph", .{});
-            var points = std.ArrayList(Glyph.Point){};
-            errdefer points.deinit(self.allocator);
-            var instructions = std.ArrayList(u8){};
-            errdefer instructions.deinit(self.allocator);
-            var contour_end_points = std.ArrayList(usize){};
-            errdefer contour_end_points.deinit(self.allocator);
-            return Glyph{
-                .glyph_index = glyph_index,
-                .points = points,
-                .instructions = instructions,
-                .contour_end_points = contour_end_points,
-            };
+            return try Self.createEmptyGlyph(self.allocator, glyph_index);
         };
 
         if (head_table.len < 52) {
-            var points = std.ArrayList(Glyph.Point){};
-            errdefer points.deinit(self.allocator);
-            var instructions = std.ArrayList(u8){};
-            errdefer instructions.deinit(self.allocator);
-            var contour_end_points = std.ArrayList(usize){};
-            errdefer contour_end_points.deinit(self.allocator);
-            return Glyph{
-                .glyph_index = glyph_index,
-                .points = points,
-                .instructions = instructions,
-                .contour_end_points = contour_end_points,
-            };
+            return try Self.createEmptyGlyph(self.allocator, glyph_index);
         }
 
         // head表：50-51: indexToLocFormat (i16)
@@ -454,18 +436,7 @@ pub const TtfParser = struct {
         };
 
         const glyph_offset_value = glyph_offset orelse {
-            var points = std.ArrayList(Glyph.Point){};
-            errdefer points.deinit(self.allocator);
-            var instructions = std.ArrayList(u8){};
-            errdefer instructions.deinit(self.allocator);
-            var contour_end_points = std.ArrayList(usize){};
-            errdefer contour_end_points.deinit(self.allocator);
-            return Glyph{
-                .glyph_index = glyph_index,
-                .points = points,
-                .instructions = instructions,
-                .contour_end_points = contour_end_points,
-            };
+            return try Self.createEmptyGlyph(self.allocator, glyph_index);
         };
 
         // 检查字体轮廓格式
@@ -486,36 +457,14 @@ pub const TtfParser = struct {
 
         // 如果都找不到，返回空字形
         std.log.warn("[TTF] getGlyph: no glyf or CFF table found, returning empty glyph for glyph_index={d}", .{glyph_index});
-        var points = std.ArrayList(Glyph.Point){};
-        errdefer points.deinit(self.allocator);
-        var instructions = std.ArrayList(u8){};
-        errdefer instructions.deinit(self.allocator);
-        var contour_end_points = std.ArrayList(usize){};
-        errdefer contour_end_points.deinit(self.allocator);
-        return Glyph{
-            .glyph_index = glyph_index,
-            .points = points,
-            .instructions = instructions,
-            .contour_end_points = contour_end_points,
-        };
+        return try Self.createEmptyGlyph(self.allocator, glyph_index);
     }
 
     /// 解析glyf表中的字形（TrueType轮廓）
     fn parseGlyfGlyph(self: *Self, glyf_table: []const u8, glyph_index: u16, glyph_offset: u32) !Glyph {
         if (glyph_offset >= glyf_table.len) {
             std.log.warn("[TTF] parseGlyfGlyph: glyph_offset ({d}) >= glyf_table.len ({d}), returning empty glyph", .{ glyph_offset, glyf_table.len });
-            var points = std.ArrayList(Glyph.Point){};
-            errdefer points.deinit(self.allocator);
-            var instructions = std.ArrayList(u8){};
-            errdefer instructions.deinit(self.allocator);
-            var contour_end_points = std.ArrayList(usize){};
-            errdefer contour_end_points.deinit(self.allocator);
-            return Glyph{
-                .glyph_index = glyph_index,
-                .points = points,
-                .instructions = instructions,
-                .contour_end_points = contour_end_points,
-            };
+            return try Self.createEmptyGlyph(self.allocator, glyph_index);
         }
         std.log.warn("[TTF] parseGlyfGlyph: calling parseGlyphOutline with glyph_offset={d}, glyf_table.len={d}", .{ glyph_offset, glyf_table.len });
         const result = try self.parseGlyphOutline(glyf_table[@intCast(glyph_offset)..], glyph_index);
@@ -532,19 +481,7 @@ pub const TtfParser = struct {
         // 获取CharString数据
         const charstring_data = cff_parser.getCharString(glyph_index) catch |err| {
             std.log.warn("[TTF] parseCffGlyph: getCharString failed for glyph_index={d}, error={}", .{ glyph_index, err });
-            // 如果获取失败，返回空字形
-            var points = std.ArrayList(Glyph.Point){};
-            errdefer points.deinit(self.allocator);
-            var instructions = std.ArrayList(u8){};
-            errdefer instructions.deinit(self.allocator);
-            var contour_end_points = std.ArrayList(usize){};
-            errdefer contour_end_points.deinit(self.allocator);
-            return Glyph{
-                .glyph_index = glyph_index,
-                .points = points,
-                .instructions = instructions,
-                .contour_end_points = contour_end_points,
-            };
+            return try Self.createEmptyGlyph(self.allocator, glyph_index);
         };
         std.log.warn("[TTF] parseCffGlyph: got charstring_data, len={d}", .{charstring_data.len});
 
@@ -554,19 +491,7 @@ pub const TtfParser = struct {
 
         decoder.decode() catch |err| {
             std.log.warn("[TTF] parseCffGlyph: decode failed for glyph_index={d}, error={}", .{ glyph_index, err });
-            // 如果解码失败，返回空字形
-            var points = std.ArrayList(Glyph.Point){};
-            errdefer points.deinit(self.allocator);
-            var instructions = std.ArrayList(u8){};
-            errdefer instructions.deinit(self.allocator);
-            var contour_end_points = std.ArrayList(usize){};
-            errdefer contour_end_points.deinit(self.allocator);
-            return Glyph{
-                .glyph_index = glyph_index,
-                .points = points,
-                .instructions = instructions,
-                .contour_end_points = contour_end_points,
-            };
+            return try Self.createEmptyGlyph(self.allocator, glyph_index);
         };
         std.log.warn("[TTF] parseCffGlyph: decode succeeded, decoder.points.items.len={d}", .{decoder.points.items.len});
 
@@ -634,18 +559,7 @@ pub const TtfParser = struct {
     /// 解析字形轮廓数据（TrueType格式）
     fn parseGlyphOutline(self: *Self, glyph_data: []const u8, glyph_index: u16) !Glyph {
         if (glyph_data.len < 10) {
-            var points = std.ArrayList(Glyph.Point){};
-            errdefer points.deinit(self.allocator);
-            var instructions = std.ArrayList(u8){};
-            errdefer instructions.deinit(self.allocator);
-            var contour_end_points = std.ArrayList(usize){};
-            errdefer contour_end_points.deinit(self.allocator);
-            return Glyph{
-                .glyph_index = glyph_index,
-                .points = points,
-                .instructions = instructions,
-                .contour_end_points = contour_end_points,
-            };
+            return try Self.createEmptyGlyph(self.allocator, glyph_index);
         }
 
         // glyf表字形结构：
@@ -661,34 +575,12 @@ pub const TtfParser = struct {
             // TODO: 简化实现 - 复合字形暂不支持
             // 完整实现需要递归解析复合字形的组件
             // 参考：TrueType规范复合字形章节
-            var points = std.ArrayList(Glyph.Point){};
-            errdefer points.deinit(self.allocator);
-            var instructions = std.ArrayList(u8){};
-            errdefer instructions.deinit(self.allocator);
-            var contour_end_points = std.ArrayList(usize){};
-            errdefer contour_end_points.deinit(self.allocator);
-            return Glyph{
-                .glyph_index = glyph_index,
-                .points = points,
-                .instructions = instructions,
-                .contour_end_points = contour_end_points,
-            };
+            return try Self.createEmptyGlyph(self.allocator, glyph_index);
         }
 
         if (number_of_contours == 0) {
             // 空字形
-            var points = std.ArrayList(Glyph.Point){};
-            errdefer points.deinit(self.allocator);
-            var instructions = std.ArrayList(u8){};
-            errdefer instructions.deinit(self.allocator);
-            var contour_end_points = std.ArrayList(usize){};
-            errdefer contour_end_points.deinit(self.allocator);
-            return Glyph{
-                .glyph_index = glyph_index,
-                .points = points,
-                .instructions = instructions,
-                .contour_end_points = contour_end_points,
-            };
+            return try Self.createEmptyGlyph(self.allocator, glyph_index);
         }
 
         // 解析简单字形轮廓
