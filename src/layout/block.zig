@@ -28,6 +28,7 @@ pub fn layoutBlock(layout_box: *box.LayoutBox, containing_block: box.Size) !void
         if (layout_box.node.asElement()) |elem| elem.tag_name else "unknown"
     else "text";
     const is_root = layout_box.parent == null;
+    
     if (is_root or std.mem.eql(u8, tag_name, "body") or std.mem.eql(u8, tag_name, "html")) {
         std.debug.print("[LAYOUT] Element: {s}, is_root: {}\n", .{ tag_name, is_root });
         std.debug.print("  margin: top={d:.1}, right={d:.1}, bottom={d:.1}, left={d:.1}\n", .{
