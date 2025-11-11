@@ -189,14 +189,6 @@ pub const LayoutEngine = struct {
             // 然后处理absolute和fixed定位的子元素
             for (layout_tree.children.items) |child| {
                 if (child.position == .absolute or child.position == .fixed) {
-                    const child_node_type_str = switch (child.node.node_type) {
-                        .element => if (child.node.asElement()) |elem| elem.tag_name else "unknown",
-                        .text => "text",
-                        .comment => "comment",
-                        .document => "document",
-                        .doctype => "doctype",
-                    };
-                    std.log.debug("[LayoutEngine] Processing absolute/fixed child: '{s}', position={}, position_left={?}, position_top={?}", .{ child_node_type_str, child.position, child.position_left, child.position_top });
 
                     // 根据定位类型选择包含块
                     var containing_block = viewport;
@@ -210,26 +202,16 @@ pub const LayoutEngine = struct {
                                     .width = anc.box_model.content.width,
                                     .height = anc.box_model.content.height,
                                 };
-                                const ancestor_node_type_str = switch (anc.node.node_type) {
-                                    .element => if (anc.node.asElement()) |elem| elem.tag_name else "unknown",
-                                    .text => "text",
-                                    .comment => "comment",
-                                    .document => "document",
-                                    .doctype => "doctype",
-                                };
-                                std.log.debug("[LayoutEngine] Found positioned ancestor for '{s}': '{s}' (position={}) at ({d:.1}, {d:.1})", .{ child_node_type_str, ancestor_node_type_str, anc.position, anc.box_model.content.x, anc.box_model.content.y });
                                 break;
                             }
                             ancestor = anc.parent;
                         }
 
                         if (ancestor == null) {
-                            std.log.debug("[LayoutEngine] No positioned ancestor found for '{s}', using viewport", .{child_node_type_str});
                         }
                     } else {
                         // fixed定位：始终相对于初始视口，不查找定位祖先
                         containing_block = self.initial_viewport orelse viewport;
-                        std.log.debug("[LayoutEngine] Fixed positioning for '{s}', using initial viewport", .{child_node_type_str});
                     }
 
                     // 先应用定位（在递归布局子元素之前）

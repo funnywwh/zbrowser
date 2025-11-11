@@ -34,7 +34,6 @@ pub const Renderer = struct {
     fn renderLayoutBox(self: *Renderer, layout_box: *box.LayoutBox) !void {
         // 如果display为none，不渲染
         if (layout_box.display == .none) {
-            std.log.debug("[Renderer] renderLayoutBox: display=none, skipping", .{});
             return;
         }
 
@@ -49,42 +48,9 @@ pub const Renderer = struct {
                     std.mem.eql(u8, tag_name, "style") or
                     std.mem.eql(u8, tag_name, "link"))
                 {
-                    std.log.debug("[Renderer] renderLayoutBox: skipping metadata tag '{s}'", .{tag_name});
                     return;
                 }
             }
-        }
-
-        // 日志：渲染开始
-        const node_type_str = switch (layout_box.node.node_type) {
-            .element => if (layout_box.node.asElement()) |elem| elem.tag_name else "unknown",
-            .text => "text",
-            .comment => "comment",
-            .document => "document",
-            .doctype => "doctype",
-        };
-        // 检查是否是浮动元素
-        const is_float = layout_box.float != .none;
-        std.log.debug("[Renderer] renderLayoutBox: node_type={s}, float={}, content=({d:.1}, {d:.1}, {d:.1}x{d:.1}), is_layouted={}", .{
-            node_type_str,
-            layout_box.float,
-            layout_box.box_model.content.x,
-            layout_box.box_model.content.y,
-            layout_box.box_model.content.width,
-            layout_box.box_model.content.height,
-            layout_box.is_layouted,
-        });
-        
-        // 如果是浮动元素，输出额外信息
-        if (is_float) {
-            const total_size = layout_box.box_model.totalSize();
-            std.debug.print("[Renderer] renderLayoutBox: FLOAT ELEMENT - float={}, position=({d:.1}, {d:.1}), size=({d:.1}x{d:.1})\n", .{
-                layout_box.float,
-                layout_box.box_model.content.x,
-                layout_box.box_model.content.y,
-                total_size.width,
-                total_size.height,
-            });
         }
 
         // 计算样式（用于获取颜色、背景等）
@@ -316,10 +282,6 @@ pub const Renderer = struct {
         // 获取背景颜色
         const bg_color = self.getBackgroundColor(computed_style);
 
-        std.log.debug("[Renderer] renderBackground: bg_color={?}, rect=({d:.1}, {d:.1}, {d:.1}x{d:.1})", .{
-            bg_color, rect.x, rect.y, rect.width, rect.height,
-        });
-
         if (bg_color) |color| {
             // 检查是否有圆角
             if (layout_box.box_model.border_radius) |radius| {
@@ -358,10 +320,6 @@ pub const Renderer = struct {
         const border_width = self.getBorderWidth(computed_style);
         const border_style = self.getBorderStyle(computed_style);
 
-        std.log.debug("[Renderer] renderBorder: border_color={?}, border_width={d:.1}, border_style={?s}, rect=({d:.1}, {d:.1}, {d:.1}x{d:.1})", .{
-            border_color, border_width, border_style, rect.x, rect.y, rect.width, rect.height,
-        });
-
         if (border_color) |color| {
             if (border_width > 0) {
                 // 检查边框样式
@@ -386,17 +344,10 @@ pub const Renderer = struct {
                         self.render_backend.strokeDashedRect(rect, color, border_width);
                     } else {
                         // 绘制实线边框
-                        std.log.debug("[Renderer] renderBorder: calling strokeRect with color=#{x:0>2}{x:0>2}{x:0>2}, width={d:.1}", .{
-                            color.r, color.g, color.b, border_width,
-                        });
                         self.render_backend.strokeRect(rect, color, border_width);
                     }
                 }
-            } else {
-                std.log.debug("[Renderer] renderBorder: border_width is 0, skipping", .{});
             }
-        } else {
-            std.log.debug("[Renderer] renderBorder: border_color is null, skipping", .{});
         }
     }
 
@@ -407,11 +358,9 @@ pub const Renderer = struct {
             // 从Node.data中获取文本内容
             const text_content = layout_box.node.data.text;
 
-            std.log.debug("[Renderer] renderContent: text_node found, content=\"{s}\", len={d}", .{ text_content, text_content.len });
 
             // 如果文本内容为空，不渲染
             if (text_content.len == 0) {
-                std.log.debug("[Renderer] renderContent: text is empty, skipping", .{});
                 return;
             }
 
@@ -447,7 +396,6 @@ pub const Renderer = struct {
                 }
             }
             if (is_whitespace_only) {
-                std.log.debug("[Renderer] renderContent: text contains only whitespace, skipping", .{});
                 return;
             }
 
@@ -476,7 +424,6 @@ pub const Renderer = struct {
             const text_color = self.getTextColor(text_computed_style);
             const font = self.getFont(text_computed_style);
 
-            std.log.debug("[Renderer] renderContent: text_color={?}, font_size={d:.1}", .{ text_color, font.size });
 
             if (text_color) |color| {
                 // 计算文本对齐后的x坐标
@@ -551,7 +498,6 @@ pub const Renderer = struct {
                     try self.renderTextWithWordWrap(transformed_text, text_x, baseline_y, font, color, letter_spacing, rect.width, word_wrap, word_break, actual_line_height);
                 } else {
                     // 不处理断行，直接渲染整个文本
-                    std.log.debug("[Renderer] renderContent: calling fillText at ({d:.1}, {d:.1}), text=\"{s}\", rect=({d:.1}, {d:.1}, {d:.1}x{d:.1}), font_size={d:.1}, text_align={}, letter_spacing={?}", .{ text_x, baseline_y, transformed_text, rect.x, rect.y, rect.width, rect.height, font.size, if (layout_box.parent) |p| p.text_align else .left, letter_spacing });
                     self.render_backend.fillText(transformed_text, text_x, baseline_y, font, color, letter_spacing);
                 }
                 
@@ -589,10 +535,8 @@ pub const Renderer = struct {
                     }
                 }
             } else {
-                std.log.debug("[Renderer] renderContent: no text color, skipping", .{});
             }
         } else {
-            std.log.debug("[Renderer] renderContent: not a text node (node_type={}), skipping", .{layout_box.node.node_type});
         }
     }
 
@@ -612,45 +556,35 @@ pub const Renderer = struct {
     fn getBorderColor(self: *Renderer, computed_style: *const cascade.ComputedStyle) ?backend.Color {
         // 从computed_style中解析border-color属性
         if (style_utils.getPropertyColor(computed_style, "border-color")) |color| {
-            std.log.debug("[Renderer] getBorderColor: found border-color property", .{});
             return backend.Color.rgb(color.r, color.g, color.b);
         }
         // 如果没有设置border-color，尝试从border简写属性中提取颜色
         // 先检查computed_style中是否有border属性
         if (computed_style.getProperty("border")) |decl| {
-            std.log.debug("[Renderer] getBorderColor: found border property in computed_style, value type = {s}", .{@tagName(decl.value)});
             if (decl.value == .keyword) {
                 const border_value = decl.value.keyword;
-                std.log.debug("[Renderer] getBorderColor: found border shorthand property = '{s}'", .{border_value});
                 if (self.parseBorderShorthand(border_value)) |border_info| {
                     if (border_info.color) |color| {
-                        std.log.debug("[Renderer] getBorderColor: parsed color from border shorthand = #{x:0>2}{x:0>2}{x:0>2}", .{ color.r, color.g, color.b });
                         return backend.Color.rgb(color.r, color.g, color.b);
                     } else {
-                        std.log.debug("[Renderer] getBorderColor: border shorthand has no color", .{});
                     }
                 } else {
-                    std.log.debug("[Renderer] getBorderColor: failed to parse border shorthand", .{});
                 }
             }
         }
         // 也尝试使用style_utils.getPropertyKeyword（兼容性检查）
         if (style_utils.getPropertyKeyword(computed_style, "border")) |border_value| {
-            std.log.debug("[Renderer] getBorderColor: found border shorthand property via style_utils = '{s}'", .{border_value});
             if (self.parseBorderShorthand(border_value)) |border_info| {
                 if (border_info.color) |color| {
-                    std.log.debug("[Renderer] getBorderColor: parsed color from border shorthand = #{x:0>2}{x:0>2}{x:0>2}", .{ color.r, color.g, color.b });
                     return backend.Color.rgb(color.r, color.g, color.b);
                 }
             }
         } else {
-            std.log.debug("[Renderer] getBorderColor: no border property found", .{});
         }
         // 如果没有设置border-color，检查是否有border-width
         // 如果有border-width但没有color，返回默认黑色
         const border_width = self.getBorderWidth(computed_style);
         if (border_width > 0) {
-            std.log.debug("[Renderer] getBorderColor: border-width > 0, using default black", .{});
             return backend.Color.rgb(0, 0, 0); // 默认黑色边框
         }
         return null; // 无边框
@@ -663,33 +597,25 @@ pub const Renderer = struct {
         const containing_width: f32 = 800; // 简化：使用固定值
         const border_context = style_utils.createUnitContext(containing_width);
         if (style_utils.getPropertyLength(computed_style, "border-width", border_context)) |width| {
-            std.log.debug("[Renderer] getBorderWidth: found border-width property = {d:.1}", .{width});
             return width;
         }
         // 如果没有设置border-width，尝试从border简写属性中提取宽度
         if (style_utils.getPropertyKeyword(computed_style, "border")) |border_value| {
-            std.log.debug("[Renderer] getBorderWidth: found border shorthand property = '{s}'", .{border_value});
             if (self.parseBorderShorthand(border_value)) |border_info| {
                 if (border_info.width) |width| {
-                    std.log.debug("[Renderer] getBorderWidth: parsed width from border shorthand = {d:.1}", .{width});
                     return width;
                 } else {
-                    std.log.debug("[Renderer] getBorderWidth: border shorthand has no width", .{});
                 }
             } else {
-                std.log.debug("[Renderer] getBorderWidth: failed to parse border shorthand", .{});
             }
         } else {
-            std.log.debug("[Renderer] getBorderWidth: no border property found", .{});
         }
         // 如果没有设置border-width，检查border-top-width等单独属性
         // 简化：只检查border-top-width
         const border_top_context = style_utils.createUnitContext(containing_width);
         if (style_utils.getPropertyLength(computed_style, "border-top-width", border_top_context)) |width| {
-            std.log.debug("[Renderer] getBorderWidth: found border-top-width property = {d:.1}", .{width});
             return width;
         }
-        std.log.debug("[Renderer] getBorderWidth: no border width found, returning 0", .{});
         return 0;
     }
 

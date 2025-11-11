@@ -32,9 +32,7 @@ pub const ComputedStyle = struct {
         if (result == null) {
             // 调试：列出所有属性名
             var it = self.properties.iterator();
-            std.log.warn("[Cascade] getProperty - name='{s}' not found. Available properties:", .{name});
-            while (it.next()) |entry| {
-                std.log.warn("[Cascade] getProperty -   '{s}'", .{entry.key_ptr.*});
+            while (it.next()) |_| {
             }
         }
         return result;
@@ -187,7 +185,6 @@ pub const Cascade = struct {
                     .allocator = self.allocator,
                 };
 
-                std.log.warn("[Cascade] computeStyle - adding inline style property '{s}'", .{name});
                 // 内联样式总是覆盖之前的样式
                 // 注意：使用复制的 name 作为 key，而不是 decl.name（可能已被释放）
                 if (computed.properties.fetchRemove(name)) |entry| {
@@ -202,7 +199,6 @@ pub const Cascade = struct {
                         mutable_value.deinit(self.allocator);
                         return err;
                     };
-                    std.log.warn("[Cascade] computeStyle: inline style '{s}' overwrote existing property", .{name});
                 } else {
                     computed.properties.put(name, new_decl) catch |err| {
                         self.allocator.free(name);
@@ -210,16 +206,13 @@ pub const Cascade = struct {
                         mutable_value.deinit(self.allocator);
                         return err;
                     };
-                    std.log.warn("[Cascade] computeStyle: inline style '{s}' added to computed properties", .{name});
                 }
             }
         }
 
         // 调试：列出所有属性
-        std.log.warn("[Cascade] computeStyle - final properties for element:", .{});
         var it = computed.properties.iterator();
-        while (it.next()) |entry| {
-            std.log.warn("[Cascade] computeStyle -   '{s}'", .{entry.key_ptr.*});
+        while (it.next()) |_| {
         }
 
         return computed;
@@ -319,7 +312,6 @@ pub const Cascade = struct {
                     // 如果解析失败，作为关键字处理
                     const keyword = try self.allocator.dupe(u8, value_str);
                     value = parser.Value{ .keyword = keyword };
-                    std.log.debug("[Cascade] parseInlineStyle: failed to parse color, parsed as keyword property '{s}' = '{s}'", .{ property_name, keyword });
                     const decl = parser.Declaration{
                         .name = name,
                         .value = value,
@@ -330,13 +322,11 @@ pub const Cascade = struct {
                     continue;
                 };
                 value = parser.Value{ .color = color };
-                std.log.debug("[Cascade] parseInlineStyle: parsed color property '{s}' = #{x:0>2}{x:0>2}{x:0>2}", .{ property_name, color.r, color.g, color.b });
             } else if (std.mem.indexOfScalar(u8, value_str, ' ') != null) {
                 // 检查是否包含空格（多值属性，如 grid-template-columns: 200px 200px）
                 // 多值属性，作为关键字存储
                 const keyword = try self.allocator.dupe(u8, value_str);
                 value = parser.Value{ .keyword = keyword };
-                std.log.debug("[Cascade] parseInlineStyle: parsed multi-value property '{s}' = '{s}'", .{ property_name, keyword });
             } else if (std.mem.indexOfScalar(u8, value_str, 'p') != null and std.mem.indexOfScalar(u8, value_str, 'x') != null) {
                 // 可能是长度值（如 "50px"）
                 const px_pos = std.mem.indexOfScalar(u8, value_str, 'p') orelse {
@@ -356,18 +346,15 @@ pub const Cascade = struct {
                             .unit = unit,
                         },
                     };
-                    std.log.debug("[Cascade] parseInlineStyle: parsed length property '{s}' = {d}px", .{ property_name, num });
                 } else {
                     // 关键字
                     const keyword = try self.allocator.dupe(u8, value_str);
                     value = parser.Value{ .keyword = keyword };
-                    std.log.debug("[Cascade] parseInlineStyle: parsed keyword property '{s}' = '{s}'", .{ property_name, keyword });
                 }
             } else {
                 // 关键字
                 const keyword = try self.allocator.dupe(u8, value_str);
                 value = parser.Value{ .keyword = keyword };
-                std.log.debug("[Cascade] parseInlineStyle: parsed keyword property '{s}' = '{s}'", .{ property_name, keyword });
             }
 
             const decl = parser.Declaration{
@@ -377,7 +364,6 @@ pub const Cascade = struct {
                 .allocator = self.allocator,
             };
 
-            std.log.warn("[Cascade] parseInlineStyle - parsed property '{s}' = '{s}'", .{ property_name, value_str });
             try declarations.append(self.allocator, decl);
         }
 

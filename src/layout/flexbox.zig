@@ -256,40 +256,32 @@ fn layoutFlexboxMultiLine(
     align_content: style_utils.AlignContent,
     layout_box: *box.LayoutBox,
 ) void {
-    std.log.warn("[Flexbox] layoutFlexboxMultiLine: 开始, flex_items.len={d}, container_main_size={d:.1}, container_cross_size={d:.1}", .{ flex_items.items.len, container_main_size, container_cross_size });
 
     // 第一步：将items分成多个flex lines
     var flex_lines = std.ArrayList(FlexLine){};
     defer {
-        std.log.warn("[Flexbox] layoutFlexboxMultiLine: 清理flex_lines, lines.len={d}", .{flex_lines.items.len});
         for (flex_lines.items) |*line| {
             line.item_indices.deinit(layout_box.allocator);
         }
         flex_lines.deinit(layout_box.allocator);
     }
 
-    std.log.warn("[Flexbox] layoutFlexboxMultiLine: 调用createFlexLines", .{});
     createFlexLines(&flex_lines, flex_items, container_main_size, is_row, layout_box.allocator);
-    std.log.warn("[Flexbox] layoutFlexboxMultiLine: createFlexLines完成, flex_lines.len={d}", .{flex_lines.items.len});
 
     // 第二步：对每个flex line计算尺寸和对齐
-    for (flex_lines.items, 0..) |*line, line_idx| {
-        std.log.warn("[Flexbox] layoutFlexboxMultiLine: 处理第{d}行, line.item_indices.len={d}", .{ line_idx, line.item_indices.items.len });
+    for (flex_lines.items) |*line| {
 
         // 创建一个临时的FlexItem数组用于计算（因为calculateFlexSizes需要*std.ArrayList(FlexItem)）
         var line_items = std.ArrayList(FlexItem){};
         defer line_items.deinit(layout_box.allocator);
 
         // 通过索引从flex_items中获取item并复制到line_items
-        std.log.warn("[Flexbox] layoutFlexboxMultiLine: 通过索引复制items到line_items", .{});
         for (line.item_indices.items, 0..) |item_index, idx| {
-            std.log.warn("[Flexbox] layoutFlexboxMultiLine: 复制item[{d}], item_index={d}", .{ idx, item_index });
             if (item_index >= flex_items.items.len) {
                 std.log.err("[Flexbox] layoutFlexboxMultiLine: item_index={d}超出范围! flex_items.len={d}", .{ item_index, flex_items.items.len });
                 continue;
             }
             const item = &flex_items.items[item_index];
-            std.log.warn("[Flexbox] layoutFlexboxMultiLine: item[{d}], layout_box={*}", .{ idx, item.layout_box });
             line_items.append(layout_box.allocator, item.*) catch |err| {
                 std.log.err("[Flexbox] layoutFlexboxMultiLine: append失败, err={}, idx={d}", .{ err, idx });
                 // 如果append失败，跳过这一行
@@ -297,11 +289,9 @@ fn layoutFlexboxMultiLine(
             };
         }
 
-        std.log.warn("[Flexbox] layoutFlexboxMultiLine: 复制完成, line_items.len={d}, line.item_indices.len={d}", .{ line_items.items.len, line.item_indices.items.len });
 
         // 如果line_items为空，跳过这一行
         if (line_items.items.len == 0) {
-            std.log.warn("[Flexbox] layoutFlexboxMultiLine: line_items为空，跳过这一行", .{});
             continue;
         }
 
@@ -313,21 +303,17 @@ fn layoutFlexboxMultiLine(
         }
 
         // 计算这一行的flex尺寸
-        std.log.warn("[Flexbox] layoutFlexboxMultiLine: 调用calculateFlexSizes", .{});
         calculateFlexSizes(&line_items, container_main_size, is_row);
-        std.log.warn("[Flexbox] layoutFlexboxMultiLine: calculateFlexSizes完成", .{});
 
         // 将计算结果同步回flex_items（通过索引访问）
         // 注意：calculateFlexSizes已经直接更新了layout_box的尺寸，所以不需要同步
         // 只需要更新FlexItem结构中的final_main_size等字段
-        std.log.warn("[Flexbox] layoutFlexboxMultiLine: 同步计算结果回flex_items", .{});
-        for (line.item_indices.items, line_items.items, 0..) |item_index, updated_item, sync_idx| {
+        for (line.item_indices.items, line_items.items) |item_index, updated_item| {
             if (item_index >= flex_items.items.len) {
                 std.log.err("[Flexbox] layoutFlexboxMultiLine: item_index={d}超出范围! flex_items.len={d}", .{ item_index, flex_items.items.len });
                 continue;
             }
             const item = &flex_items.items[item_index];
-            std.log.warn("[Flexbox] layoutFlexboxMultiLine: 同步item[{d}], item_index={d}, layout_box={*}", .{ sync_idx, item_index, item.layout_box });
             // 更新FlexItem结构中的字段
             item.flex_props = updated_item.flex_props;
             item.base_main_size = updated_item.base_main_size;
@@ -336,10 +322,8 @@ fn layoutFlexboxMultiLine(
             item.final_cross_size = updated_item.final_cross_size;
             // layout_box已经在calculateFlexSizes中更新了，不需要再次更新
         }
-        std.log.warn("[Flexbox] layoutFlexboxMultiLine: 同步完成", .{});
 
         // 应用justify-content对齐（主轴对齐）
-        std.log.warn("[Flexbox] layoutFlexboxMultiLine: 应用justify-content对齐", .{});
         const container_main_pos = if (is_row) layout_box.box_model.content.x else layout_box.box_model.content.y;
         // 创建一个临时的FlexItem数组用于对齐计算
         var line_items_for_justify = std.ArrayList(FlexItem){};
@@ -350,26 +334,21 @@ fn layoutFlexboxMultiLine(
                 continue;
             }
             const item = &flex_items.items[item_index];
-            std.log.warn("[Flexbox] layoutFlexboxMultiLine: justify-content复制item[{d}], item_index={d}, layout_box={*}", .{ justify_idx, item_index, item.layout_box });
             line_items_for_justify.append(layout_box.allocator, item.*) catch |err| {
                 std.log.err("[Flexbox] layoutFlexboxMultiLine: justify-content append失败, err={}, idx={d}", .{ err, justify_idx });
                 // 如果append失败，跳过这一行
                 continue;
             };
         }
-        std.log.warn("[Flexbox] layoutFlexboxMultiLine: justify-content复制完成, line_items_for_justify.len={d}, line.item_indices.len={d}", .{ line_items_for_justify.items.len, line.item_indices.items.len });
         // 确保长度一致
         if (line_items_for_justify.items.len == line.item_indices.items.len) {
-            std.log.warn("[Flexbox] layoutFlexboxMultiLine: 调用applyJustifyContent", .{});
             applyJustifyContent(&line_items_for_justify, container_main_size, container_main_pos, justify_content, is_row, is_reverse);
-            std.log.warn("[Flexbox] layoutFlexboxMultiLine: applyJustifyContent完成", .{});
             // justify-content已经直接更新了layout_box的位置，不需要同步
         } else {
             std.log.err("[Flexbox] layoutFlexboxMultiLine: justify-content长度不一致! line_items_for_justify.len={d}, line.item_indices.len={d}", .{ line_items_for_justify.items.len, line.item_indices.items.len });
         }
 
         // 计算这一行的交叉轴尺寸（取最大item的交叉轴尺寸）
-        std.log.warn("[Flexbox] layoutFlexboxMultiLine: 计算交叉轴尺寸", .{});
         var max_cross_size: f32 = 0;
         for (line.item_indices.items) |item_index| {
             if (item_index >= flex_items.items.len) {
@@ -381,10 +360,8 @@ fn layoutFlexboxMultiLine(
             max_cross_size = @max(max_cross_size, item_cross_size);
         }
         line.cross_size = max_cross_size;
-        std.log.warn("[Flexbox] layoutFlexboxMultiLine: 交叉轴尺寸={d:.1}", .{max_cross_size});
 
         // 应用align-items对齐（交叉轴对齐）
-        std.log.warn("[Flexbox] layoutFlexboxMultiLine: 应用align-items对齐", .{});
         const container_cross_pos = if (is_row) layout_box.box_model.content.y else layout_box.box_model.content.x;
         // 创建一个临时的FlexItem数组用于对齐计算
         var line_items_for_align = std.ArrayList(FlexItem){};
@@ -395,31 +372,23 @@ fn layoutFlexboxMultiLine(
                 continue;
             }
             const item = &flex_items.items[item_index];
-            std.log.warn("[Flexbox] layoutFlexboxMultiLine: align-items复制item[{d}], item_index={d}, layout_box={*}", .{ align_idx, item_index, item.layout_box });
             line_items_for_align.append(layout_box.allocator, item.*) catch |err| {
                 std.log.err("[Flexbox] layoutFlexboxMultiLine: align-items append失败, err={}, idx={d}", .{ err, align_idx });
                 // 如果append失败，跳过这一行
                 continue;
             };
         }
-        std.log.warn("[Flexbox] layoutFlexboxMultiLine: align-items复制完成, line_items_for_align.len={d}, line.item_indices.len={d}", .{ line_items_for_align.items.len, line.item_indices.items.len });
         // 确保长度一致
         if (line_items_for_align.items.len == line.item_indices.items.len) {
-            std.log.warn("[Flexbox] layoutFlexboxMultiLine: 调用applyAlignItems", .{});
             applyAlignItems(&line_items_for_align, line.cross_size, container_cross_pos, align_items, is_row);
-            std.log.warn("[Flexbox] layoutFlexboxMultiLine: applyAlignItems完成", .{});
             // align-items已经直接更新了layout_box的位置和尺寸，不需要同步
         } else {
             std.log.err("[Flexbox] layoutFlexboxMultiLine: align-items长度不一致! line_items_for_align.len={d}, line.item_indices.len={d}", .{ line_items_for_align.items.len, line.item_indices.items.len });
         }
-        std.log.warn("[Flexbox] layoutFlexboxMultiLine: 第{d}行处理完成", .{line_idx});
     }
 
     // 第三步：计算每行的交叉轴位置（应用align-content）
-    std.log.warn("[Flexbox] layoutFlexboxMultiLine: 调用applyAlignContent", .{});
     applyAlignContent(&flex_lines, flex_items, container_cross_size, is_row, align_content, flex_wrap, layout_box);
-    std.log.warn("[Flexbox] layoutFlexboxMultiLine: applyAlignContent完成", .{});
-    std.log.warn("[Flexbox] layoutFlexboxMultiLine: 完成", .{});
 }
 
 /// 创建flex lines（将items分成多行）
@@ -438,13 +407,11 @@ fn createFlexLines(
     };
 
     for (flex_items.items, 0..) |*item, item_idx| {
-        std.log.warn("[Flexbox] createFlexLines: 处理item[{d}], layout_box={*}", .{ item_idx, item.layout_box });
         // 计算item的假设主轴尺寸（用于判断是否需要换行）
         const item_main_size = if (item.flex_props.basis) |basis| basis else item.base_main_size;
 
         // 检查是否需要换行
         if (current_line.item_indices.items.len > 0 and current_line.main_size + item_main_size > container_main_size) {
-            std.log.warn("[Flexbox] createFlexLines: 需要换行, current_line.main_size={d:.1}, item_main_size={d:.1}, container_main_size={d:.1}", .{ current_line.main_size, item_main_size, container_main_size });
             // 完成当前行
             // 注意：append会复制current_line，包括item_indices的ArrayList结构
             // 但两个ArrayList会共享相同的内存，所以我们需要在append之前保存item_indices
@@ -454,7 +421,6 @@ fn createFlexLines(
                 current_line.item_indices.deinit(allocator);
                 return;
             };
-            std.log.warn("[Flexbox] createFlexLines: 添加了一行, flex_lines.len={d}", .{flex_lines.items.len});
 
             // 创建新行（注意：append后current_line已被移动，需要创建全新的FlexLine）
             // 不能调用current_line.item_indices.deinit，因为item_indices已经被append复制了
@@ -468,26 +434,21 @@ fn createFlexLines(
 
         // 添加到当前行
         // 注意：存储索引而不是指针，因为flex_items可能会重新分配内存
-        std.log.warn("[Flexbox] createFlexLines: 添加item[{d}]到当前行", .{item_idx});
         current_line.item_indices.append(allocator, item_idx) catch |err| {
             std.log.err("[Flexbox] createFlexLines: append item失败, err={}, item_idx={d}", .{ err, item_idx });
             current_line.item_indices.deinit(allocator);
             return;
         };
         current_line.main_size += item_main_size;
-        std.log.warn("[Flexbox] createFlexLines: item[{d}]已添加, current_line.main_size={d:.1}, current_line.item_indices.len={d}", .{ item_idx, current_line.main_size, current_line.item_indices.items.len });
     }
 
     // 添加最后一行
     if (current_line.item_indices.items.len > 0) {
-        std.log.warn("[Flexbox] createFlexLines: 添加最后一行, item_indices.len={d}", .{current_line.item_indices.items.len});
         flex_lines.append(allocator, current_line) catch |err| {
             std.log.err("[Flexbox] createFlexLines: append最后一行失败, err={}", .{err});
             current_line.item_indices.deinit(allocator);
         };
-        std.log.warn("[Flexbox] createFlexLines: 最后一行已添加, flex_lines.len={d}", .{flex_lines.items.len});
     }
-    std.log.warn("[Flexbox] createFlexLines: 完成, flex_lines.len={d}", .{flex_lines.items.len});
 }
 
 /// 应用align-content对齐（多行对齐）
@@ -500,10 +461,8 @@ fn applyAlignContent(
     _: style_utils.FlexWrap, // flex_wrap 暂时未使用（wrap-reverse待实现）
     layout_box: *box.LayoutBox,
 ) void {
-    std.log.warn("[Flexbox] applyAlignContent: 开始, flex_lines.len={d}, container_cross_size={d:.1}, align_content={s}", .{ flex_lines.items.len, container_cross_size, @tagName(align_content) });
 
     if (flex_lines.items.len == 0) {
-        std.log.warn("[Flexbox] applyAlignContent: flex_lines为空，返回", .{});
         return;
     }
 
@@ -755,10 +714,8 @@ fn applyAlignItems(
     align_items: style_utils.AlignItems,
     is_row: bool,
 ) void {
-    std.log.warn("[Flexbox] applyAlignItems: 开始, flex_items.len={d}, container_cross_size={d:.1}, container_cross_pos={d:.1}, align_items={s}", .{ flex_items.items.len, container_cross_size, container_cross_pos, @tagName(align_items) });
 
-    for (flex_items.items, 0..) |*item, idx| {
-        std.log.warn("[Flexbox] applyAlignItems: 处理item[{d}], layout_box={*}", .{ idx, item.layout_box });
+    for (flex_items.items) |*item| {
         var cross_offset: f32 = 0;
 
         switch (align_items) {

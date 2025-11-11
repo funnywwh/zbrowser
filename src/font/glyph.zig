@@ -107,10 +107,8 @@ pub const GlyphRenderer = struct {
         units_per_em: u16,
         color: backend.Color,
     ) void {
-        std.log.warn("[GlyphRenderer] renderGlyph: x={d:.1}, y={d:.1}, font_size={d:.1}, units_per_em={d}, points.len={d}, width={d}, height={d}", .{ x, y, font_size, units_per_em, glyph.points.items.len, width, height });
         if (glyph.points.items.len == 0) {
             // 空字形，不渲染
-            std.log.warn("[GlyphRenderer] renderGlyph: empty glyph, skipping", .{});
             return;
         }
 
@@ -288,14 +286,12 @@ pub const GlyphRenderer = struct {
             min_y = @min(min_y, p.y);
             max_y = @max(max_y, p.y);
         }
-        std.log.warn("[GlyphRenderer] fillOutline: min_y={d:.1}, max_y={d:.1}, height={d}", .{ min_y, max_y, height });
 
         // 扩展扫描范围以处理边缘抗锯齿
         // 注意：不要过早裁剪，允许扫描超出画布边界（但会在像素写入时检查）
         // 增加扩展范围以提供更好的平滑度（参考Chrome的实现）
         const start_scanline = @as(i32, @intFromFloat(min_y)) - 3;
         const end_scanline = @as(i32, @intFromFloat(max_y)) + 4;
-        std.log.warn("[GlyphRenderer] fillOutline: start_scanline={d}, end_scanline={d}", .{ start_scanline, end_scanline });
 
         // 对每条扫描线，计算与所有轮廓的交点
         var scanline = start_scanline;

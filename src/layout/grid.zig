@@ -54,7 +54,6 @@ pub fn layoutGrid(layout_box: *box.LayoutBox, containing_block: box.Size, styles
     const align_items = style_utils.getGridAlignItems(&computed_style);
     const justify_content = style_utils.getGridJustifyContent(&computed_style);
     const align_content = style_utils.getGridAlignContent(&computed_style);
-    std.log.warn("[Grid] layoutGrid - align_content={}", .{align_content});
 
     // 标记容器为已布局
     layout_box.is_layouted = true;
@@ -68,9 +67,7 @@ pub fn layoutGrid(layout_box: *box.LayoutBox, containing_block: box.Size, styles
     const container_y = layout_box.box_model.content.y;
 
     // 计算列数和行数
-    std.log.warn("[Grid] layoutGrid - grid_template_columns.items.len={d}", .{grid_template_columns.items.len});
     const columns = if (grid_template_columns.items.len > 0) grid_template_columns.items.len else 2;
-    std.log.warn("[Grid] layoutGrid - columns={d}", .{columns});
     const calculated_rows = if (items_count == 0) 0 else (items_count + columns - 1) / columns;
     const rows = if (grid_template_rows.items.len > 0) grid_template_rows.items.len else @max(@as(usize, 1), calculated_rows);
 
@@ -315,7 +312,6 @@ pub fn layoutGrid(layout_box: *box.LayoutBox, containing_block: box.Size, styles
                     }
                 }
             } else {
-                std.log.warn("[Grid] layoutGrid - grid-row-start={d}超出范围! row_positions.len={d}, 使用自动放置", .{ row_start, row_positions.items.len });
             }
         }
 
@@ -332,7 +328,6 @@ pub fn layoutGrid(layout_box: *box.LayoutBox, containing_block: box.Size, styles
                     }
                 }
             } else {
-                std.log.warn("[Grid] layoutGrid - grid-column-start={d}超出范围! column_positions.len={d}, 使用自动放置", .{ col_start, column_positions.items.len });
             }
         }
 
@@ -340,16 +335,13 @@ pub fn layoutGrid(layout_box: *box.LayoutBox, containing_block: box.Size, styles
         if (!use_explicit_position) {
             // 边界检查：确保row和col在有效范围内
             if (row >= row_positions.items.len) {
-                std.log.warn("[Grid] layoutGrid - row={d}超出范围! row_positions.len={d}, 跳过item", .{ row, row_positions.items.len });
                 child.is_layouted = true;
                 continue;
             }
             if (col >= column_positions.items.len) {
-                std.log.warn("[Grid] layoutGrid - col={d}超出范围! column_positions.len={d}, 重置col=0, row+1", .{ col, column_positions.items.len });
                 col = 0;
                 row += 1;
                 if (row >= row_positions.items.len) {
-                    std.log.warn("[Grid] layoutGrid - row={d}超出范围! row_positions.len={d}, 跳过item", .{ row, row_positions.items.len });
                     child.is_layouted = true;
                     continue;
                 }
@@ -360,12 +352,10 @@ pub fn layoutGrid(layout_box: *box.LayoutBox, containing_block: box.Size, styles
 
         // 边界检查：确保item_row和item_col在有效范围内
         if (item_row >= row_positions.items.len) {
-            std.log.warn("[Grid] layoutGrid - item_row={d}超出范围! row_positions.len={d}, 跳过item", .{ item_row, row_positions.items.len });
             child.is_layouted = true;
             continue;
         }
         if (item_col >= column_positions.items.len) {
-            std.log.warn("[Grid] layoutGrid - item_col={d}超出范围! column_positions.len={d}, 跳过item", .{ item_col, column_positions.items.len });
             child.is_layouted = true;
             continue;
         }
@@ -373,7 +363,6 @@ pub fn layoutGrid(layout_box: *box.LayoutBox, containing_block: box.Size, styles
         // 计算网格cell的位置和尺寸
         const cell_x = container_x + column_positions.items[item_col] + grid_offset.x;
         const cell_y = container_y + row_positions.items[item_row] + grid_offset.y;
-        std.log.warn("[Grid] layoutGrid - placing item: row={d}, col={d}, row_span={d}, col_span={d}, row_positions[{d}]={d}, cell_y={d}, container_y={d}, grid_offset.y={d}", .{ item_row, item_col, item_row_span, item_col_span, item_row, row_positions.items[item_row], cell_y, container_y, grid_offset.y });
 
         // 计算cell尺寸（考虑跨越的行/列）
         // column_positions存储每列的起始位置（包括gap的累积位置）
@@ -412,7 +401,6 @@ pub fn layoutGrid(layout_box: *box.LayoutBox, containing_block: box.Size, styles
         // 设置子元素位置和尺寸
         child.box_model.content.x = cell_x + item_pos.x;
         child.box_model.content.y = cell_y + item_pos.y;
-        std.log.warn("[Grid] layoutGrid - item placed: child.box_model.content.y={d} (cell_y={d} + item_pos.y={d})", .{ child.box_model.content.y, cell_y, item_pos.y });
         // 如果stretch，使用cell尺寸；否则使用item的原始尺寸
         if (justify_items == .stretch) {
             child.box_model.content.width = cell_width;
@@ -433,7 +421,6 @@ pub fn layoutGrid(layout_box: *box.LayoutBox, containing_block: box.Size, styles
                 row += 1;
             }
         }
-        std.log.warn("[Grid] layoutGrid - after update: row={d}, col={d}, columns={d}", .{ row, col, columns });
 
         // 标记子元素为已布局
         child.is_layouted = true;
@@ -458,17 +445,14 @@ fn applySpaceBetween(
     container_size: f32,
     gap: f32,
 ) void {
-    std.log.warn("[Grid] applySpaceBetween - positions.len={d}, grid_size={d}, container_size={d}, gap={d}", .{ positions.items.len, grid_size, container_size, gap });
     if (positions.items.len > 1) {
         // positions包含结束位置，所以tracks_count = len - 1
         const tracks_count = positions.items.len - 1;
-        std.log.warn("[Grid] applySpaceBetween - tracks_count={d}", .{tracks_count});
         // 保存原始positions（在修改之前）
         var orig_positions = [_]f32{0} ** 10;
         if (tracks_count <= orig_positions.len) {
             for (0..tracks_count) |i| {
                 orig_positions[i] = positions.items[i];
-                std.log.warn("[Grid] applySpaceBetween - orig_positions[{d}]={d}", .{ i, orig_positions[i] });
             }
         }
 
@@ -483,7 +467,6 @@ fn applySpaceBetween(
                     // 最后一个track：需要从原始grid_size计算
                     track_sizes[i] = grid_size - orig_positions[i];
                 }
-                std.log.warn("[Grid] applySpaceBetween - track_sizes[{d}]={d}", .{ i, track_sizes[i] });
             }
 
             // 计算总尺寸（包括gap）
@@ -493,30 +476,25 @@ fn applySpaceBetween(
             }
             const total_gaps_size = gap * @as(f32, @floatFromInt(tracks_count - 1));
             const total_grid_size = total_tracks_size + total_gaps_size;
-            std.log.warn("[Grid] applySpaceBetween - total_tracks_size={d}, total_gaps_size={d}, total_grid_size={d}", .{ total_tracks_size, total_gaps_size, total_grid_size });
 
             // 计算剩余空间和gap间距
             const remaining_space = container_size - total_grid_size;
             const gaps_count = tracks_count - 1;
             const gap_size = if (gaps_count > 0) remaining_space / @as(f32, @floatFromInt(gaps_count)) else 0;
-            std.log.warn("[Grid] applySpaceBetween - remaining_space={d}, gaps_count={d}, gap_size={d}", .{ remaining_space, gaps_count, gap_size });
 
             // 重新计算positions（positions存储起始位置，最后一个值是结束位置）
             // space-between: 第一个track在0，最后一个track在container_size - last_track_size
-            std.log.warn("[Grid] applySpaceBetween - before update: positions[0]={d}, positions[{d}]={d}", .{ positions.items[0], tracks_count - 1, positions.items[tracks_count - 1] });
             positions.items[0] = 0;
             if (tracks_count > 1) {
                 // 最后一个track的起始位置 = container_size - 最后一个track的尺寸
                 const last_pos = container_size - track_sizes[tracks_count - 1];
                 positions.items[tracks_count - 1] = last_pos;
-                std.log.warn("[Grid] applySpaceBetween - updating positions[{d}]={d} (container_size={d} - track_sizes[{d}]={d})", .{ tracks_count - 1, last_pos, container_size, tracks_count - 1, track_sizes[tracks_count - 1] });
 
                 // 中间的tracks均匀分布
                 if (tracks_count > 2) {
                     var current_pos: f32 = track_sizes[0] + gap_size;
                     for (1..tracks_count - 1) |i| {
                         positions.items[i] = current_pos;
-                        std.log.warn("[Grid] applySpaceBetween - updating positions[{d}]={d}", .{ i, current_pos });
                         current_pos += track_sizes[i] + gap_size;
                     }
                 }
@@ -526,12 +504,9 @@ fn applySpaceBetween(
             if (positions.items.len > tracks_count) {
                 positions.items[tracks_count] = container_size;
             }
-            std.log.warn("[Grid] applySpaceBetween - after update: positions[0]={d}, positions[{d}]={d}", .{ positions.items[0], tracks_count - 1, positions.items[tracks_count - 1] });
         } else {
-            std.log.warn("[Grid] applySpaceBetween - tracks_count ({d}) > track_sizes.len ({d}), skipping", .{ tracks_count, track_sizes.len });
         }
     } else {
-        std.log.warn("[Grid] applySpaceBetween - positions.items.len ({d}) <= 1, skipping", .{positions.items.len});
     }
 }
 
@@ -720,22 +695,17 @@ fn applyGridContentAlignment(
     }
 
     // 应用align-content
-    std.log.warn("[Grid] applyGridContentAlignment - align_content={}, free_height={d}, container_height={d}", .{ align_content, free_height, container_height });
     switch (align_content) {
         .start => {
-            std.log.debug("[Grid] applyGridContentAlignment - align-content: start", .{});
             offset.y = 0;
         },
         .end => {
-            std.log.debug("[Grid] applyGridContentAlignment - align-content: end", .{});
             offset.y = free_height;
         },
         .center => {
-            std.log.debug("[Grid] applyGridContentAlignment - align-content: center", .{});
             offset.y = free_height / 2.0;
         },
         .stretch => {
-            std.log.debug("[Grid] applyGridContentAlignment - align-content: stretch", .{});
             // stretch: 拉伸grid填满容器（调整行高）
             if (row_positions.items.len > 1 and free_height > 0) {
                 const scale = container_height / grid_height;
@@ -746,9 +716,7 @@ fn applyGridContentAlignment(
         },
         .space_between => {
             // space-between: 第一个track在开始位置，最后一个track在结束位置，中间的tracks之间均匀分布
-            std.log.warn("[Grid] align-content: space-between - row_positions.len={d}, container_height={d}, grid_height={d}", .{ row_positions.items.len, container_height, grid_height });
             applySpaceBetween(row_positions, grid_height, container_height, row_gap);
-            std.log.warn("[Grid] align-content: space-between - after update: row_positions[0]={d}, row_positions[1]={d}", .{ row_positions.items[0], if (row_positions.items.len > 1) row_positions.items[1] else 0 });
             offset.y = 0;
         },
         .space_around => {

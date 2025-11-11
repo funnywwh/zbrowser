@@ -20,16 +20,6 @@ const box = @import("box");
 pub fn layoutFloat(layout_box: *box.LayoutBox, containing_block: *box.LayoutBox, y: *f32) void {
     // 确定浮动方向
     const float_left = layout_box.float == .left;
-    
-    // 使用std.debug.print直接输出到stderr，确保能看到日志
-    std.debug.print("[FloatLayout] layoutFloat: float={}, y={d:.1}, containing_block=({d:.1}, {d:.1}, {d:.1}x{d:.1})\n", .{
-        layout_box.float,
-        y.*,
-        containing_block.box_model.content.x,
-        containing_block.box_model.content.y,
-        containing_block.box_model.content.width,
-        containing_block.box_model.content.height,
-    });
 
     // 使用totalSize()获取包含padding和border的总宽度
     const layout_total_size = layout_box.box_model.totalSize();
@@ -38,7 +28,6 @@ pub fn layoutFloat(layout_box: *box.LayoutBox, containing_block: *box.LayoutBox,
     
     // 边界检查：确保尺寸有效
     if (layout_total_width <= 0 or layout_total_height <= 0) {
-        std.log.warn("[FloatLayout] layoutFloat: invalid size ({d:.1}x{d:.1}), skipping", .{ layout_total_width, layout_total_height });
         layout_box.is_layouted = true;
         return;
     }
@@ -140,24 +129,6 @@ pub fn layoutFloat(layout_box: *box.LayoutBox, containing_block: *box.LayoutBox,
     layout_box.box_model.content.x = containing_block.box_model.content.x + containing_block.box_model.padding.left + x + layout_box.box_model.margin.left;
     layout_box.box_model.content.y = containing_block.box_model.content.y + current_y + layout_box.box_model.margin.top;
     
-    // 使用std.debug.print直接输出到stderr，确保能看到日志
-    std.debug.print("[FloatLayout] layoutFloat: containing_block.content.y={d:.1}, containing_block.padding.top={d:.1}, current_y={d:.1}, margin.top={d:.1}, final_y={d:.1}\n", .{
-        containing_block.box_model.content.y,
-        containing_block.box_model.padding.top,
-        current_y,
-        layout_box.box_model.margin.top,
-        layout_box.box_model.content.y,
-    });
-
-    std.debug.print("[FloatLayout] layoutFloat: final position=({d:.1}, {d:.1}), size=({d:.1}x{d:.1}), content_size=({d:.1}x{d:.1})\n", .{
-        layout_box.box_model.content.x,
-        layout_box.box_model.content.y,
-        layout_total_width,
-        layout_total_height,
-        layout_box.box_model.content.width,
-        layout_box.box_model.content.height,
-    });
-
     // 标记为已布局
     layout_box.is_layouted = true;
 

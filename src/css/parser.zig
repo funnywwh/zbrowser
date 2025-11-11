@@ -613,7 +613,6 @@ pub const Parser = struct {
             }
 
             const keyword = try result.toOwnedSlice(self.allocator);
-            std.log.debug("[Parser] parseValueList: parsed multi-value property = '{s}' (token_count={d})", .{ keyword, token_count });
             return Value{ .keyword = keyword };
         }
 

@@ -162,14 +162,11 @@ pub fn main() !void {
         try browser.addStylesheet(css);
         std.log.info("CSS样式表添加成功!", .{});
     } else {
-        std.log.warn("未找到<style>标签，使用默认样式", .{});
     }
 
     // 检查body元素是否存在
     if (browser.document.getBody()) |_| {
-        std.log.debug("Body element found", .{});
     } else {
-        std.log.warn("Body element not found", .{});
     }
 
     // 使用固定尺寸（1920x10000）

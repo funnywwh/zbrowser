@@ -1435,9 +1435,7 @@ pub const CpuRenderBackend = struct {
                 const units_per_em = found_units_per_em;
 
                 // 获取字形数据
-                std.log.warn("[CpuBackend] renderTextWithFontFallback: calling getGlyph for glyph_index={d}", .{glyph_index});
-                var glyph = font_face.getGlyph(glyph_index) catch |err| {
-                    std.log.warn("[CpuBackend] renderTextWithFontFallback: getGlyph failed for glyph_index={d}, error={}", .{ glyph_index, err });
+                var glyph = font_face.getGlyph(glyph_index) catch {
                     // 如果获取字形失败，跳过这个字符
                     const placeholder_width = font_size * 0.6;
                     current_x += placeholder_width;
@@ -1450,7 +1448,6 @@ pub const CpuRenderBackend = struct {
                     }
                     continue;
                 };
-                std.log.warn("[CpuBackend] renderTextWithFontFallback: got glyph, points.len={d}", .{glyph.points.items.len});
                 defer glyph.deinit(self.allocator);
 
                 // 计算字形的X位置

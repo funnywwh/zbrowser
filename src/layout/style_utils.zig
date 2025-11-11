@@ -454,10 +454,8 @@ pub fn getPropertyKeyword(computed_style: *const cascade.ComputedStyle, name: []
             .keyword => |k| k,
             else => null,
         };
-        std.log.warn("[StyleUtils] getPropertyKeyword - name='{s}', found={}, result={?s}", .{ name, true, result });
         return result;
     }
-    std.log.warn("[StyleUtils] getPropertyKeyword - name='{s}', not found", .{name});
     return null;
 }
 
@@ -533,22 +531,6 @@ pub fn applyStyleToLayoutBox(layout_box: *box.LayoutBox, computed_style: *const 
     // 解析position
     if (getPropertyKeyword(computed_style, "position")) |position_value| {
         layout_box.position = parsePositionType(position_value);
-        const node_type_str = switch (layout_box.node.node_type) {
-            .element => if (layout_box.node.asElement()) |elem| elem.tag_name else "unknown",
-            .text => "text",
-            .comment => "comment",
-            .document => "document",
-            .doctype => "doctype",
-        };
-        const class_name = if (layout_box.node.node_type == .element)
-            if (layout_box.node.asElement()) |elem| elem.attributes.get("class") else null
-        else
-            null;
-        if (class_name) |class| {
-            std.log.debug("[StyleUtils] applyStyleToLayoutBox: node='{s}.{s}', position={s} -> {}", .{ node_type_str, class, position_value, layout_box.position });
-        } else {
-            std.log.debug("[StyleUtils] applyStyleToLayoutBox: node='{s}', position={s} -> {}", .{ node_type_str, position_value, layout_box.position });
-        }
     }
 
     // 解析float
@@ -561,7 +543,6 @@ pub fn applyStyleToLayoutBox(layout_box: *box.LayoutBox, computed_style: *const 
     const top_context = createUnitContext(containing_size.height);
     if (getPropertyLength(computed_style, "top", top_context)) |top| {
         layout_box.position_top = top;
-        std.log.debug("[StyleUtils] applyStyleToLayoutBox: position_top={d:.1}", .{top});
     }
     const right_context = createUnitContext(containing_size.width);
     if (getPropertyLength(computed_style, "right", right_context)) |right| {
@@ -574,7 +555,6 @@ pub fn applyStyleToLayoutBox(layout_box: *box.LayoutBox, computed_style: *const 
     const left_context = createUnitContext(containing_size.width);
     if (getPropertyLength(computed_style, "left", left_context)) |left| {
         layout_box.position_left = left;
-        std.log.debug("[StyleUtils] applyStyleToLayoutBox: position_left={d:.1}", .{left});
     }
 
     // 解析margin
@@ -873,16 +853,8 @@ fn parseMargin(layout_box: *box.LayoutBox, computed_style: *const cascade.Comput
         layout_box.box_model.margin.right = margin_length;
         layout_box.box_model.margin.bottom = margin_length;
         layout_box.box_model.margin.left = margin_length;
-        std.log.debug("[StyleUtils] parseMargin: found margin as length = {d:.1}px", .{margin_length});
     } else if (getPropertyKeyword(computed_style, "margin")) |margin_value| {
-        std.log.debug("[StyleUtils] parseMargin: found margin shorthand = '{s}'", .{margin_value});
         parseMarginShorthand(layout_box, margin_value, containing_size);
-        std.log.debug("[StyleUtils] parseMargin: applied margin = top={d:.1}, right={d:.1}, bottom={d:.1}, left={d:.1}", .{
-            layout_box.box_model.margin.top,
-            layout_box.box_model.margin.right,
-            layout_box.box_model.margin.bottom,
-            layout_box.box_model.margin.left,
-        });
     }
 }
 
@@ -987,16 +959,8 @@ fn parsePadding(layout_box: *box.LayoutBox, computed_style: *const cascade.Compu
         layout_box.box_model.padding.right = padding_length;
         layout_box.box_model.padding.bottom = padding_length;
         layout_box.box_model.padding.left = padding_length;
-        std.log.debug("[StyleUtils] parsePadding: found padding as length = {d:.1}px", .{padding_length});
     } else if (getPropertyKeyword(computed_style, "padding")) |padding_value| {
-        std.log.debug("[StyleUtils] parsePadding: found padding shorthand = '{s}'", .{padding_value});
         parsePaddingShorthand(layout_box, padding_value, containing_size);
-        std.log.debug("[StyleUtils] parsePadding: applied padding = top={d:.1}, right={d:.1}, bottom={d:.1}, left={d:.1}", .{
-            layout_box.box_model.padding.top,
-            layout_box.box_model.padding.right,
-            layout_box.box_model.padding.bottom,
-            layout_box.box_model.padding.left,
-        });
     }
 }
 
@@ -1303,7 +1267,6 @@ pub const GridTrackValue = union(enum) {
 /// - fr单位：如"1fr 2fr 1fr"
 /// TODO: 完整实现需要支持minmax()等
 pub fn parseGridTemplate(value: []const u8, allocator: std.mem.Allocator) !std.ArrayList(GridTrackValue) {
-    std.log.warn("[StyleUtils] parseGridTemplate - value='{s}'", .{value});
     var tracks = std.ArrayList(GridTrackValue){
         .items = &[_]GridTrackValue{},
         .capacity = 0,
@@ -1340,7 +1303,6 @@ pub fn parseGridTemplate(value: []const u8, allocator: std.mem.Allocator) !std.A
                         // 找到匹配的右括号
                         const repeat_str = trimmed[i..j+1];
                         var repeat_tracks = parseRepeatFunction(repeat_str, allocator) catch {
-                            std.log.warn("[StyleUtils] parseGridTemplate - failed to parse repeat: '{s}'", .{repeat_str});
                             i = j + 1;
                             continue;
                         };
@@ -1357,7 +1319,6 @@ pub fn parseGridTemplate(value: []const u8, allocator: std.mem.Allocator) !std.A
             }
             if (j >= trimmed.len) {
                 // 没有找到匹配的右括号，跳过
-                std.log.warn("[StyleUtils] parseGridTemplate - unmatched repeat() function", .{});
                 break;
             }
         } else if (i + 7 <= trimmed.len and std.mem.eql(u8, trimmed[i..i+7], "minmax(")) {
@@ -1376,7 +1337,6 @@ pub fn parseGridTemplate(value: []const u8, allocator: std.mem.Allocator) !std.A
                         if (parseMinmaxFunction(minmax_str)) |minmax_track| {
                             try tracks.append(allocator, minmax_track);
                         } else {
-                            std.log.warn("[StyleUtils] parseGridTemplate - failed to parse minmax: '{s}'", .{minmax_str});
                         }
                         i = j + 1;
                         break;
@@ -1386,7 +1346,6 @@ pub fn parseGridTemplate(value: []const u8, allocator: std.mem.Allocator) !std.A
             }
             if (j >= trimmed.len) {
                 // 没有找到匹配的右括号，跳过
-                std.log.warn("[StyleUtils] parseGridTemplate - unmatched minmax() function", .{});
                 break;
             }
         } else {
@@ -1399,12 +1358,10 @@ pub fn parseGridTemplate(value: []const u8, allocator: std.mem.Allocator) !std.A
             if (parseGridTrackValue(track_str)) |track| {
                 try tracks.append(allocator, track);
             } else {
-                std.log.warn("[StyleUtils] parseGridTemplate - failed to parse track: '{s}'", .{track_str});
             }
             i = j;
         }
     }
-    std.log.warn("[StyleUtils] parseGridTemplate - tracks.len={d}", .{tracks.items.len});
 
     return tracks;
 }
@@ -1568,7 +1525,6 @@ pub fn getGridTemplateRows(computed_style: *const cascade.ComputedStyle, allocat
 
 pub fn getGridTemplateColumns(computed_style: *const cascade.ComputedStyle, allocator: std.mem.Allocator) !std.ArrayList(GridTrackValue) {
     if (computed_style.getProperty("grid-template-columns")) |decl| {
-        std.log.warn("[StyleUtils] getGridTemplateColumns - found property, value type: {}", .{decl.value});
         const value_str = switch (decl.value) {
             .keyword => |k| k,
             .length => |l| blk: {
@@ -1578,17 +1534,14 @@ pub fn getGridTemplateColumns(computed_style: *const cascade.ComputedStyle, allo
                 break :blk str;
             },
             else => {
-                std.log.warn("[StyleUtils] getGridTemplateColumns - unsupported value type", .{});
                 return std.ArrayList(GridTrackValue){
                     .items = &[_]GridTrackValue{},
                     .capacity = 0,
                 };
             },
         };
-        std.log.warn("[StyleUtils] getGridTemplateColumns - value_str='{s}'", .{value_str});
         return parseGridTemplate(value_str, allocator);
     }
-    std.log.warn("[StyleUtils] getGridTemplateColumns - property not found", .{});
     // 默认返回空列表
     return std.ArrayList(GridTrackValue){
         .items = &[_]GridTrackValue{},
@@ -1874,9 +1827,7 @@ pub fn getGridJustifyContent(computed_style: *const cascade.ComputedStyle) GridJ
 pub fn getGridAlignContent(computed_style: *const cascade.ComputedStyle) GridAlignContent {
     if (getPropertyKeyword(computed_style, "align-content")) |value| {
         const result = parseGridAlignContent(value);
-        std.log.warn("[StyleUtils] getGridAlignContent - value='{s}', result={}", .{ value, result });
         return result;
     }
-    std.log.warn("[StyleUtils] getGridAlignContent - no align-content property, returning .start", .{});
     return .start; // 默认值
 }
