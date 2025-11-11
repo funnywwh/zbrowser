@@ -70,7 +70,8 @@ pub const Renderer = struct {
             content_box_rect.height,
         );
 
-        // 计算边框框的位置（包含margin）
+        // 计算边框框的位置（包含padding和border，但不包含margin）
+        // border_rect用于绘制背景和边框，margin是元素外部的空间，不应该影响绘制位置
         const border_x = content_box_rect.x - layout_box.box_model.padding.left - layout_box.box_model.border.left;
         const border_y = content_box_rect.y - layout_box.box_model.padding.top - layout_box.box_model.border.top;
         const border_rect = backend.Rect.init(
@@ -431,11 +432,10 @@ pub const Renderer = struct {
                 
                 // 获取父元素的text-align属性（如果存在）
                 if (layout_box.parent) |parent| {
-                    // 计算文本宽度（使用估算值，使用转换后的文本长度）
-                    // TODO: 完整实现需要从render_backend获取准确的文本宽度
-                    // 当前使用简化的估算：每个字符宽度约为字体大小的0.7倍
-                    const char_width = font.size * 0.7;
-                    const text_width = char_width * @as(f32, @floatFromInt(transformed_text.len));
+                    // 计算文本宽度（使用准确的文本宽度计算）
+                    // calculateTextWidth返回文本结束位置的x坐标，所以宽度 = 结束位置 - 起始位置
+                    const text_end_x = try self.render_backend.calculateTextWidth(transformed_text, rect.x, font);
+                    const text_width = text_end_x - rect.x;
                     
                     // 根据text-align调整x坐标
                     switch (parent.text_align) {
@@ -478,10 +478,18 @@ pub const Renderer = struct {
                 // 如果line-height大于字体大小，文本应该垂直居中在行高内
                 // 基线位置 = rect.y + (line-height - font.size) / 2 + ascent
                 // 如果line-height小于等于字体大小，使用原来的计算方式
-                const baseline_y = if (actual_line_height > font.size) 
-                    rect.y + (actual_line_height - font.size) / 2.0 + font.size * ascent_ratio
+                // 注意：ascent_ratio应该更大，以确保文本不会被遮挡
+                // 对于大字体（如h1），使用更大的ascent_ratio
+                // 调整：对于大字体，使用更小的偏移，让文本更靠近顶部
+                const adjusted_ascent_ratio = if (font.size > 24.0) 0.85 else ascent_ratio;
+                // 对于大字体，减少垂直居中的偏移，让文本更靠近顶部
+                const vertical_offset = if (font.size > 24.0 and actual_line_height > font.size)
+                    (actual_line_height - font.size) / 3.0  // 减少偏移，从/2改为/3
+                else if (actual_line_height > font.size)
+                    (actual_line_height - font.size) / 2.0
                 else
-                    rect.y + font.size * ascent_ratio;
+                    0.0;
+                const baseline_y = rect.y + vertical_offset + font.size * adjusted_ascent_ratio;
                 // 获取letter-spacing（从父元素继承）
                 const letter_spacing = if (layout_box.parent) |parent| parent.letter_spacing else null;
                 
@@ -505,9 +513,9 @@ pub const Renderer = struct {
                 // 获取父元素的text-decoration属性（文本节点继承父元素的装饰）
                 const text_decoration = if (layout_box.parent) |parent| parent.text_decoration else .none;
                 if (text_decoration != .none) {
-                    // 计算文本宽度（使用估算值，使用转换后的文本长度）
-                    const char_width = font.size * 0.7;
-                    const text_width = char_width * @as(f32, @floatFromInt(transformed_text.len));
+                    // 计算文本宽度（使用准确的文本宽度计算）
+                    const text_end_x = try self.render_backend.calculateTextWidth(transformed_text, text_x, font);
+                    const text_width = text_end_x - text_x;
                     
                     // 计算装饰线的位置和宽度
                     const decoration_width = @max(1.0, font.size * 0.05); // 装饰线宽度约为字体大小的5%
@@ -715,6 +723,10 @@ pub const Renderer = struct {
         const font_size_context = style_utils.createUnitContext(containing_width);
         if (style_utils.getPropertyLength(computed_style, "font-size", font_size_context)) |size| {
             font.size = size;
+            // 调试日志：记录font-size（仅对h1等大字体元素）
+            if (size > 24.0) {
+                std.debug.print("[FONT] font-size parsed: {d:.1}px\n", .{size});
+            }
         }
 
         // 解析font-weight

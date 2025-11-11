@@ -1,5 +1,6 @@
 const std = @import("std");
 const box = @import("box");
+const style_utils = @import("style_utils");
 
 /// 计算块级元素宽度
 /// 简化实现：如果已经设置了宽度，使用设置的宽度；否则使用containing_block的宽度
@@ -22,15 +23,47 @@ pub fn layoutBlock(layout_box: *box.LayoutBox, containing_block: box.Size) !void
     const width = calculateBlockWidth(layout_box, box.Size{ .width = available_width, .height = containing_block.height });
     layout_box.box_model.content.width = width;
 
+    // 调试日志：记录元素信息
+    const tag_name = if (layout_box.node.node_type == .element)
+        if (layout_box.node.asElement()) |elem| elem.tag_name else "unknown"
+    else "text";
+    const is_root = layout_box.parent == null;
+    if (is_root or std.mem.eql(u8, tag_name, "body") or std.mem.eql(u8, tag_name, "html")) {
+        std.debug.print("[LAYOUT] Element: {s}, is_root: {}\n", .{ tag_name, is_root });
+        std.debug.print("  margin: top={d:.1}, right={d:.1}, bottom={d:.1}, left={d:.1}\n", .{
+            layout_box.box_model.margin.top,
+            layout_box.box_model.margin.right,
+            layout_box.box_model.margin.bottom,
+            layout_box.box_model.margin.left,
+        });
+        std.debug.print("  padding: top={d:.1}, right={d:.1}, bottom={d:.1}, left={d:.1}\n", .{
+            layout_box.box_model.padding.top,
+            layout_box.box_model.padding.right,
+            layout_box.box_model.padding.bottom,
+            layout_box.box_model.padding.left,
+        });
+        std.debug.print("  content: x={d:.1}, y={d:.1}, width={d:.1}, height={d:.1}\n", .{
+            layout_box.box_model.content.x,
+            layout_box.box_model.content.y,
+            layout_box.box_model.content.width,
+            layout_box.box_model.content.height,
+        });
+        std.debug.print("  containing_block: width={d:.1}, height={d:.1}\n", .{ containing_block.width, containing_block.height });
+    }
+
     // 2. 应用margin到位置（如果父元素存在）
     // 在块级布局中，元素的margin应该影响元素相对于父元素的位置
     // 如果父元素存在，当前元素的位置 = 父元素内容区域位置 + 父元素padding + 当前元素margin
     // 但是，由于布局是递归的，当前元素的位置应该在父元素的block.zig中计算
-    // 这里只处理根元素的位置（根元素的位置不需要margin）
+    // 这里只处理根元素的位置
     if (layout_box.parent == null) {
-        // 根元素的位置是(0, 0)，不需要处理margin
+        // 根元素（html）的内容区域从(0, 0)开始
+        // 根元素的margin会影响根元素的总尺寸，但不影响内容区域的位置
         layout_box.box_model.content.x = 0;
         layout_box.box_model.content.y = 0;
+        if (std.mem.eql(u8, tag_name, "html")) {
+            std.debug.print("[LAYOUT] Root element (html) position set to (0, 0)\n", .{});
+        }
     }
 
     // 3. 计算子元素布局
@@ -42,13 +75,13 @@ pub fn layoutBlock(layout_box: *box.LayoutBox, containing_block: box.Size) !void
         // 跳过head、title、meta、script、style、link等元数据标签（它们不应该参与布局）
         if (child.node.node_type == .element) {
             if (child.node.asElement()) |elem| {
-                const tag_name = elem.tag_name;
-                if (std.mem.eql(u8, tag_name, "title") or
-                    std.mem.eql(u8, tag_name, "head") or
-                    std.mem.eql(u8, tag_name, "meta") or
-                    std.mem.eql(u8, tag_name, "script") or
-                    std.mem.eql(u8, tag_name, "style") or
-                    std.mem.eql(u8, tag_name, "link"))
+                const child_elem_tag = elem.tag_name;
+                if (std.mem.eql(u8, child_elem_tag, "title") or
+                    std.mem.eql(u8, child_elem_tag, "head") or
+                    std.mem.eql(u8, child_elem_tag, "meta") or
+                    std.mem.eql(u8, child_elem_tag, "script") or
+                    std.mem.eql(u8, child_elem_tag, "style") or
+                    std.mem.eql(u8, child_elem_tag, "link"))
                 {
                     continue;
                 }
@@ -116,25 +149,82 @@ pub fn layoutBlock(layout_box: *box.LayoutBox, containing_block: box.Size) !void
         // 子元素的位置 = 父元素内容区域位置 + 父元素padding + 子元素margin
         // 注意：父元素的margin应该影响父元素的位置，而不是子元素的位置
         // 所以，子元素的位置是相对于父元素的内容区域的，不需要考虑父元素的margin
+        const parent_tag_name = if (layout_box.node.node_type == .element)
+            if (layout_box.node.asElement()) |elem| elem.tag_name else "unknown"
+        else "text";
+        const child_tag_name = if (child.node.node_type == .element)
+            if (child.node.asElement()) |elem| elem.tag_name else "unknown"
+        else "text";
+        
+        const old_x = child.box_model.content.x;
+        const old_y = child.box_model.content.y;
         child.box_model.content.x = layout_box.box_model.content.x + layout_box.box_model.padding.left + child.box_model.margin.left;
         child.box_model.content.y = layout_box.box_model.content.y + y + child.box_model.margin.top;
+        
+        // 调试日志：记录子元素位置计算
+        if (std.mem.eql(u8, parent_tag_name, "html") or std.mem.eql(u8, parent_tag_name, "body") or std.mem.eql(u8, child_tag_name, "body") or std.mem.eql(u8, child_tag_name, "h1")) {
+            std.debug.print("[LAYOUT] Child element: {s} (parent: {s})\n", .{ child_tag_name, parent_tag_name });
+            std.debug.print("  parent.content: x={d:.1}, y={d:.1}\n", .{ layout_box.box_model.content.x, layout_box.box_model.content.y });
+            std.debug.print("  parent.padding: left={d:.1}, top={d:.1}\n", .{ layout_box.box_model.padding.left, layout_box.box_model.padding.top });
+            std.debug.print("  child.margin: left={d:.1}, top={d:.1}\n", .{ child.box_model.margin.left, child.box_model.margin.top });
+            std.debug.print("  y (accumulated): {d:.1}\n", .{y});
+            std.debug.print("  child.content: x={d:.1} (was {d:.1}), y={d:.1} (was {d:.1})\n", .{
+                child.box_model.content.x, old_x,
+                child.box_model.content.y, old_y,
+            });
+        }
 
         // 对于文本节点，需要设置最小高度
         if (child.node.node_type == .text) {
             // 文本节点的最小高度应该足够容纳 ascent + descent
-            // 简化：使用字体大小的1.5倍（典型值：ascent约75%，descent约25%）
-            // 如果高度未设置，使用默认字体大小16px的1.5倍
-            // 增加高度以确保descender（如'p'的尾巴）有足够空间显示
-            // 注意：对于绝对定位的文本节点，高度计算应该在position.zig中处理
+            // 使用父元素的line-height来计算高度
+            // 如果父元素存在，使用父元素的line-height；否则使用默认值
             if (child.position == .static and child.box_model.content.height == 0) {
-                child.box_model.content.height = 16.0 * 1.5;
+                // 获取父元素的line-height和font-size
+                const parent_line_height = layout_box.line_height;
+                // 估算父元素的font-size（简化：根据标签名判断，实际应该从父元素的computed_style获取）
+                // TODO: 完整实现需要从父元素的computed_style获取font-size
+                var parent_font_size: f32 = 16.0; // 默认字体大小
+                if (layout_box.node.node_type == .element) {
+                    if (layout_box.node.asElement()) |elem| {
+                        // 根据标签名判断font-size（简化实现）
+                        if (std.mem.eql(u8, elem.tag_name, "h1")) {
+                            parent_font_size = 32.0; // h1的font-size是2em = 32px
+                        } else if (std.mem.eql(u8, elem.tag_name, "h2")) {
+                            parent_font_size = 24.0; // h2的font-size是1.5em = 24px
+                        } else if (std.mem.eql(u8, elem.tag_name, "h3")) {
+                            parent_font_size = 20.0; // h3的font-size是1.17em ≈ 20px
+                        }
+                    }
+                }
+                const actual_line_height = style_utils.computeLineHeight(parent_line_height, parent_font_size);
+                child.box_model.content.height = actual_line_height;
             }
         }
 
         // 更新y坐标（考虑子元素的高度和margin）
         // y坐标 = 父元素padding-top + 所有前面子元素的高度和margin
-        const child_total_height = child.box_model.totalSize().height + child.box_model.margin.top + child.box_model.margin.bottom;
+        // 注意：margin-top已经在计算位置时使用过了，所以这里只需要加上元素高度和margin-bottom
+        // 但是，为了简化，我们加上整个元素的总高度（包括margin-top和margin-bottom）
+        // 因为margin-top在计算位置时已经加到了y中，所以这里需要加上元素高度和margin-bottom
+        // 但实际上，由于我们在计算位置时已经加了margin-top，所以y已经包含了margin-top
+        // 因此，这里只需要加上元素高度和margin-bottom
+        const child_content_height = child.box_model.totalSize().height;
+        const child_total_height = child_content_height + child.box_model.margin.bottom;
+        // 注意：margin-top已经在计算位置时使用过了（child.box_model.content.y = ... + y + child.box_model.margin.top）
+        // 所以这里只需要加上元素高度和margin-bottom
         y += child_total_height;
+        
+        // 调试日志：记录y坐标更新
+        if (std.mem.eql(u8, parent_tag_name, "html") or std.mem.eql(u8, parent_tag_name, "body") or std.mem.eql(u8, child_tag_name, "body") or std.mem.eql(u8, child_tag_name, "h1") or std.mem.eql(u8, child_tag_name, "div")) {
+            std.debug.print("  [UPDATE Y] child: {s}, content_height={d:.1}, margin.bottom={d:.1}, total_height={d:.1}, y after={d:.1}\n", .{
+                child_tag_name,
+                child_content_height,
+                child.box_model.margin.bottom,
+                child_total_height,
+                y,
+            });
+        }
     }
 
     // 3. 计算高度

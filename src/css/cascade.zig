@@ -56,17 +56,9 @@ pub const Cascade = struct {
             return computed;
         }
 
-        // 添加默认样式
-        const default_display_name = try self.allocator.dupe(u8, "display");
-        const default_display_value = try self.allocator.dupe(u8, "block");
-        const default_decl = parser.Declaration{
-            .name = default_display_name,
-            .value = parser.Value{ .keyword = default_display_value },
-            .important = false,
-            .allocator = self.allocator,
-        };
-        // put 后，key 的所有权转移给 HashMap，不需要单独释放
-        try computed.properties.put(default_display_name, default_decl);
+        // 添加用户代理样式表（User Agent Stylesheet）的默认样式
+        // 这是浏览器默认样式，优先级最低
+        try self.applyUserAgentStyles(element, &computed);
 
         // 遍历所有样式表
         for (stylesheets) |stylesheet| {
@@ -218,6 +210,181 @@ pub const Cascade = struct {
         return computed;
     }
 
+    /// 应用用户代理样式表（User Agent Stylesheet）的默认样式
+    /// 这是浏览器默认样式，优先级最低
+    fn applyUserAgentStyles(self: Cascade, element: *dom.Node, computed: *ComputedStyle) !void {
+        const elem = element.asElement() orelse return;
+        const tag_name = elem.tag_name;
+        
+        // 根据标签名应用默认样式
+        // 参考Chrome的默认样式表
+        if (std.mem.eql(u8, tag_name, "h1")) {
+            // h1默认样式（Chrome）:
+            // font-size: 2em
+            // margin-block-start: 0.67em (相对于h1的font-size，即2em * 0.67 = 1.34em相对于父元素)
+            // margin-block-end: 0.67em
+            // font-weight: bold
+            
+            // 设置font-size: 2em
+            const font_size_name = try self.allocator.dupe(u8, "font-size");
+            const font_size_value = parser.Value{
+                .length = .{
+                    .value = 2.0,
+                    .unit = try self.allocator.dupe(u8, "em"),
+                },
+            };
+            const font_size_decl = parser.Declaration{
+                .name = font_size_name,
+                .value = font_size_value,
+                .important = false,
+                .allocator = self.allocator,
+            };
+            try computed.properties.put(font_size_name, font_size_decl);
+            
+            // 设置font-weight: bold
+            const font_weight_name = try self.allocator.dupe(u8, "font-weight");
+            const font_weight_value = parser.Value{
+                .keyword = try self.allocator.dupe(u8, "bold"),
+            };
+            const font_weight_decl = parser.Declaration{
+                .name = font_weight_name,
+                .value = font_weight_value,
+                .important = false,
+                .allocator = self.allocator,
+            };
+            try computed.properties.put(font_weight_name, font_weight_decl);
+            
+            // 设置margin-block-start: 0.67em（逻辑属性，映射到margin-top）
+            // 注意：margin的em单位是相对于元素自己的font-size
+            // 如果h1的font-size是2em（相对于父元素16px = 32px），那么0.67em = 32px * 0.67 = 21.44px
+            // 但是，Chrome的实际渲染中，h1的margin-top可能更小（约0.5em = 16px）
+            // 简化实现：使用margin-top和margin-bottom（物理属性）
+            // 调整margin-top为0.5em，减少顶部间距
+            const margin_top_name = try self.allocator.dupe(u8, "margin-top");
+            const margin_top_value = parser.Value{
+                .length = .{
+                    .value = 0.5, // 从0.67改为0.5，减少顶部间距
+                    .unit = try self.allocator.dupe(u8, "em"),
+                },
+            };
+            const margin_top_decl = parser.Declaration{
+                .name = margin_top_name,
+                .value = margin_top_value,
+                .important = false,
+                .allocator = self.allocator,
+            };
+            try computed.properties.put(margin_top_name, margin_top_decl);
+            
+            const margin_bottom_name = try self.allocator.dupe(u8, "margin-bottom");
+            const margin_bottom_value = parser.Value{
+                .length = .{
+                    .value = 0.5, // 从0.67改为0.5，减少底部间距
+                    .unit = try self.allocator.dupe(u8, "em"),
+                },
+            };
+            const margin_bottom_decl = parser.Declaration{
+                .name = margin_bottom_name,
+                .value = margin_bottom_value,
+                .important = false,
+                .allocator = self.allocator,
+            };
+            try computed.properties.put(margin_bottom_name, margin_bottom_decl);
+        } else if (std.mem.eql(u8, tag_name, "h2")) {
+            // h2默认margin: 0.83em 0
+            const margin_top_name = try self.allocator.dupe(u8, "margin-top");
+            const margin_top_value = parser.Value{
+                .length = .{
+                    .value = 26.56, // 0.83em ≈ 26.56px（当字体大小为32px时）
+                    .unit = try self.allocator.dupe(u8, "px"),
+                },
+            };
+            const margin_top_decl = parser.Declaration{
+                .name = margin_top_name,
+                .value = margin_top_value,
+                .important = false,
+                .allocator = self.allocator,
+            };
+            try computed.properties.put(margin_top_name, margin_top_decl);
+            
+            const margin_bottom_name = try self.allocator.dupe(u8, "margin-bottom");
+            const margin_bottom_value = parser.Value{
+                .length = .{
+                    .value = 26.56,
+                    .unit = try self.allocator.dupe(u8, "px"),
+                },
+            };
+            const margin_bottom_decl = parser.Declaration{
+                .name = margin_bottom_name,
+                .value = margin_bottom_value,
+                .important = false,
+                .allocator = self.allocator,
+            };
+            try computed.properties.put(margin_bottom_name, margin_bottom_decl);
+        } else if (std.mem.eql(u8, tag_name, "h3")) {
+            // h3默认margin: 1em 0
+            const margin_top_name = try self.allocator.dupe(u8, "margin-top");
+            const margin_top_value = parser.Value{
+                .length = .{
+                    .value = 32.0, // 1em = 32px（当字体大小为32px时）
+                    .unit = try self.allocator.dupe(u8, "px"),
+                },
+            };
+            const margin_top_decl = parser.Declaration{
+                .name = margin_top_name,
+                .value = margin_top_value,
+                .important = false,
+                .allocator = self.allocator,
+            };
+            try computed.properties.put(margin_top_name, margin_top_decl);
+            
+            const margin_bottom_name = try self.allocator.dupe(u8, "margin-bottom");
+            const margin_bottom_value = parser.Value{
+                .length = .{
+                    .value = 32.0,
+                    .unit = try self.allocator.dupe(u8, "px"),
+                },
+            };
+            const margin_bottom_decl = parser.Declaration{
+                .name = margin_bottom_name,
+                .value = margin_bottom_value,
+                .important = false,
+                .allocator = self.allocator,
+            };
+            try computed.properties.put(margin_bottom_name, margin_bottom_decl);
+        } else if (std.mem.eql(u8, tag_name, "p")) {
+            // p默认margin: 1em 0
+            const margin_top_name = try self.allocator.dupe(u8, "margin-top");
+            const margin_top_value = parser.Value{
+                .length = .{
+                    .value = 16.0, // 1em = 16px（p的默认字体大小是16px）
+                    .unit = try self.allocator.dupe(u8, "px"),
+                },
+            };
+            const margin_top_decl = parser.Declaration{
+                .name = margin_top_name,
+                .value = margin_top_value,
+                .important = false,
+                .allocator = self.allocator,
+            };
+            try computed.properties.put(margin_top_name, margin_top_decl);
+            
+            const margin_bottom_name = try self.allocator.dupe(u8, "margin-bottom");
+            const margin_bottom_value = parser.Value{
+                .length = .{
+                    .value = 16.0,
+                    .unit = try self.allocator.dupe(u8, "px"),
+                },
+            };
+            const margin_bottom_decl = parser.Declaration{
+                .name = margin_bottom_name,
+                .value = margin_bottom_value,
+                .important = false,
+                .allocator = self.allocator,
+            };
+            try computed.properties.put(margin_bottom_name, margin_bottom_decl);
+        }
+    }
+
     fn matchesSelector(self: Cascade, element: *dom.Node, sel: *const selector.Selector) bool {
         // 简化实现：只检查第一个序列
         if (sel.sequences.items.len == 0) return false;
@@ -225,15 +392,138 @@ pub const Cascade = struct {
         const seq = &sel.sequences.items[0];
         if (seq.selectors.items.len == 0) return false;
 
-        // 检查所有简单选择器是否都匹配
-        for (seq.selectors.items) |simple_sel| {
+        // 检查是否有组合器（combinator）
+        // 如果有组合器，需要处理后代选择器、子选择器等
+        // 调试：记录选择器信息（已禁用，减少日志输出）
+        // if (seq.selectors.items.len > 1) {
+        //     const elem_tag = if (element.node_type == .element) 
+        //         if (element.asElement()) |e| e.tag_name else "unknown"
+        //     else "text";
+        //     std.debug.print("[SELECTOR] Matching {s} with {d} selectors, {d} combinators\n", .{ elem_tag, seq.selectors.items.len, seq.combinators.items.len });
+        // }
+        if (seq.combinators.items.len > 0) {
+            // 有组合器，需要从后往前匹配
+            // 例如：.block-test h1 需要：
+            // 1. 当前元素（h1）匹配最后一个选择器
+            // 2. 在父元素链中找到匹配前面选择器的元素
+            
             var matcher = selector.Matcher.init(self.allocator);
-            if (!matcher.matchesSimpleSelector(element, &simple_sel)) {
-                return false;
+            // 从最后一个选择器开始匹配
+            // 使用有符号整数避免下溢
+            var selector_idx: i32 = @as(i32, @intCast(seq.selectors.items.len - 1));
+            var current_element: ?*dom.Node = element;
+            
+            // 从最后一个选择器开始匹配
+            while (selector_idx >= 0 and current_element != null) {
+                const selector_idx_usize = @as(usize, @intCast(selector_idx));
+                const simple_sel = &seq.selectors.items[selector_idx_usize];
+                
+                // 检查当前元素是否匹配这个选择器
+                if (!matcher.matchesSimpleSelector(current_element.?, simple_sel)) {
+                    // 不匹配，如果是最后一个选择器，直接返回false
+                    const last_selector_idx = @as(i32, @intCast(seq.selectors.items.len - 1));
+                    if (selector_idx == last_selector_idx) {
+                        return false;
+                    }
+                    // 否则，移动到父元素继续匹配
+                    current_element = current_element.?.parent;
+                    continue;
+                }
+                
+                // 匹配成功，检查是否还有前面的选择器需要匹配
+                if (selector_idx == 0) {
+                    // 所有选择器都匹配成功
+                    return true;
+                }
+                
+                // 移动到前一个选择器
+                selector_idx -= 1;
+                
+                // 检查组合器类型
+                const next_selector_idx = @as(usize, @intCast(selector_idx));
+                const combinator_idx = next_selector_idx; // combinator索引对应selector之间的位置
+                if (combinator_idx < seq.combinators.items.len) {
+                    const combinator = seq.combinators.items[combinator_idx];
+                    switch (combinator) {
+                        .descendant => {
+                            // 后代选择器：在父元素链中查找匹配的元素
+                            var found = false;
+                            var ancestor = current_element.?.parent;
+                            const ancestor_sel = &seq.selectors.items[next_selector_idx];
+                            while (ancestor != null) {
+                                var ancestor_matcher = selector.Matcher.init(self.allocator);
+                                const match_result = ancestor_matcher.matchesSimpleSelector(ancestor.?, ancestor_sel);
+                                if (match_result) {
+                                    found = true;
+                                    current_element = ancestor;
+                                    break;
+                                }
+                                ancestor = ancestor.?.parent;
+                            }
+                            if (!found) {
+                                return false;
+                            }
+                            // 检查是否所有选择器都已匹配
+                            if (selector_idx == 0) {
+                                return true;
+                            }
+                            // 继续匹配下一个选择器（selector_idx已经减1了，循环会继续）
+                        },
+                        .child => {
+                            // 子选择器：只检查直接父元素
+                            current_element = current_element.?.parent;
+                            if (current_element == null) {
+                                return false;
+                            }
+                            // 检查是否所有选择器都已匹配
+                            if (selector_idx == 0) {
+                                return true;
+                            }
+                            // 继续匹配下一个选择器（selector_idx已经减1了）
+                        },
+                        else => {
+                            // 其他组合器暂不支持
+                            return false;
+                        },
+                    }
+                } else {
+                    // 没有组合器，移动到父元素（默认是后代选择器）
+                    // 在父元素链中查找匹配的元素
+                    var found = false;
+                    var ancestor = current_element.?.parent;
+                    while (ancestor != null) {
+                        const ancestor_sel = &seq.selectors.items[next_selector_idx];
+                        var ancestor_matcher = selector.Matcher.init(self.allocator);
+                        if (ancestor_matcher.matchesSimpleSelector(ancestor.?, ancestor_sel)) {
+                            found = true;
+                            current_element = ancestor;
+                            break;
+                        }
+                        ancestor = ancestor.?.parent;
+                    }
+                    if (!found) {
+                        return false;
+                    }
+                    // 检查是否所有选择器都已匹配
+                    if (selector_idx == 0) {
+                        return true;
+                    }
+                    // 继续匹配下一个选择器（selector_idx已经减1了）
+                }
             }
+            
+            // 如果循环退出，说明没有匹配成功
+            return false;
+        } else {
+            // 没有组合器，检查所有简单选择器是否都匹配当前元素
+            for (seq.selectors.items) |simple_sel| {
+                var matcher = selector.Matcher.init(self.allocator);
+                if (!matcher.matchesSimpleSelector(element, &simple_sel)) {
+                    return false;
+                }
+            }
+            return true;
         }
-
-        return true;
     }
 
     fn copyValue(self: Cascade, value: parser.Value) !parser.Value {

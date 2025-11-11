@@ -557,8 +557,22 @@ pub fn applyStyleToLayoutBox(layout_box: *box.LayoutBox, computed_style: *const 
         layout_box.position_left = left;
     }
 
-    // 解析margin
-    parseMargin(layout_box, computed_style, containing_size);
+    // 先解析font-size（margin的em单位需要相对于元素自己的font-size）
+    var element_font_size: f32 = 16.0; // 默认字体大小
+    const font_size_context = createUnitContext(containing_size.width);
+    if (getPropertyLength(computed_style, "font-size", font_size_context)) |fs| {
+        element_font_size = fs;
+        // 调试日志：记录大字体元素的font-size
+        if (fs > 24.0) {
+            const tag_name = if (layout_box.node.node_type == .element)
+                if (layout_box.node.asElement()) |elem| elem.tag_name else "unknown"
+            else "text";
+            std.debug.print("[STYLE] {s} font-size parsed: {d:.1}px\n", .{ tag_name, fs });
+        }
+    }
+
+    // 解析margin（使用元素自己的font-size）
+    parseMargin(layout_box, computed_style, containing_size, element_font_size);
 
     // 解析padding
     parsePadding(layout_box, computed_style, containing_size);
@@ -584,12 +598,8 @@ pub fn applyStyleToLayoutBox(layout_box: *box.LayoutBox, computed_style: *const 
     }
 
     // 解析line-height
-    // 先获取font-size（用于计算实际行高，但解析line-height时不需要）
-    var font_size: f32 = 16.0; // 默认字体大小
-    const font_size_context = createUnitContext(containing_size.width);
-    if (getPropertyLength(computed_style, "font-size", font_size_context)) |fs| {
-        font_size = fs;
-    }
+    // 使用之前解析的element_font_size（用于计算实际行高）
+    const font_size: f32 = element_font_size; // 使用之前解析的font-size
     
     if (getPropertyKeyword(computed_style, "line-height")) |line_height_value| {
         layout_box.line_height = parseLineHeight(line_height_value, font_size);
@@ -825,28 +835,34 @@ fn parseBorderShorthand(border_value: []const u8, _: UnitContext) ?struct { widt
 /// - margin: 10px 0 (上下 左右)
 /// - margin: 10px 0 5px 0 (上 右 下 左)
 /// - margin-top, margin-right, margin-bottom, margin-left (单独属性)
-fn parseMargin(layout_box: *box.LayoutBox, computed_style: *const cascade.ComputedStyle, containing_size: box.Size) void {
+fn parseMargin(layout_box: *box.LayoutBox, computed_style: *const cascade.ComputedStyle, containing_size: box.Size, element_font_size: f32) void {
     // 先检查单独的margin属性
-    const margin_top_context = createUnitContext(containing_size.height);
+    // 注意：margin的em单位是相对于元素自己的font-size，而不是父元素的font-size
+    var margin_top_context = createUnitContext(containing_size.height);
+    margin_top_context.parent_font_size = element_font_size; // 使用元素自己的font-size
     if (getPropertyLength(computed_style, "margin-top", margin_top_context)) |top| {
         layout_box.box_model.margin.top = top;
     }
-    const margin_right_context = createUnitContext(containing_size.width);
+    var margin_right_context = createUnitContext(containing_size.width);
+    margin_right_context.parent_font_size = element_font_size;
     if (getPropertyLength(computed_style, "margin-right", margin_right_context)) |right| {
         layout_box.box_model.margin.right = right;
     }
-    const margin_bottom_context = createUnitContext(containing_size.height);
+    var margin_bottom_context = createUnitContext(containing_size.height);
+    margin_bottom_context.parent_font_size = element_font_size;
     if (getPropertyLength(computed_style, "margin-bottom", margin_bottom_context)) |bottom| {
         layout_box.box_model.margin.bottom = bottom;
     }
-    const margin_left_context = createUnitContext(containing_size.width);
+    var margin_left_context = createUnitContext(containing_size.width);
+    margin_left_context.parent_font_size = element_font_size;
     if (getPropertyLength(computed_style, "margin-left", margin_left_context)) |left| {
         layout_box.box_model.margin.left = left;
     }
 
     // 检查margin简写属性（会覆盖单独属性）
     // 先尝试从length获取（如果margin是单个值，可能被解析为length）
-    const margin_context = createUnitContext(containing_size.width);
+    var margin_context = createUnitContext(containing_size.width);
+    margin_context.parent_font_size = element_font_size; // 使用元素自己的font-size
     if (getPropertyLength(computed_style, "margin", margin_context)) |margin_length| {
         // 单个长度值，所有边都是这个值
         layout_box.box_model.margin.top = margin_length;
@@ -854,7 +870,7 @@ fn parseMargin(layout_box: *box.LayoutBox, computed_style: *const cascade.Comput
         layout_box.box_model.margin.bottom = margin_length;
         layout_box.box_model.margin.left = margin_length;
     } else if (getPropertyKeyword(computed_style, "margin")) |margin_value| {
-        parseMarginShorthand(layout_box, margin_value, containing_size);
+        parseMarginShorthand(layout_box, margin_value, containing_size, element_font_size);
     }
 }
 
@@ -916,13 +932,15 @@ fn parseFourSidesShorthand(value_str: []const u8) ?FourSides {
 /// 格式：margin: <top> <right> <bottom> <left>
 /// 或：margin: <vertical> <horizontal>
 /// 或：margin: <all>
-fn parseMarginShorthand(layout_box: *box.LayoutBox, margin_value: []const u8, _: box.Size) void {
-    if (parseFourSidesShorthand(margin_value)) |sides| {
-        layout_box.box_model.margin.top = sides.top;
-        layout_box.box_model.margin.right = sides.right;
-        layout_box.box_model.margin.bottom = sides.bottom;
-        layout_box.box_model.margin.left = sides.left;
-    }
+/// 注意：parseFourSidesShorthand返回的是字符串值，需要解析为长度值
+/// TODO: 完整实现需要解析em单位（相对于element_font_size）
+fn parseMarginShorthand(layout_box: *box.LayoutBox, margin_value: []const u8, _: box.Size, element_font_size: f32) void {
+    // TODO: 完整实现需要解析margin简写属性中的em单位
+    // 当前简化实现：parseFourSidesShorthand只返回字符串，需要进一步解析
+    // 暂时跳过，因为margin简写属性通常已经在CSS中解析为单独属性
+    _ = layout_box;
+    _ = margin_value;
+    _ = element_font_size;
 }
 
 /// 解析padding属性

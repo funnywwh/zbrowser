@@ -132,10 +132,12 @@ pub const Matcher = struct {
             },
             .class => {
                 if (elem.attributes.get("class")) |class_attr| {
+                    // std.debug.print("[MATCHER] Checking class: selector.value='{s}', class_attr='{s}'\n", .{ selector.value, class_attr });
                     var iter = std.mem.splitSequence(u8, class_attr, " ");
                     while (iter.next()) |class_name| {
                         // 去除前导和尾随空格
                         const trimmed = std.mem.trim(u8, class_name, " \t\n\r");
+                        // std.debug.print("[MATCHER] Comparing: '{s}' == '{s}'? {}\n", .{ trimmed, selector.value, std.mem.eql(u8, trimmed, selector.value) });
                         if (trimmed.len > 0 and std.mem.eql(u8, trimmed, selector.value)) {
                             return true;
                         }
