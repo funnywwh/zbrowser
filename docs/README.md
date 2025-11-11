@@ -204,7 +204,9 @@ pub fn main() !void {
   - ✅ 字体缓存机制
 - **图像**: PNG编码（完整实现，支持大图像）
 
-详细设计请参考 [DESIGN.md](DESIGN.md)
+详细设计请参考：
+- [DESIGN.md](DESIGN.md) - 详细设计文档
+- [RENDER_FLOW.md](RENDER_FLOW.md) - 渲染流程图
 
 ## 测试
 
