@@ -665,6 +665,12 @@ pub const Renderer = struct {
                 }
             }
 
+            // 检查是否是颜色关键字（red, blue, green等）
+            if (parseColorKeywordStatic(trimmed)) |c| {
+                color = c;
+                continue;
+            }
+
             // 检查是否是边框样式关键字（solid, dashed, dotted等）
             if (std.mem.eql(u8, trimmed, "solid") or
                 std.mem.eql(u8, trimmed, "dashed") or
@@ -697,6 +703,47 @@ pub const Renderer = struct {
             return css_parser.Value.Color{ .r = r, .g = g, .b = b };
         }
         return error.InvalidColor;
+    }
+
+    /// 解析颜色关键字（静态辅助函数）
+    fn parseColorKeywordStatic(keyword: []const u8) ?css_parser.Value.Color {
+        const trimmed = std.mem.trim(u8, keyword, " \t\n\r");
+        // 转换为小写进行比较（CSS颜色关键字不区分大小写）
+        var lower_buffer: [32]u8 = undefined;
+        if (trimmed.len > lower_buffer.len) return null;
+        for (trimmed, 0..) |c, i| {
+            lower_buffer[i] = std.ascii.toLower(c);
+        }
+        const lower_keyword = lower_buffer[0..trimmed.len];
+        
+        // 常见颜色关键字（CSS标准颜色）
+        if (std.mem.eql(u8, lower_keyword, "red")) {
+            return css_parser.Value.Color{ .r = 255, .g = 0, .b = 0 };
+        } else if (std.mem.eql(u8, lower_keyword, "blue")) {
+            return css_parser.Value.Color{ .r = 0, .g = 0, .b = 255 };
+        } else if (std.mem.eql(u8, lower_keyword, "green")) {
+            return css_parser.Value.Color{ .r = 0, .g = 128, .b = 0 };
+        } else if (std.mem.eql(u8, lower_keyword, "yellow")) {
+            return css_parser.Value.Color{ .r = 255, .g = 255, .b = 0 };
+        } else if (std.mem.eql(u8, lower_keyword, "black")) {
+            return css_parser.Value.Color{ .r = 0, .g = 0, .b = 0 };
+        } else if (std.mem.eql(u8, lower_keyword, "white")) {
+            return css_parser.Value.Color{ .r = 255, .g = 255, .b = 255 };
+        } else if (std.mem.eql(u8, lower_keyword, "orange")) {
+            return css_parser.Value.Color{ .r = 255, .g = 165, .b = 0 };
+        } else if (std.mem.eql(u8, lower_keyword, "purple")) {
+            return css_parser.Value.Color{ .r = 128, .g = 0, .b = 128 };
+        } else if (std.mem.eql(u8, lower_keyword, "pink")) {
+            return css_parser.Value.Color{ .r = 255, .g = 192, .b = 203 };
+        } else if (std.mem.eql(u8, lower_keyword, "cyan")) {
+            return css_parser.Value.Color{ .r = 0, .g = 255, .b = 255 };
+        } else if (std.mem.eql(u8, lower_keyword, "magenta")) {
+            return css_parser.Value.Color{ .r = 255, .g = 0, .b = 255 };
+        } else if (std.mem.eql(u8, lower_keyword, "gray") or std.mem.eql(u8, lower_keyword, "grey")) {
+            return css_parser.Value.Color{ .r = 128, .g = 128, .b = 128 };
+        }
+        // 更多颜色关键字可以在这里添加
+        return null;
     }
 
     /// 获取文本颜色

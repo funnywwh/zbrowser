@@ -11,6 +11,7 @@ const png = @import("png");
 const cascade = @import("cascade");
 const style_utils = @import("style_utils");
 const backend = @import("backend");
+const block = @import("block");
 
 /// Headless浏览器主入口
 pub const Browser = struct {
@@ -67,6 +68,36 @@ pub const Browser = struct {
         // 3. 执行布局计算
         const viewport = box.Size{ .width = @as(f32, @floatFromInt(width)), .height = @as(f32, @floatFromInt(height)) };
         try layout_engine_instance.layout(layout_tree, viewport, self.stylesheets.items);
+
+        // 3.5. 输出元素的布局信息（用于与Chrome对比）
+        // 先输出 html 元素
+        try block.printElementLayoutInfo(layout_tree, self.allocator, self.stylesheets.items);
+        
+        // 查找body元素
+        var body: ?*box.LayoutBox = null;
+        for (layout_tree.children.items) |child| {
+            if (child.node.node_type == .element) {
+                if (child.node.asElement()) |elem| {
+                    if (std.mem.eql(u8, elem.tag_name, "body")) {
+                        body = child;
+                        break;
+                    }
+                }
+            }
+        }
+        if (body) |b| {
+            // 输出 body 元素的布局信息（用于与Chrome对比）
+            try block.printElementLayoutInfo(b, self.allocator, self.stylesheets.items);
+            
+            // 输出第一个 h1 元素的布局信息（用于与Chrome对比）
+            if (block.findElement(b, "h1", null, null)) |h1_element| {
+                try block.printElementLayoutInfo(h1_element, self.allocator, self.stylesheets.items);
+            } else {
+                std.debug.print("Warning: h1 element not found in body\n", .{});
+            }
+        } else {
+            std.debug.print("Warning: body element not found\n", .{});
+        }
 
         // 4. 创建CPU渲染后端
         const render_backend = try cpu_backend.CpuRenderBackend.init(self.allocator, width, height);
@@ -159,8 +190,9 @@ pub fn main() !void {
     // 检查body元素是否存在
     if (browser.document.getBody()) |_| {} else {}
 
-    // 使用固定尺寸（1920x10000）
-    const render_width: u32 = 800;
+    // 使用固定尺寸（匹配Chrome的视口宽度980px）
+    // Chrome的body width是940px，padding是20px，所以视口宽度 = 940 + 20*2 = 980px
+    const render_width: u32 = 980;
     const render_height: u32 = 10000;
 
     try browser.renderToPNG(render_width, render_height, output_path);

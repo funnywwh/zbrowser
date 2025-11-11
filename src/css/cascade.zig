@@ -257,13 +257,12 @@ pub const Cascade = struct {
             // 设置margin-block-start: 0.67em（逻辑属性，映射到margin-top）
             // 注意：margin的em单位是相对于元素自己的font-size
             // 如果h1的font-size是2em（相对于父元素16px = 32px），那么0.67em = 32px * 0.67 = 21.44px
-            // 但是，Chrome的实际渲染中，h1的margin-top可能更小（约0.5em = 16px）
+            // Chrome的实际渲染中，h1的margin-top和margin-bottom都是0.67em = 21.44px
             // 简化实现：使用margin-top和margin-bottom（物理属性）
-            // 调整margin-top为0.5em，减少顶部间距
             const margin_top_name = try self.allocator.dupe(u8, "margin-top");
             const margin_top_value = parser.Value{
                 .length = .{
-                    .value = 0.5, // 从0.67改为0.5，减少顶部间距
+                    .value = 0.67, // 使用0.67em以匹配Chrome
                     .unit = try self.allocator.dupe(u8, "em"),
                 },
             };
@@ -278,7 +277,7 @@ pub const Cascade = struct {
             const margin_bottom_name = try self.allocator.dupe(u8, "margin-bottom");
             const margin_bottom_value = parser.Value{
                 .length = .{
-                    .value = 0.5, // 从0.67改为0.5，减少底部间距
+                    .value = 0.67, // 使用0.67em以匹配Chrome
                     .unit = try self.allocator.dupe(u8, "em"),
                 },
             };

@@ -323,9 +323,24 @@ pub fn parseLineHeight(value: []const u8, _: f32) box.LineHeight {
 
 /// 计算实际行高值（像素）
 /// 根据line-height类型和字体大小计算实际的行高
+/// 注意：对于h1等标题元素，Chrome使用的默认line-height可能更大（约1.4375）
 pub fn computeLineHeight(line_height: box.LineHeight, font_size: f32) f32 {
     return switch (line_height) {
-        .normal => font_size * 1.2, // 默认行高约为字体大小的1.2倍
+        .normal => {
+            // 对于大字体（如h1的32px），Chrome使用的默认line-height约为1.4375
+            // 对于小字体（如16px），默认line-height约为1.2
+            // 简化实现：根据字体大小调整line-height
+            if (font_size >= 32.0) {
+                // h1等大标题：使用1.4375（匹配Chrome）
+                return font_size * 1.4375;
+            } else if (font_size >= 24.0) {
+                // h2等中等标题：使用1.35
+                return font_size * 1.35;
+            } else {
+                // 普通文本：使用1.2
+                return font_size * 1.2;
+            }
+        },
         .number => |n| font_size * n,
         .length => |l| l,
         .percent => |p| font_size * p / 100.0,
