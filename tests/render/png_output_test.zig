@@ -64,8 +64,6 @@ test "Browser renderToPNG - simple page" {
     // 验证文件大小合理（至少应该有一些内容）
     const stat = try file.stat();
     try testing.expect(stat.size > 100); // 至少100字节
-
-    std.debug.print("✓ PNG file created successfully: {s} ({d} bytes)\n", .{ test_output, stat.size });
 }
 
 // 暂时跳过这个测试，因为存在段错误问题
@@ -102,7 +100,6 @@ test "Browser renderToPNG - simple page" {
 //     defer file.close();
 //
 //     const stat = try file.stat();
-//     std.debug.print("✓ PNG file created: {s} ({d} bytes)\n", .{ test_output, stat.size });
 //
 //     // 验证PNG签名
 //     var signature: [8]u8 = undefined;
@@ -111,8 +108,6 @@ test "Browser renderToPNG - simple page" {
 //
 //     const expected_signature = [_]u8{ 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A };
 //     try testing.expectEqualSlices(u8, &expected_signature, &signature);
-//
-//     std.debug.print("✓ PNG signature verified\n", .{});
 // }
 
 test "Browser render - get pixel data directly" {
@@ -138,26 +133,15 @@ test "Browser render - get pixel data directly" {
     // 验证像素数据
     try testing.expect(pixels.len == 100 * 100 * 4); // RGBA格式
 
-    // 检查第一个像素（应该是红色背景）
-    // 注意：由于布局可能从(0,0)开始，第一个像素应该是背景色
-    std.debug.print("First pixel: R={d}, G={d}, B={d}, A={d}\n", .{
-        pixels[0], pixels[1], pixels[2], pixels[3],
-    });
-
     // 检查是否有非零像素（确保有内容）
     var has_non_zero = false;
-    for (pixels, 0..) |pixel, i| {
+    for (pixels) |pixel| {
         if (pixel != 0) {
             has_non_zero = true;
-            if (i < 20) {
-                std.debug.print("Non-zero pixel at index {d}: {d}\n", .{ i, pixel });
-            }
+            break;
         }
     }
     try testing.expect(has_non_zero);
-
-    const pixels_len = pixels.len;
-    std.debug.print("✓ Pixel data retrieved successfully ({d} bytes)\n", .{pixels_len});
 
     // 先释放pixels
     allocator.free(pixels);

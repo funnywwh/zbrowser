@@ -23,30 +23,16 @@ pub fn main() !void {
         pixels[i + 3] = 255; // A
     }
 
-    std.debug.print("Created {d}x{d} red image ({d} pixels, {d} bytes)\n", .{ width, height, width * height, pixels.len });
-
     // 编码为PNG
     const png_data = try encoder.encode(pixels, width, height);
     defer allocator.free(png_data);
 
     // 验证PNG签名
-    std.debug.print("PNG data length: {d} bytes\n", .{png_data.len});
-    std.debug.print("PNG signature: ", .{});
-    for (png_data[0..8]) |b| {
-        std.debug.print("{x:0>2} ", .{b});
-    }
-    std.debug.print("\n", .{});
-
     const expected_signature = [_]u8{ 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A };
-    var signature_ok = true;
     for (expected_signature, 0..) |expected, idx| {
         if (png_data[idx] != expected) {
-            signature_ok = false;
-            std.debug.print("ERROR: PNG signature mismatch at byte {d}: expected {x:0>2}, got {x:0>2}\n", .{ idx, expected, png_data[idx] });
+            return error.InvalidPngSignature;
         }
-    }
-    if (signature_ok) {
-        std.debug.print("✓ PNG signature verified\n", .{});
     }
 
     // 保存到文件
@@ -54,7 +40,4 @@ pub fn main() !void {
     const file = try std.fs.cwd().createFile(test_output, .{});
     defer file.close();
     try file.writeAll(png_data);
-
-    std.debug.print("✓ PNG file created: {s} ({d} bytes)\n", .{ test_output, png_data.len });
-    std.debug.print("Expected: 100x100 red square\n", .{});
 }

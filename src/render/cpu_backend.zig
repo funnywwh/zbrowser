@@ -3,7 +3,6 @@ const backend = @import("backend");
 const font_module = @import("font");
 const glyph_module = @import("glyph");
 const math = std.math;
-const log = std.log;
 
 /// 路径点
 const Point = struct {
@@ -159,10 +158,6 @@ pub const CpuRenderBackend = struct {
     /// 填充矩形
     fn fillRectImpl(self_ptr: *backend.RenderBackend, rect: backend.Rect, color: backend.Color) void {
         const self = fromRenderBackend(self_ptr);
-        log.debug("fillRect: x={d:.1}, y={d:.1}, w={d:.1}, h={d:.1}, color=#{x:0>2}{x:0>2}{x:0>2}\n", .{
-            rect.x,  rect.y,  rect.width, rect.height,
-            color.r, color.g, color.b,
-        });
         fillRectInternal(self, rect, color);
     }
 
@@ -260,10 +255,6 @@ pub const CpuRenderBackend = struct {
 
     fn strokeRectImpl(self_ptr: *backend.RenderBackend, rect: backend.Rect, color: backend.Color, width: f32) void {
         const self = fromRenderBackend(self_ptr);
-        log.debug("strokeRect: x={d:.1}, y={d:.1}, w={d:.1}, h={d:.1}, width={d:.1}, color=#{x:0>2}{x:0>2}{x:0>2}\n", .{
-            rect.x,  rect.y,  rect.width, rect.height, width,
-            color.r, color.g, color.b,
-        });
         strokeRectInternal(self, rect, color, width);
     }
 
@@ -305,7 +296,6 @@ pub const CpuRenderBackend = struct {
                 pixels_drawn += 1;
             }
         }
-        log.debug("strokeRectInternal: drew top border, pixels_drawn={d}", .{pixels_drawn});
 
         // 绘制下边框
         const bottom_y_start = @max(start_y, end_y - stroke_width);
@@ -481,10 +471,6 @@ pub const CpuRenderBackend = struct {
 
     fn fillTextImpl(self_ptr: *backend.RenderBackend, text: []const u8, x: f32, y: f32, font: backend.Font, color: backend.Color, letter_spacing: ?f32) void {
         const self = fromRenderBackend(self_ptr);
-        log.debug("fillText: text=\"{s}\", x={d:.1}, y={d:.1}, font_size={d:.1}, color=#{x:0>2}{x:0>2}{x:0>2}, letter_spacing={?}\n", .{
-            text,    x,       y,       font.size,
-            color.r, color.g, color.b, letter_spacing,
-        });
         fillTextInternal(self, text, x, y, font, color, letter_spacing);
     }
 
@@ -707,7 +693,6 @@ pub const CpuRenderBackend = struct {
                     if (codepoint >= 0xAC00 and codepoint <= 0xD7A3) {
                         has_korean = true;
                         korean_count += 1;
-                        log.debug("detectCJKLanguage: found Korean character U+{X:0>4}, korean_count={d}\n", .{ codepoint, korean_count });
                     }
                     i += 3;
                     continue;
@@ -737,15 +722,12 @@ pub const CpuRenderBackend = struct {
         // 返回优先级：韩文 > 日文（有假名）> 中文
         // 如果同时有中文汉字和日文假名，优先判断为日文
         if (has_korean) {
-            log.debug("detectCJKLanguage: detected Korean (has_korean=true, korean_count={d}, has_chinese={}, has_japanese_kana={})\n", .{ korean_count, has_chinese, has_japanese_kana });
             return 3;
         }
         if (has_japanese_kana) {
-            log.debug("detectCJKLanguage: detected Japanese (has_japanese_kana=true, has_chinese={})\n", .{has_chinese});
             return 2; // 有日文假名，判断为日文
         }
         if (has_chinese) {
-            log.debug("detectCJKLanguage: detected Chinese (has_chinese=true, has_korean={}, has_japanese_kana={})\n", .{ has_korean, has_japanese_kana });
             return 1; // 只有中文汉字，判断为中文
         }
         return 0;
@@ -774,14 +756,12 @@ pub const CpuRenderBackend = struct {
             // 韩文：优先尝试加载韩文字体
             // 注意：如果文本中同时包含中文汉字和韩文字符，使用韩文字体
             // 如果韩文字体不支持某些中文汉字，这些汉字可能无法显示
-            log.debug("fillTextInternal: detected Korean, attempting to load Korean font\n", .{});
             font_face = self.font_manager.getFont("KoreanFont");
             if (font_face == null) {
                 font_face = self.tryLoadKoreanFont() catch null;
             }
             // 如果韩文字体加载失败，回退到中文字体（因为中文字体通常也支持韩文）
             if (font_face == null) {
-                log.debug("fillTextInternal: Korean font failed, falling back to Chinese font\n", .{});
                 font_face = self.font_manager.getFont("ChineseFont");
                 if (font_face == null) {
                     font_face = self.tryLoadChineseFont() catch null;
@@ -794,23 +774,20 @@ pub const CpuRenderBackend = struct {
                 const chinese_font_face = self.font_manager.getFont("ChineseFont") orelse self.tryLoadChineseFont() catch null;
 
                 // 按字符分别渲染，对每个字符使用合适的字体
-                self.renderTextWithMixedFonts(face, chinese_font_face, text, x, y, font.size, color, letter_spacing) catch |err| {
+                self.renderTextWithMixedFonts(face, chinese_font_face, text, x, y, font.size, color, letter_spacing) catch {
                     // 如果渲染失败，使用占位符
-                    log.debug("fillTextInternal: renderTextWithMixedFonts failed: {}, using placeholder\n", .{err});
                     self.renderTextPlaceholder(text, x, y, font, color);
                 };
                 return;
             }
         } else if (cjk_language == 2) {
             // 日文：优先尝试加载日文字体，如果失败则回退到中文字体（因为中文字体通常也支持日文汉字）
-            log.debug("fillTextInternal: detected Japanese, attempting to load Japanese font\n", .{});
             font_face = self.font_manager.getFont("JapaneseFont");
             if (font_face == null) {
                 font_face = self.tryLoadJapaneseFont() catch null;
             }
             // 如果日文字体加载失败，回退到中文字体
             if (font_face == null) {
-                log.debug("fillTextInternal: Japanese font failed, falling back to Chinese font\n", .{});
                 font_face = self.font_manager.getFont("ChineseFont");
                 if (font_face == null) {
                     font_face = self.tryLoadChineseFont() catch null;
@@ -818,7 +795,6 @@ pub const CpuRenderBackend = struct {
             }
         } else if (cjk_language == 1) {
             // 中文：优先尝试加载中文字体
-            log.debug("fillTextInternal: detected Chinese, attempting to load Chinese font\n", .{});
             font_face = self.font_manager.getFont("ChineseFont");
             if (font_face == null) {
                 font_face = self.tryLoadChineseFont() catch null;
@@ -886,9 +862,8 @@ pub const CpuRenderBackend = struct {
             }
 
             // 使用字体回退机制渲染文本
-            self.renderTextWithFontFallback(fallback_fonts.items, text, x, y, font.size, color, letter_spacing) catch |err| {
+            self.renderTextWithFontFallback(fallback_fonts.items, text, x, y, font.size, color, letter_spacing) catch {
                 // 如果所有字体都失败，回退到占位符
-                log.debug("fillTextInternal: all fonts failed: {}, falling back to placeholder\n", .{err});
                 self.renderTextPlaceholder(text, x, y, font, color);
             };
         } else {
@@ -902,17 +877,14 @@ pub const CpuRenderBackend = struct {
     /// 参数：
     /// - font_paths: 字体路径数组
     /// - font_name: 字体名称（用于缓存）
-    /// - log_prefix: 日志前缀（用于区分不同的字体类型）
     /// 返回：成功加载的字体面，如果所有路径都失败则返回null
     fn tryLoadFontFromPaths(
         self: *CpuRenderBackend,
         font_paths: []const []const u8,
         font_name: []const u8,
-        log_prefix: []const u8,
     ) !?*font_module.FontFace {
         for (font_paths) |path| {
             if (self.font_manager.loadFont(path, font_name)) |face| {
-                log.debug("Successfully loaded {s} font from: {s}\n", .{ log_prefix, path });
                 return face;
             } else |_| {
                 // 继续尝试下一个路径
@@ -963,7 +935,7 @@ pub const CpuRenderBackend = struct {
         };
 
         // 尝试加载中文字体
-        return try self.tryLoadFontFromPaths(&chinese_font_paths, "ChineseFont", "Chinese");
+        return try self.tryLoadFontFromPaths(&chinese_font_paths, "ChineseFont");
     }
 
     /// 尝试加载日文字体
@@ -985,7 +957,7 @@ pub const CpuRenderBackend = struct {
         };
 
         // 尝试加载日文字体
-        return try self.tryLoadFontFromPaths(&japanese_font_paths, "JapaneseFont", "Japanese");
+        return try self.tryLoadFontFromPaths(&japanese_font_paths, "JapaneseFont");
     }
 
     /// 尝试加载韩文字体
@@ -1016,11 +988,7 @@ pub const CpuRenderBackend = struct {
         };
 
         // 尝试加载韩文字体
-        const result = try self.tryLoadFontFromPaths(&korean_font_paths, "KoreanFont", "Korean");
-        if (result == null) {
-            log.warn("Warning: No Korean font found, Korean text may not display correctly\n", .{});
-        }
-        return result;
+        return try self.tryLoadFontFromPaths(&korean_font_paths, "KoreanFont");
     }
 
     /// 尝试加载符号字体（Segoe UI Symbol）
@@ -1030,7 +998,7 @@ pub const CpuRenderBackend = struct {
             "C:\\Windows\\Fonts\\SegoeUISymbol.ttf",
             "C:\\Windows\\Fonts\\seguisym.ttc",
         };
-        return try self.tryLoadFontFromPaths(&symbol_font_paths, "SymbolFont", "Symbol");
+        return try self.tryLoadFontFromPaths(&symbol_font_paths, "SymbolFont");
     }
 
     /// 尝试加载Emoji字体（Segoe UI Emoji）
@@ -1040,7 +1008,7 @@ pub const CpuRenderBackend = struct {
             "C:\\Windows\\Fonts\\SegoeUIEmoji.ttf",
             "C:\\Windows\\Fonts\\seguiemj.ttc",
         };
-        return try self.tryLoadFontFromPaths(&emoji_font_paths, "EmojiFont", "Emoji");
+        return try self.tryLoadFontFromPaths(&emoji_font_paths, "EmojiFont");
     }
 
     /// 根据字符码点尝试加载合适的回退字体
@@ -1050,7 +1018,6 @@ pub const CpuRenderBackend = struct {
         if (codepoint >= 0x1F300 and codepoint <= 0x1F9FF) {
             // Emoji范围（U+1F300-U+1F9FF）
             if (self.tryLoadEmojiFont() catch null) |face| {
-                log.debug("Successfully loaded emoji font for codepoint U+{X:0>4}\n", .{codepoint});
                 return face;
             }
         } else if ((codepoint >= 0x2190 and codepoint <= 0x21FF) or // 箭头
@@ -1061,7 +1028,6 @@ pub const CpuRenderBackend = struct {
         { // 装饰符号
             // Unicode符号范围
             if (self.tryLoadSymbolFont() catch null) |face| {
-                log.debug("Successfully loaded symbol font for codepoint U+{X:0>4}\n", .{codepoint});
                 return face;
             }
         }
@@ -1080,7 +1046,6 @@ pub const CpuRenderBackend = struct {
                 if (self.font_manager.loadFont(path, "ThaiFont")) |face| {
                     const glyph_index_opt = face.getGlyphIndex(codepoint) catch null;
                     if (glyph_index_opt != null) {
-                        log.debug("Successfully loaded Thai font from: {s} for codepoint U+{X:0>4}\n", .{ path, codepoint });
                         return face;
                     }
                 } else |_| {
@@ -1110,7 +1075,6 @@ pub const CpuRenderBackend = struct {
                 if (self.font_manager.loadFont(path, "ArabicFont")) |face| {
                     const glyph_index_opt = face.getGlyphIndex(codepoint) catch null;
                     if (glyph_index_opt != null) {
-                        log.debug("Successfully loaded Arabic font from: {s} for codepoint U+{X:0>4}\n", .{ path, codepoint });
                         return face;
                     }
                 } else |_| {
@@ -1139,7 +1103,6 @@ pub const CpuRenderBackend = struct {
                 // 验证这个字体是否真的支持该字符
                 const glyph_index_opt = face.getGlyphIndex(codepoint) catch null;
                 if (glyph_index_opt != null) {
-                    log.debug("Successfully loaded unicode font from: {s} for codepoint U+{X:0>4}\n", .{ path, codepoint });
                     return face;
                 }
             } else |_| {
@@ -1210,7 +1173,6 @@ pub const CpuRenderBackend = struct {
 
             if (should_try) {
                 if (self.font_manager.loadFont(path, font_family)) |face| {
-                    log.debug("Successfully loaded font from: {s}\n", .{path});
                     return face;
                 } else |_| {
                     // 继续尝试下一个路径
@@ -1222,7 +1184,6 @@ pub const CpuRenderBackend = struct {
         // 如果按名称匹配失败，尝试所有路径
         for (font_paths) |path| {
             if (self.font_manager.loadFont(path, font_family)) |face| {
-                log.debug("Successfully loaded font from: {s}\n", .{path});
                 return face;
             } else |_| {
                 // 继续尝试下一个路径
@@ -1321,7 +1282,7 @@ pub const CpuRenderBackend = struct {
                 // 如果备用字体也不支持，跳过这个字符
                 const placeholder_width = font_size * 0.6;
                 current_x += placeholder_width;
-                
+
                 // 应用letter-spacing（如果不是最后一个字符）
                 if (letter_spacing) |spacing| {
                     if (i < text.len) {
@@ -1354,7 +1315,7 @@ pub const CpuRenderBackend = struct {
 
             const advance_width = @as(f32, @floatFromInt(h_metrics.advance_width));
             current_x += advance_width * scale;
-            
+
             // 应用letter-spacing（如果不是最后一个字符）
             if (letter_spacing) |spacing| {
                 if (i < text.len) {
@@ -1439,7 +1400,7 @@ pub const CpuRenderBackend = struct {
                     // 如果获取字形失败，跳过这个字符
                     const placeholder_width = font_size * 0.6;
                     current_x += placeholder_width;
-                    
+
                     // 应用letter-spacing（如果不是最后一个字符）
                     if (letter_spacing) |spacing| {
                         if (i < text.len) {
@@ -1482,7 +1443,7 @@ pub const CpuRenderBackend = struct {
                 else
                     advance_width * scale;
                 current_x += adjusted_advance;
-                
+
                 // 应用letter-spacing（如果不是最后一个字符）
                 if (letter_spacing) |spacing| {
                     if (i < text.len) {
@@ -1541,7 +1502,7 @@ pub const CpuRenderBackend = struct {
                         // 移动到下一个字符位置
                         const advance_width = @as(f32, @floatFromInt(h_metrics.advance_width));
                         current_x += advance_width * scale;
-                        
+
                         // 应用letter-spacing（如果不是最后一个字符）
                         if (letter_spacing) |spacing| {
                             if (i < text.len) {
@@ -1554,7 +1515,7 @@ pub const CpuRenderBackend = struct {
                 // 如果所有字体都不支持这个字符，跳过（不绘制占位符框）
                 const placeholder_width = font_size * 0.6;
                 current_x += placeholder_width;
-                
+
                 // 应用letter-spacing（如果不是最后一个字符）
                 if (letter_spacing) |spacing| {
                     if (i < text.len) {
@@ -1614,10 +1575,6 @@ pub const CpuRenderBackend = struct {
             // 获取字符的字形索引
             const glyph_index_opt = try font_face.getGlyphIndex(codepoint);
             if (glyph_index_opt) |glyph_index| {
-                // 调试：检查"韩"字（U+97E9）的字形索引
-                if (codepoint == 0x97E9) {
-                    log.debug("renderTextWithFont: found glyph for '韩' (U+97E9), glyph_index={d}\n", .{glyph_index});
-                }
                 // 获取字形的水平度量
                 const h_metrics = try font_face.getHorizontalMetrics(glyph_index);
 
@@ -1663,7 +1620,7 @@ pub const CpuRenderBackend = struct {
                 else
                     advance_width * scale;
                 current_x += adjusted_advance;
-                
+
                 // 应用letter-spacing（如果不是最后一个字符）
                 if (letter_spacing) |spacing| {
                     if (i < text.len) {
@@ -1672,10 +1629,6 @@ pub const CpuRenderBackend = struct {
                 }
             } else {
                 // 如果找不到字形，返回错误，让调用者回退到其他字体
-                // 调试：检查"韩"字（U+97E9）是否找不到字形
-                if (codepoint == 0x97E9) {
-                    log.debug("renderTextWithFont: glyph not found for '韩' (U+97E9), will fallback to Chinese font\n", .{});
-                }
                 return error.GlyphNotFound;
             }
         }
@@ -1939,7 +1892,7 @@ pub const CpuRenderBackend = struct {
         // TODO: 简化实现 - 当前将圆弧近似为直线段
         // 完整实现需要：使用Bresenham算法或参数方程绘制圆弧
         const num_segments = @max(8, @as(i32, @intFromFloat(radius * 2)));
-        
+
         // 如果路径不为空，检查当前点是否与圆弧起点相同
         // 如果相同，跳过第一个点以避免重复
         var skip_first = false;
@@ -1954,7 +1907,7 @@ pub const CpuRenderBackend = struct {
                 skip_first = true;
             }
         }
-        
+
         var i: i32 = 0;
         while (i <= num_segments) : (i += 1) {
             // 如果跳过第一个点，从i=1开始
@@ -2024,15 +1977,15 @@ pub const CpuRenderBackend = struct {
             while (px < end_x) : (px += 1) {
                 const test_x = @as(f32, @floatFromInt(px)) + 0.5;
                 const test_y = @as(f32, @floatFromInt(py)) + 0.5;
-                
+
                 // 使用射线法（从点向右发射射线，计算与路径的交点数）
                 if (isPointInPath(self.current_path.items, test_x, test_y)) {
                     const index = (@as(usize, @intCast(py)) * self.width + @as(usize, @intCast(px))) * 4;
-                    
+
                     // 应用全局透明度
                     const alpha = @as(f32, @floatFromInt(color.a)) * self.current_state.global_alpha;
                     const final_alpha = @as(u8, @intFromFloat(alpha));
-                    
+
                     if (final_alpha < 255) {
                         // Alpha混合
                         const src_alpha = @as(f32, @floatFromInt(final_alpha)) / 255.0;
@@ -2063,41 +2016,41 @@ pub const CpuRenderBackend = struct {
         if (path.len < 3) {
             return false;
         }
-        
+
         var intersections: i32 = 0;
         var i: usize = 0;
         while (i < path.len) : (i += 1) {
             const p1 = path[i];
             const p2 = path[(i + 1) % path.len];
-            
+
             // 检查射线（从(x, y)向右）是否与线段(p1, p2)相交
             // 射线：y = test_y, x >= test_x
             // 线段：从p1到p2
-            
+
             // 如果线段是水平的，跳过
             if (@abs(p1.y - p2.y) < 0.001) {
                 continue;
             }
-            
+
             // 如果点在线段的y范围外，跳过
             const min_y = @min(p1.y, p2.y);
             const max_y = @max(p1.y, p2.y);
             if (y < min_y or y >= max_y) {
                 continue;
             }
-            
+
             // 计算射线与线段的交点x坐标
             // 线段方程：y = p1.y + (p2.y - p1.y) * t, x = p1.x + (p2.x - p1.x) * t
             // 当y = test_y时，t = (test_y - p1.y) / (p2.y - p1.y)
             const t = (y - p1.y) / (p2.y - p1.y);
             const intersect_x = p1.x + (p2.x - p1.x) * t;
-            
+
             // 如果交点在点的右侧，计数
             if (intersect_x > x) {
                 intersections += 1;
             }
         }
-        
+
         // 奇数个交点表示点在路径内
         return (@rem(intersections, 2)) == 1;
     }

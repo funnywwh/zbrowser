@@ -904,7 +904,9 @@ pub fn main() !void {
     const h1 = browser.document.querySelector("h1");
     if (h1) |h| {
         if (h.first_child) |text| {
-            std.debug.print("Found: {s}\n", .{text.asText().?});
+            const text_content = text.asText().?;
+            // 使用 text_content
+            _ = text_content;
         }
     }
     
@@ -971,13 +973,19 @@ pub fn main() !void {
         
         switch (token.token_type) {
             .start_tag => {
-                std.debug.print("Start tag: {s}\n", .{token.data.start_tag.name});
+                const tag_name = token.data.start_tag.name;
+                // 使用 tag_name
+                _ = tag_name;
             },
             .text => {
-                std.debug.print("Text: {s}\n", .{token.data.text});
+                const text_content = token.data.text;
+                // 使用 text_content
+                _ = text_content;
             },
             .end_tag => {
-                std.debug.print("End tag: {s}\n", .{token.data.end_tag.name});
+                const tag_name = token.data.end_tag.name;
+                // 使用 tag_name
+                _ = tag_name;
             },
             .eof => break,
             else => {},

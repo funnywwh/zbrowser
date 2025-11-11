@@ -134,9 +134,6 @@ pub fn main() !void {
     const html_file_path = args[1];
     const output_path = if (args.len >= 3) args[2] else "output.png";
 
-    std.log.info("读取HTML文件: {s}", .{html_file_path});
-    std.log.info("输出PNG文件: {s}", .{output_path});
-
     // 读取HTML文件
     const html_file = try std.fs.cwd().openFile(html_file_path, .{});
     defer html_file.close();
@@ -144,14 +141,11 @@ pub fn main() !void {
     const html_content = try html_file.readToEndAlloc(allocator, 10 * 1024 * 1024); // 最大10MB
     defer allocator.free(html_content);
 
-    std.log.info("HTML文件读取成功，大小: {d} 字节", .{html_content.len});
-
     var browser = try Browser.init(allocator);
     defer browser.deinit();
 
     // 加载HTML
     try browser.loadHTML(html_content);
-    std.log.info("HTML解析成功!", .{});
 
     // 从HTML中提取CSS（从<style>标签）
     const css_content = try extractCSSFromHTML(allocator, html_content);
@@ -160,22 +154,16 @@ pub fn main() !void {
     // 添加CSS样式表
     if (css_content) |css| {
         try browser.addStylesheet(css);
-        std.log.info("CSS样式表添加成功!", .{});
-    } else {
-    }
+    } else {}
 
     // 检查body元素是否存在
-    if (browser.document.getBody()) |_| {
-    } else {
-    }
+    if (browser.document.getBody()) |_| {} else {}
 
     // 使用固定尺寸（1920x10000）
     const render_width: u32 = 800;
     const render_height: u32 = 10000;
 
-    std.log.info("渲染页面到PNG ({d}x{d})...", .{ render_width, render_height });
     try browser.renderToPNG(render_width, render_height, output_path);
-    std.log.info("页面渲染成功，已保存到: {s}", .{output_path});
 }
 
 /// 从HTML内容中提取CSS（从<style>标签）

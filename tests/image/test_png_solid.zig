@@ -27,21 +27,10 @@ pub fn main() !void {
     const png_data = try encoder.encode(pixels, width, height);
     defer allocator.free(png_data);
 
-    // 验证PNG签名
-    std.debug.print("PNG data length: {d} bytes\n", .{png_data.len});
-    std.debug.print("PNG signature: ", .{});
-    for (png_data[0..8]) |b| {
-        std.debug.print("{x:0>2} ", .{b});
-    }
-    std.debug.print("\n", .{});
-
     // 保存到文件
     const test_output = "png_solid_red.png";
     const file = try std.fs.cwd().createFile(test_output, .{});
     defer file.close();
     try file.writeAll(png_data);
-
-    std.debug.print("✓ PNG file created: {s} ({d} bytes)\n", .{ test_output, png_data.len });
-    std.debug.print("Expected: 100x100 red square\n", .{});
 }
 

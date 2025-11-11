@@ -126,7 +126,7 @@ const str = try allocator.dupe(u8, "hello");
 const str = try allocator.dupe(u8, "hello");
 allocator.free(str);
 // 错误：使用已释放的内存
-std.debug.print("{s}\n", .{str});
+// str 已被释放，不能再使用
 ```
 
 **常见原因**：

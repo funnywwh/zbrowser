@@ -68,8 +68,6 @@ pub const TestStats = struct {
 pub fn runAllTests() !TestStats {
     const stats = TestStats{};
 
-    std.debug.print("Running all tests via root test file...\n", .{});
-
     // 注意：Zig的测试框架会自动运行所有导入的测试
     // 这里主要是为了文档和未来的扩展
 
@@ -112,6 +110,4 @@ test "all test modules imported" {
     _ = font_cff_test;
     _ = font_glyph_test;
     _ = font_hinting_test;
-
-    std.debug.print("All test modules successfully imported via root test file\n", .{});
 }

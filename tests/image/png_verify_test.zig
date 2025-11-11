@@ -54,15 +54,11 @@ test "PNG encoder - generate and verify test image" {
     try testing.expectEqual(@as(u8, 0x1A), png_data[6]); // EOF
     try testing.expectEqual(@as(u8, 0x0A), png_data[7]); // LF
 
-    std.debug.print("✓ PNG signature verified\n", .{});
-
     // 保存到文件用于查看
     const test_output = "png_verify_test.png";
     const file = try std.fs.cwd().createFile(test_output, .{});
     defer file.close();
     try file.writeAll(png_data);
-
-    std.debug.print("✓ PNG file created: {s} ({d} bytes)\n", .{ test_output, png_data.len });
 
     // 验证文件大小合理
     try testing.expect(png_data.len > 100); // 至少100字节
@@ -77,7 +73,6 @@ test "PNG encoder - generate and verify test image" {
     while (i < png_data.len - 4) : (i += 1) {
         if (png_data[i] == 'I' and png_data[i + 1] == 'H' and png_data[i + 2] == 'D' and png_data[i + 3] == 'R') {
             found_ihdr = true;
-            std.debug.print("✓ Found IHDR chunk at offset {d}\n", .{i});
             
             // 验证宽度和高度（IHDR后4字节是宽度，再4字节是高度）
             if (i + 12 < png_data.len) {
@@ -85,7 +80,6 @@ test "PNG encoder - generate and verify test image" {
                 const height_bytes = png_data[i + 8 .. i + 12];
                 const decoded_width = (@as(u32, width_bytes[0]) << 24) | (@as(u32, width_bytes[1]) << 16) | (@as(u32, width_bytes[2]) << 8) | @as(u32, width_bytes[3]);
                 const decoded_height = (@as(u32, height_bytes[0]) << 24) | (@as(u32, height_bytes[1]) << 16) | (@as(u32, height_bytes[2]) << 8) | @as(u32, height_bytes[3]);
-                std.debug.print("  Width: {d}, Height: {d}\n", .{ decoded_width, decoded_height });
                 try testing.expectEqual(width, decoded_width);
                 try testing.expectEqual(height, decoded_height);
             }
@@ -93,8 +87,6 @@ test "PNG encoder - generate and verify test image" {
         }
     }
     try testing.expect(found_ihdr);
-
-    std.debug.print("✓ PNG file verification complete\n", .{});
 }
 
 test "PNG encoder - solid color image" {
@@ -133,8 +125,6 @@ test "PNG encoder - solid color image" {
     const file = try std.fs.cwd().createFile(test_output, .{});
     defer file.close();
     try file.writeAll(png_data);
-
-    std.debug.print("✓ Solid color PNG created: {s} ({d} bytes)\n", .{ test_output, png_data.len });
 }
 
 test "PNG encoder - gradient image" {
@@ -178,7 +168,5 @@ test "PNG encoder - gradient image" {
     const file = try std.fs.cwd().createFile(test_output, .{});
     defer file.close();
     try file.writeAll(png_data);
-
-    std.debug.print("✓ Gradient PNG created: {s} ({d} bytes)\n", .{ test_output, png_data.len });
 }
 

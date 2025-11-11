@@ -110,7 +110,7 @@ pub fn setTestConfig(config: TestConfig) void {
 
 /// 打印测试信息（如果启用详细输出）
 pub fn testPrint(comptime format: []const u8, args: anytype) void {
-    if (test_config.verbose) {
-        std.debug.print(format, args);
-    }
+    _ = format;
+    _ = args;
+    // 已禁用详细输出
 }

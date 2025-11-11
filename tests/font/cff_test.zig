@@ -11,7 +11,7 @@ test "TtfParser - load OTF font with CFF table" {
     // 尝试加载Source Han Sans SC（OTF格式，使用CFF表）
     const font_file = std.fs.cwd().openFile("fonts/SourceHanSansSC-Regular.otf", .{}) catch |err| {
         // 如果文件不存在，跳过测试
-        std.log.warn("OTF字体文件不存在，跳过测试: {}\n", .{err});
+        _ = err;
         return;
     };
     defer font_file.close();
@@ -38,7 +38,7 @@ test "TtfParser boundary - detect CFF table" {
     const allocator = gpa.allocator();
 
     const font_file = std.fs.cwd().openFile("fonts/SourceHanSansSC-Regular.otf", .{}) catch |err| {
-        std.log.warn("OTF字体文件不存在，跳过测试: {}\n", .{err});
+        _ = err;
         return;
     };
     defer font_file.close();
@@ -64,7 +64,7 @@ test "TtfParser - get glyph index from OTF font" {
     const allocator = gpa.allocator();
 
     const font_file = std.fs.cwd().openFile("fonts/SourceHanSansSC-Regular.otf", .{}) catch |err| {
-        std.log.warn("OTF字体文件不存在，跳过测试: {}\n", .{err});
+        _ = err;
         return;
     };
     defer font_file.close();
@@ -87,7 +87,7 @@ test "TtfParser - get glyph from OTF font with CFF" {
     const allocator = gpa.allocator();
 
     const font_file = std.fs.cwd().openFile("fonts/SourceHanSansSC-Regular.otf", .{}) catch |err| {
-        std.log.warn("OTF字体文件不存在，跳过测试: {}\n", .{err});
+        _ = err;
         return;
     };
     defer font_file.close();
@@ -101,7 +101,6 @@ test "TtfParser - get glyph from OTF font with CFF" {
     // 获取字形索引
     const glyph_index_opt = try parser.getGlyphIndex('中');
     const glyph_index = glyph_index_opt orelse {
-        std.log.warn("无法获取字形索引，跳过测试\n", .{});
         return;
     };
 

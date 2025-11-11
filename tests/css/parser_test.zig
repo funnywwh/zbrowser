@@ -28,10 +28,6 @@ test "parse simple CSS rule" {
     const decl = rule.declarations.items[0];
     try testing.expectEqualStrings("color", decl.name);
     try testing.expect(decl.value == .keyword);
-    // 打印实际值以便调试
-    if (!std.mem.eql(u8, decl.value.keyword, "red")) {
-        std.debug.print("Expected 'red', but got '{s}'\n", .{decl.value.keyword});
-    }
     try testing.expectEqualStrings("red", decl.value.keyword);
 }
 
