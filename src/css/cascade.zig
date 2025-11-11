@@ -563,6 +563,49 @@ pub const Cascade = struct {
         return error.InvalidColor;
     }
 
+    /// 解析颜色关键字（如red、blue等）
+    /// 返回颜色值，如果不匹配则返回null
+    fn parseColorKeyword(self: Cascade, keyword: []const u8) ?parser.Value.Color {
+        _ = self;
+        const trimmed = std.mem.trim(u8, keyword, " \t\n\r");
+        // 转换为小写进行比较（CSS颜色关键字不区分大小写）
+        var lower_buffer: [32]u8 = undefined;
+        if (trimmed.len > lower_buffer.len) return null;
+        for (trimmed, 0..) |c, i| {
+            lower_buffer[i] = std.ascii.toLower(c);
+        }
+        const lower_keyword = lower_buffer[0..trimmed.len];
+        
+        // 常见颜色关键字（CSS标准颜色）
+        if (std.mem.eql(u8, lower_keyword, "red")) {
+            return parser.Value.Color{ .r = 255, .g = 0, .b = 0 };
+        } else if (std.mem.eql(u8, lower_keyword, "blue")) {
+            return parser.Value.Color{ .r = 0, .g = 0, .b = 255 };
+        } else if (std.mem.eql(u8, lower_keyword, "green")) {
+            return parser.Value.Color{ .r = 0, .g = 128, .b = 0 };
+        } else if (std.mem.eql(u8, lower_keyword, "yellow")) {
+            return parser.Value.Color{ .r = 255, .g = 255, .b = 0 };
+        } else if (std.mem.eql(u8, lower_keyword, "black")) {
+            return parser.Value.Color{ .r = 0, .g = 0, .b = 0 };
+        } else if (std.mem.eql(u8, lower_keyword, "white")) {
+            return parser.Value.Color{ .r = 255, .g = 255, .b = 255 };
+        } else if (std.mem.eql(u8, lower_keyword, "orange")) {
+            return parser.Value.Color{ .r = 255, .g = 165, .b = 0 };
+        } else if (std.mem.eql(u8, lower_keyword, "purple")) {
+            return parser.Value.Color{ .r = 128, .g = 0, .b = 128 };
+        } else if (std.mem.eql(u8, lower_keyword, "pink")) {
+            return parser.Value.Color{ .r = 255, .g = 192, .b = 203 };
+        } else if (std.mem.eql(u8, lower_keyword, "cyan")) {
+            return parser.Value.Color{ .r = 0, .g = 255, .b = 255 };
+        } else if (std.mem.eql(u8, lower_keyword, "magenta")) {
+            return parser.Value.Color{ .r = 255, .g = 0, .b = 255 };
+        } else if (std.mem.eql(u8, lower_keyword, "gray") or std.mem.eql(u8, lower_keyword, "grey")) {
+            return parser.Value.Color{ .r = 128, .g = 128, .b = 128 };
+        }
+        // 更多颜色关键字可以在这里添加
+        return null;
+    }
+
     /// 解析内联样式（style属性）
     /// 格式：property: value; property: value; ...
     /// 简化实现：手动解析，不依赖CSS解析器的内部方法
@@ -594,8 +637,36 @@ pub const Cascade = struct {
 
             // 解析值（支持关键字、长度值、颜色值）
             var value: parser.Value = undefined;
-            // 检查是否是颜色值（以#开头）
-            if (value_str.len > 0 and value_str[0] == '#') {
+            
+            // 检查是否是color属性，如果是，尝试将颜色关键字转换为颜色值
+            if (std.mem.eql(u8, property_name, "color")) {
+                // 检查是否是颜色关键字（如red、blue等）
+                if (self.parseColorKeyword(value_str)) |color| {
+                    value = parser.Value{ .color = color };
+                } else if (value_str.len > 0 and value_str[0] == '#') {
+                    // 解析颜色值（#rgb或#rrggbb格式）
+                    const color_hash = value_str[1..]; // 去掉#号
+                    const color = self.parseColorFromHash(color_hash) catch {
+                        // 如果解析失败，作为关键字处理
+                        const keyword = try self.allocator.dupe(u8, value_str);
+                        value = parser.Value{ .keyword = keyword };
+                        const decl = parser.Declaration{
+                            .name = name,
+                            .value = value,
+                            .important = false,
+                            .allocator = self.allocator,
+                        };
+                        try declarations.append(self.allocator, decl);
+                        continue;
+                    };
+                    value = parser.Value{ .color = color };
+                } else {
+                    // 其他情况，作为关键字处理
+                    const keyword = try self.allocator.dupe(u8, value_str);
+                    value = parser.Value{ .keyword = keyword };
+                }
+            } else if (value_str.len > 0 and value_str[0] == '#') {
+                // 检查是否是颜色值（以#开头）
                 // 解析颜色值（#rgb或#rrggbb格式）
                 const color_hash = value_str[1..]; // 去掉#号
                 const color = self.parseColorFromHash(color_hash) catch {

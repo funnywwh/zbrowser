@@ -401,7 +401,7 @@ pub const Renderer = struct {
             }
 
             // 文本节点应该使用父元素的样式
-            // 如果当前computed_style为空（文本节点没有自己的样式），尝试从父元素获取
+            // 文本节点本身没有样式，应该继承父元素的所有样式属性（如color、font-size等）
             var text_computed_style = computed_style;
             var parent_computed_style_opt: ?cascade.ComputedStyle = null;
             if (layout_box.parent) |parent| {
@@ -409,8 +409,10 @@ pub const Renderer = struct {
                 var cascade_engine = cascade.Cascade.init(self.allocator);
                 var parent_computed_style = try cascade_engine.computeStyle(parent.node, self.stylesheets);
 
-                // 如果当前样式为空或没有font-size，使用父元素的样式
-                if (computed_style.getProperty("font-size") == null) {
+                // 检查当前样式是否有color属性（文本节点最重要的属性）
+                // 如果没有color属性，使用父元素的样式
+                // 文本节点应该总是继承父元素的样式，特别是color属性
+                if (computed_style.getProperty("color") == null) {
                     parent_computed_style_opt = parent_computed_style;
                     // 注意：必须使用parent_computed_style_opt的地址，而不是parent_computed_style的地址
                     // 因为parent_computed_style在if块结束后会被销毁
