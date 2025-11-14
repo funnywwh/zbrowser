@@ -415,13 +415,25 @@ pub const LayoutBox = struct {
     ///
     /// 注意：此方法不会释放子节点的内存，只清理子节点的内容
     /// 如果子节点是用allocator.create创建的，需要在调用deinit()后手动调用allocator.destroy()
+    /// 清理formatting_context（内部辅助函数）
+    /// 注意：由于循环依赖，这个方法只设置为null，不实际释放内存
+    /// 实际的清理（调用deinit()和destroy()）应该在engine模块中完成
+    /// 应该在调用deinit()或deinitAndDestroyChildren()之前，先调用engine.deinitFormattingContextRecursive()
+    fn deinitFormattingContextInternal(self: *LayoutBox) void {
+        // 注意：这里只设置为null，不实际释放内存
+        // 因为deinit()和destroy()需要在context模块中调用，但这里无法导入context模块（循环依赖）
+        // 实际的清理应该在engine模块中完成
+        // 应该在调用deinit()或deinitAndDestroyChildren()之前，先调用engine.deinitFormattingContextRecursive()
+        self.formatting_context = null;
+    }
+
     pub fn deinit(self: *LayoutBox) void {
-        // 注意：formatting_context的清理由创建它的布局函数负责（如layoutInline）
-        // 这是因为formatting_context的类型是*anyopaque，需要根据display类型判断具体类型
-        // 而box模块不能导入context模块（会造成循环依赖）
-        // 如果需要在deinit中清理formatting_context，需要在调用deinit之前手动清理
-        // 或者使用deinitAndDestroyChildren，它会递归清理所有子节点（包括formatting_context）
-        // TODO: 实现formatting_context的自动清理机制（可能需要使用函数指针或vtable）
+        // 注意：formatting_context的清理应该在调用deinit之前完成
+        // 因为deinit()无法正确清理formatting_context（循环依赖问题）
+        // 应该在engine模块中调用engine.deinitFormattingContext()来清理
+        // 或者通过其他方式清理
+        // 这里暂时只释放内存，不调用deinit()
+        self.deinitFormattingContextInternal();
 
         // 清理计算后的样式
         if (self.computed_style) |*cs| {
@@ -450,6 +462,10 @@ pub const LayoutBox = struct {
     /// 清理布局框及其子节点，并释放所有子节点的内存
     /// 注意：此方法假设所有子节点都是用allocator.create创建的
     /// 如果LayoutBox是用allocator.create创建的，需要先调用deinitAndDestroyChildren()，再调用allocator.destroy()
+    /// 
+    /// 注意：此方法会递归清理所有子节点的formatting_context
+    /// 但由于循环依赖，formatting_context的清理（调用deinit()）需要在engine模块中完成
+    /// 应该在调用deinitAndDestroyChildren之前，先调用engine.deinitFormattingContext()来清理formatting_context
     pub fn deinitAndDestroyChildren(self: *LayoutBox) void {
         // 先清理当前节点的computed_style（避免内存泄漏）
         if (self.computed_style) |*cs| {
@@ -457,17 +473,11 @@ pub const LayoutBox = struct {
             self.computed_style = null;
         }
 
-        // 清理formatting_context（如果存在）
-        // 注意：formatting_context的类型是*anyopaque，需要根据display类型来判断如何清理
-        // 但由于循环依赖问题，这里只能简单地设置为null
-        // 实际的清理应该在子节点的deinitAndDestroyChildren中完成
-        // 或者由创建formatting_context的布局函数负责清理
-        // TODO: 实现更通用的formatting_context清理机制
-        // 暂时只设置为null，避免悬空指针
-        // 注意：formatting_context的内存泄漏问题需要在engine模块中解决
-        if (self.formatting_context) |_| {
-            self.formatting_context = null;
-        }
+        // 注意：formatting_context的清理应该在调用deinitAndDestroyChildren之前完成
+        // 因为deinitAndDestroyChildren无法正确清理formatting_context（循环依赖问题）
+        // 应该在engine模块中调用engine.deinitFormattingContext()来清理
+        // 这里暂时只释放内存，不调用deinit()
+        self.deinitFormattingContextInternal();
 
         // 先保存所有子节点的指针到独立数组，避免在清理过程中修改children导致迭代器失效
         // 注意：必须在children.deinit之前保存，因为deinit会释放items的内存

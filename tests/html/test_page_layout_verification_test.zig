@@ -143,7 +143,7 @@ test "test_page layout - h1 position and size" {
     }
     defer {
         // 先清理formatting_context，再清理布局树
-        engine.LayoutEngine.cleanupFormattingContexts(layout_tree);
+        engine.deinitFormattingContextRecursive(layout_tree);
         layout_tree.deinitAndDestroyChildren();
         allocator.destroy(layout_tree);
     }
@@ -198,7 +198,7 @@ test "test_page layout - block-test div position and size" {
     }
     defer {
         // 先清理formatting_context，再清理布局树
-        engine.LayoutEngine.cleanupFormattingContexts(layout_tree);
+        engine.deinitFormattingContextRecursive(layout_tree);
         layout_tree.deinitAndDestroyChildren();
         allocator.destroy(layout_tree);
     }
@@ -251,7 +251,7 @@ test "test_page layout - position-container layout" {
     }
     defer {
         // 先清理formatting_context，再清理布局树
-        engine.LayoutEngine.cleanupFormattingContexts(layout_tree);
+        engine.deinitFormattingContextRecursive(layout_tree);
         layout_tree.deinitAndDestroyChildren();
         allocator.destroy(layout_tree);
     }
@@ -305,7 +305,7 @@ test "test_page layout - float-container layout" {
     }
     defer {
         // 先清理formatting_context，再清理布局树
-        engine.LayoutEngine.cleanupFormattingContexts(layout_tree);
+        engine.deinitFormattingContextRecursive(layout_tree);
         layout_tree.deinitAndDestroyChildren();
         allocator.destroy(layout_tree);
     }
@@ -358,7 +358,7 @@ test "test_page layout - flex-container layout" {
     }
     defer {
         // 先清理formatting_context，再清理布局树
-        engine.LayoutEngine.cleanupFormattingContexts(layout_tree);
+        engine.deinitFormattingContextRecursive(layout_tree);
         layout_tree.deinitAndDestroyChildren();
         allocator.destroy(layout_tree);
     }
@@ -414,7 +414,7 @@ test "test_page layout - grid-container layout" {
     }
     defer {
         // 先清理formatting_context，再清理布局树
-        engine.LayoutEngine.cleanupFormattingContexts(layout_tree);
+        engine.deinitFormattingContextRecursive(layout_tree);
         layout_tree.deinitAndDestroyChildren();
         allocator.destroy(layout_tree);
     }
@@ -494,7 +494,7 @@ test "test_page render - text content verification" {
     }
     defer {
         // 先清理formatting_context，再清理布局树
-        engine.LayoutEngine.cleanupFormattingContexts(layout_tree);
+        engine.deinitFormattingContextRecursive(layout_tree);
         layout_tree.deinitAndDestroyChildren();
         allocator.destroy(layout_tree);
     }
@@ -579,6 +579,7 @@ test "test_page layout - element relative positions" {
     const html_node = doc_ptr.getDocumentElement() orelse return error.NoDocumentElement;
     const layout_tree = try layout_engine_instance.buildLayoutTree(html_node, &[_]css.Stylesheet{stylesheet});
     defer {
+        engine.deinitFormattingContextRecursive(layout_tree);
         layout_tree.deinitAndDestroyChildren();
         allocator.destroy(layout_tree);
     }

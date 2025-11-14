@@ -12,6 +12,26 @@ const css_parser = @import("parser");
 const style_utils = @import("style_utils");
 const context = @import("context");
 
+/// 清理LayoutBox的formatting_context（正确调用deinit()）
+/// 这个函数在engine模块中，可以访问context模块，因此可以正确清理formatting_context
+pub fn deinitFormattingContext(layout_box: *box.LayoutBox) void {
+    if (layout_box.formatting_context) |ctx_ptr| {
+        context.deinitFormattingContext(ctx_ptr, layout_box.allocator);
+        layout_box.formatting_context = null;
+    }
+}
+
+/// 递归清理LayoutBox及其所有子节点的formatting_context
+/// 这个函数在清理LayoutBox之前调用，确保所有formatting_context都被正确清理
+pub fn deinitFormattingContextRecursive(layout_box: *box.LayoutBox) void {
+    // 先递归清理所有子节点
+    for (layout_box.children.items) |child| {
+        deinitFormattingContextRecursive(child);
+    }
+    // 然后清理当前节点
+    deinitFormattingContext(layout_box);
+}
+
 /// 调试输出函数（只在Debug模式下输出）
 /// 使用条件编译，在Release模式下完全移除，避免性能影响
 inline fn debugPrint(comptime fmt: []const u8, args: anytype) void {

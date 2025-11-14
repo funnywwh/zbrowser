@@ -103,11 +103,30 @@ pub const LineBox = struct {
 
 /// 清理formatting_context（从*anyopaque转换并清理）
 /// 这是一个辅助函数，用于从LayoutBox中清理formatting_context
-/// 注意：这是一个unsafe操作，假设ctx_ptr指向的是InlineFormattingContext
-/// 由于*anyopaque的类型转换限制，这个函数暂时不实现
-/// TODO: 实现更通用的类型判断和清理机制
+/// 根据context_type来判断具体类型并进行清理
 pub fn deinitFormattingContext(ctx_ptr: *anyopaque, allocator: std.mem.Allocator) void {
-    _ = ctx_ptr;
-    _ = allocator;
-    // TODO: 实现清理逻辑
+    // 先转换为FormattingContext基类指针，以访问context_type
+    const base_ptr: *FormattingContext = @ptrCast(@alignCast(ctx_ptr));
+    
+    // 根据context_type判断具体类型并清理
+    switch (base_ptr.context_type) {
+        .inline_element => {
+            // 转换为InlineFormattingContext并清理
+            const ifc: *InlineFormattingContext = @ptrCast(@alignCast(ctx_ptr));
+            ifc.deinit();
+            allocator.destroy(ifc);
+        },
+        .block => {
+            // 转换为BlockFormattingContext并清理
+            const bfc: *BlockFormattingContext = @ptrCast(@alignCast(ctx_ptr));
+            bfc.deinit();
+            allocator.destroy(bfc);
+        },
+        .flex, .grid => {
+            // TODO: 实现Flex和Grid格式化上下文的清理
+            // 暂时只释放内存（使用FormattingContext作为类型，因为flex和grid都继承自它）
+            const ptr: *FormattingContext = @ptrCast(@alignCast(ctx_ptr));
+            allocator.destroy(ptr);
+        },
+    }
 }

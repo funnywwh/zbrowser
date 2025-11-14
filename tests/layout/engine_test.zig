@@ -33,8 +33,12 @@ test "LayoutEngine buildLayoutTree - single element" {
     // 但是destroy会释放内存，所以deinit执行时layout_tree已经无效了！
     // 正确的顺序应该是：先deinit，再destroy
     // 注意：layout_tree及其子节点都是用allocator.create创建的，需要使用deinitAndDestroyChildren
+    // 注意：在deinitAndDestroyChildren之前，需要先清理formatting_context
     defer allocator.destroy(layout_tree);
-    defer layout_tree.deinitAndDestroyChildren();
+    defer {
+        engine.deinitFormattingContextRecursive(layout_tree);
+        layout_tree.deinitAndDestroyChildren();
+    }
 
     // 检查布局树
     try testing.expectEqual(node, layout_tree.node);
@@ -75,8 +79,12 @@ test "LayoutEngine buildLayoutTree - multiple children" {
     // 但是destroy会释放内存，所以deinit执行时layout_tree已经无效了！
     // 正确的顺序应该是：先deinit，再destroy
     // 注意：layout_tree及其子节点都是用allocator.create创建的，需要使用deinitAndDestroyChildren
+    // 注意：在deinitAndDestroyChildren之前，需要先清理formatting_context
     defer allocator.destroy(layout_tree);
-    defer layout_tree.deinitAndDestroyChildren();
+    defer {
+        engine.deinitFormattingContextRecursive(layout_tree);
+        layout_tree.deinitAndDestroyChildren();
+    }
 
     // 检查布局树
     try testing.expectEqual(parent_node, layout_tree.node);
@@ -116,8 +124,12 @@ test "LayoutEngine buildLayoutTree - nested structure" {
     // 但是destroy会释放内存，所以deinit执行时layout_tree已经无效了！
     // 正确的顺序应该是：先deinit，再destroy
     // 注意：layout_tree及其子节点都是用allocator.create创建的，需要使用deinitAndDestroyChildren
+    // 注意：在deinitAndDestroyChildren之前，需要先清理formatting_context
     defer allocator.destroy(layout_tree);
-    defer layout_tree.deinitAndDestroyChildren();
+    defer {
+        engine.deinitFormattingContextRecursive(layout_tree);
+        layout_tree.deinitAndDestroyChildren();
+    }
 
     // 检查布局树结构
     try testing.expectEqual(@as(usize, 1), layout_tree.children.items.len);
@@ -144,8 +156,12 @@ test "LayoutEngine buildLayoutTree - empty node" {
     // 但是destroy会释放内存，所以deinit执行时layout_tree已经无效了！
     // 正确的顺序应该是：先deinit，再destroy
     // 注意：layout_tree及其子节点都是用allocator.create创建的，需要使用deinitAndDestroyChildren
+    // 注意：在deinitAndDestroyChildren之前，需要先清理formatting_context
     defer allocator.destroy(layout_tree);
-    defer layout_tree.deinitAndDestroyChildren();
+    defer {
+        engine.deinitFormattingContextRecursive(layout_tree);
+        layout_tree.deinitAndDestroyChildren();
+    }
 
     // 检查布局树（应该没有子节点）
     try testing.expectEqual(@as(usize, 0), layout_tree.children.items.len);
@@ -169,8 +185,12 @@ test "LayoutEngine layout - basic block layout" {
     // 但是destroy会释放内存，所以deinit执行时layout_tree已经无效了！
     // 正确的顺序应该是：先deinit，再destroy
     // 注意：layout_tree及其子节点都是用allocator.create创建的，需要使用deinitAndDestroyChildren
+    // 注意：在deinitAndDestroyChildren之前，需要先清理formatting_context
     defer allocator.destroy(layout_tree);
-    defer layout_tree.deinitAndDestroyChildren();
+    defer {
+        engine.deinitFormattingContextRecursive(layout_tree);
+        layout_tree.deinitAndDestroyChildren();
+    }
 
     // 执行布局
     const viewport = box.Size{ .width = 800, .height = 600 };
@@ -210,8 +230,12 @@ test "LayoutEngine layout - block with children" {
     // 但是destroy会释放内存，所以deinit执行时layout_tree已经无效了！
     // 正确的顺序应该是：先deinit，再destroy
     // 注意：layout_tree及其子节点都是用allocator.create创建的，需要使用deinitAndDestroyChildren
+    // 注意：在deinitAndDestroyChildren之前，需要先清理formatting_context
     defer allocator.destroy(layout_tree);
-    defer layout_tree.deinitAndDestroyChildren();
+    defer {
+        engine.deinitFormattingContextRecursive(layout_tree);
+        layout_tree.deinitAndDestroyChildren();
+    }
 
     // 执行布局
     const viewport = box.Size{ .width = 800, .height = 600 };
@@ -242,8 +266,12 @@ test "LayoutEngine layout - empty viewport" {
     // 但是destroy会释放内存，所以deinit执行时layout_tree已经无效了！
     // 正确的顺序应该是：先deinit，再destroy
     // 注意：layout_tree及其子节点都是用allocator.create创建的，需要使用deinitAndDestroyChildren
+    // 注意：在deinitAndDestroyChildren之前，需要先清理formatting_context
     defer allocator.destroy(layout_tree);
-    defer layout_tree.deinitAndDestroyChildren();
+    defer {
+        engine.deinitFormattingContextRecursive(layout_tree);
+        layout_tree.deinitAndDestroyChildren();
+    }
 
     // 执行布局（空viewport）
     const viewport = box.Size{ .width = 0, .height = 0 };
@@ -271,8 +299,12 @@ test "LayoutEngine layout - large viewport" {
     // 但是destroy会释放内存，所以deinit执行时layout_tree已经无效了！
     // 正确的顺序应该是：先deinit，再destroy
     // 注意：layout_tree及其子节点都是用allocator.create创建的，需要使用deinitAndDestroyChildren
+    // 注意：在deinitAndDestroyChildren之前，需要先清理formatting_context
     defer allocator.destroy(layout_tree);
-    defer layout_tree.deinitAndDestroyChildren();
+    defer {
+        engine.deinitFormattingContextRecursive(layout_tree);
+        layout_tree.deinitAndDestroyChildren();
+    }
 
     // 执行布局（大viewport）
     const viewport = box.Size{ .width = 10000, .height = 10000 };
@@ -297,7 +329,10 @@ test "LayoutEngine layout - flex container" {
     // 构建布局树
     const layout_tree = try layout_engine.buildLayoutTree(root_node, &[_]css.Stylesheet{});
     defer allocator.destroy(layout_tree);
-    defer layout_tree.deinitAndDestroyChildren();
+    defer {
+        engine.deinitFormattingContextRecursive(layout_tree);
+        layout_tree.deinitAndDestroyChildren();
+    }
 
     // 设置为flex容器
     layout_tree.display = .flex;
@@ -340,7 +375,10 @@ test "LayoutEngine layout - grid container" {
     // 构建布局树
     const layout_tree = try layout_engine.buildLayoutTree(root_node, &[_]css.Stylesheet{});
     defer allocator.destroy(layout_tree);
-    defer layout_tree.deinitAndDestroyChildren();
+    defer {
+        engine.deinitFormattingContextRecursive(layout_tree);
+        layout_tree.deinitAndDestroyChildren();
+    }
 
     // 设置为grid容器
     layout_tree.display = .grid;
