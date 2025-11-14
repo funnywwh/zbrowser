@@ -457,6 +457,18 @@ pub const LayoutBox = struct {
             self.computed_style = null;
         }
 
+        // 清理formatting_context（如果存在）
+        // 注意：formatting_context的类型是*anyopaque，需要根据display类型来判断如何清理
+        // 但由于循环依赖问题，这里只能简单地设置为null
+        // 实际的清理应该在子节点的deinitAndDestroyChildren中完成
+        // 或者由创建formatting_context的布局函数负责清理
+        // TODO: 实现更通用的formatting_context清理机制
+        // 暂时只设置为null，避免悬空指针
+        // 注意：formatting_context的内存泄漏问题需要在engine模块中解决
+        if (self.formatting_context) |_| {
+            self.formatting_context = null;
+        }
+
         // 先保存所有子节点的指针到独立数组，避免在清理过程中修改children导致迭代器失效
         // 注意：必须在children.deinit之前保存，因为deinit会释放items的内存
         const children_count = self.children.items.len;

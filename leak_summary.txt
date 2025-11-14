@@ -1,0 +1,100 @@
+[gpa] (err): memory address 0x7fa006280d40 leaked: 
+/home/winger/zigwk/zbrowser/src/layout/inline.zig:47:52: 0x12fb0c2 in layoutInline (inline.zig)
+    const new_ifc = try layout_box.allocator.create(context.InlineFormattingContext);
+                                                   ^
+/home/winger/zigwk/zbrowser/src/layout/engine.zig:166:51: 0x12fcf8f in layout (engine.zig)
+                _ = try inline_layout.layoutInline(layout_tree, viewport);
+                                                  ^
+/home/winger/zigwk/zbrowser/src/layout/engine.zig:217:36: 0x12fd627 in layout (engine.zig)
+                    try self.layout(child, containing_block, stylesheets);
+                                   ^
+/home/winger/zigwk/zbrowser/src/layout/engine.zig:217:36: 0x12fd627 in layout (engine.zig)
+                    try self.layout(child, containing_block, stylesheets);
+                                   ^
+/home/winger/zigwk/zbrowser/src/layout/engine.zig:217:36: 0x12fd627 in layout (engine.zig)
+                    try self.layout(child, containing_block, stylesheets);
+                                   ^
+/home/winger/zigwk/zbrowser/src/layout/engine.zig:217:36: 0x12fd627 in layout (engine.zig)
+                    try self.layout(child, containing_block, stylesheets);
+                                   ^
+
+[gpa] (err): memory address 0x7fa006280d80 leaked: 
+/home/winger/zigwk/zbrowser/src/layout/inline.zig:47:52: 0x12fb0c2 in layoutInline (inline.zig)
+    const new_ifc = try layout_box.allocator.create(context.InlineFormattingContext);
+                                                   ^
+/home/winger/zigwk/zbrowser/src/layout/engine.zig:166:51: 0x12fcf8f in layout (engine.zig)
+                _ = try inline_layout.layoutInline(layout_tree, viewport);
+                                                  ^
+/home/winger/zigwk/zbrowser/src/layout/engine.zig:217:36: 0x12fd627 in layout (engine.zig)
+                    try self.layout(child, containing_block, stylesheets);
+                                   ^
+/home/winger/zigwk/zbrowser/src/layout/engine.zig:217:36: 0x12fd627 in layout (engine.zig)
+                    try self.layout(child, containing_block, stylesheets);
+                                   ^
+/home/winger/zigwk/zbrowser/src/layout/engine.zig:217:36: 0x12fd627 in layout (engine.zig)
+                    try self.layout(child, containing_block, stylesheets);
+                                   ^
+/home/winger/zigwk/zbrowser/src/layout/engine.zig:217:36: 0x12fd627 in layout (engine.zig)
+                    try self.layout(child, containing_block, stylesheets);
+                                   ^
+
+[gpa] (err): memory address 0x7fa006280dc0 leaked: 
+/home/winger/zigwk/zbrowser/src/layout/inline.zig:47:52: 0x12fb0c2 in layoutInline (inline.zig)
+    const new_ifc = try layout_box.allocator.create(context.InlineFormattingContext);
+                                                   ^
+/home/winger/zigwk/zbrowser/src/layout/engine.zig:166:51: 0x12fcf8f in layout (engine.zig)
+                _ = try inline_layout.layoutInline(layout_tree, viewport);
+                                                  ^
+/home/winger/zigwk/zbrowser/src/layout/engine.zig:217:36: 0x12fd627 in layout (engine.zig)
+                    try self.layout(child, containing_block, stylesheets);
+                                   ^
+/home/winger/zigwk/zbrowser/src/layout/engine.zig:217:36: 0x12fd627 in layout (engine.zig)
+                    try self.layout(child, containing_block, stylesheets);
+                                   ^
+/home/winger/zigwk/zbrowser/src/layout/engine.zig:217:36: 0x12fd627 in layout (engine.zig)
+                    try self.layout(child, containing_block, stylesheets);
+                                   ^
+/home/winger/zigwk/zbrowser/src/layout/engine.zig:217:36: 0x12fd627 in layout (engine.zig)
+                    try self.layout(child, containing_block, stylesheets);
+                                   ^
+
+[gpa] (err): memory address 0x7fa006280e00 leaked: 
+/home/winger/zigwk/zbrowser/src/layout/inline.zig:47:52: 0x12fb0c2 in layoutInline (inline.zig)
+    const new_ifc = try layout_box.allocator.create(context.InlineFormattingContext);
+                                                   ^
+/home/winger/zigwk/zbrowser/src/layout/engine.zig:166:51: 0x12fcf8f in layout (engine.zig)
+                _ = try inline_layout.layoutInline(layout_tree, viewport);
+                                                  ^
+/home/winger/zigwk/zbrowser/src/layout/engine.zig:217:36: 0x12fd627 in layout (engine.zig)
+                    try self.layout(child, containing_block, stylesheets);
+                                   ^
+/home/winger/zigwk/zbrowser/src/layout/engine.zig:217:36: 0x12fd627 in layout (engine.zig)
+                    try self.layout(child, containing_block, stylesheets);
+                                   ^
+/home/winger/zigwk/zbrowser/src/layout/engine.zig:217:36: 0x12fd627 in layout (engine.zig)
+                    try self.layout(child, containing_block, stylesheets);
+                                   ^
+/home/winger/zigwk/zbrowser/src/layout/engine.zig:217:36: 0x12fd627 in layout (engine.zig)
+                    try self.layout(child, containing_block, stylesheets);
+                                   ^
+
+[gpa] (err): memory address 0x7fa006280e40 leaked: 
+/home/winger/zigwk/zbrowser/src/layout/inline.zig:47:52: 0x12fb0c2 in layoutInline (inline.zig)
+    const new_ifc = try layout_box.allocator.create(context.InlineFormattingContext);
+                                                   ^
+/home/winger/zigwk/zbrowser/src/layout/engine.zig:166:51: 0x12fcf8f in layout (engine.zig)
+                _ = try inline_layout.layoutInline(layout_tree, viewport);
+                                                  ^
+/home/winger/zigwk/zbrowser/src/layout/engine.zig:217:36: 0x12fd627 in layout (engine.zig)
+                    try self.layout(child, containing_block, stylesheets);
+                                   ^
+/home/winger/zigwk/zbrowser/src/layout/engine.zig:217:36: 0x12fd627 in layout (engine.zig)
+                    try self.layout(child, containing_block, stylesheets);
+                                   ^
+/home/winger/zigwk/zbrowser/src/layout/engine.zig:217:36: 0x12fd627 in layout (engine.zig)
+                    try self.layout(child, containing_block, stylesheets);
+                                   ^
+/home/winger/zigwk/zbrowser/src/layout/engine.zig:217:36: 0x12fd627 in layout (engine.zig)
+                    try self.layout(child, containing_block, stylesheets);
+                                   ^
+

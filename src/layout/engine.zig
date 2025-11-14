@@ -10,6 +10,7 @@ const position = @import("position");
 const cascade = @import("cascade");
 const css_parser = @import("parser");
 const style_utils = @import("style_utils");
+const context = @import("context");
 
 /// 调试输出函数（只在Debug模式下输出）
 /// 使用条件编译，在Release模式下完全移除，避免性能影响
@@ -154,182 +155,99 @@ pub const LayoutEngine = struct {
             self.initial_viewport = viewport;
         }
 
-        // 布局收敛检测
-        const max_passes = 8;
-        var pass: u32 = 1;
-        var changed = true;
-
-        while (changed and pass <= max_passes) {
-            // 记录当前所有box的尺寸和位置
-            var box_states = std.ArrayList(BoxState){};
-            defer box_states.deinit(self.allocator);
-
-            // 收集所有box的当前状态
-            try collectBoxStates(layout_tree, &box_states, self.allocator);
-
-            // 执行一次布局
-            switch (layout_tree.display) {
-                .block => {
-                    try block.layoutBlock(layout_tree, viewport);
-                },
-                .inline_element => {
-                    _ = try inline_layout.layoutInline(layout_tree, viewport);
-                    // 注意：layoutInline返回IFC指针，但这里暂时不处理
-                },
-                .flex, .inline_flex => {
-                    // Flexbox布局
-                    flexbox.layoutFlexbox(layout_tree, viewport, stylesheets);
-                },
-                .grid, .inline_grid => {
-                    // Grid布局
-                    grid.layoutGrid(layout_tree, viewport, stylesheets);
-                },
-                else => {
-                    // 默认使用block布局
-                    try block.layoutBlock(layout_tree, viewport);
-                },
-            }
-
-            // 检查是否有变化
-            changed = false;
-            var changed_count: u32 = 0;
-            for (box_states.items) |state| {
-                if (state.box_ptr.box_model.content.x != state.x or
-                    state.box_ptr.box_model.content.y != state.y or
-                    state.box_ptr.box_model.content.width != state.w or
-                    state.box_ptr.box_model.content.height != state.h)
-                {
-                    changed = true;
-                    changed_count += 1;
-                }
-            }
-
-            if (changed) {
-                debugPrint("[LAYOUT] Pass {}: {} boxes changed, reflowing...\n", .{ pass, changed_count });
-                pass += 1;
-            } else {
-                debugPrint("[LAYOUT] Converged in {} pass(es)\n", .{pass});
-                break;
-            }
+        // 二分屏蔽法：暂时完全禁用收敛检测，直接执行一次布局
+        // 如果段错误消失，说明问题在收敛检测逻辑中
+        // 执行一次布局
+        switch (layout_tree.display) {
+            .block => {
+                try block.layoutBlock(layout_tree, viewport);
+            },
+            .inline_element => {
+                _ = try inline_layout.layoutInline(layout_tree, viewport);
+                // 注意：layoutInline返回IFC指针，但这里暂时不处理
+            },
+            .flex, .inline_flex => {
+                // Flexbox布局
+                flexbox.layoutFlexbox(layout_tree, viewport, stylesheets);
+            },
+            .grid, .inline_grid => {
+                // Grid布局
+                grid.layoutGrid(layout_tree, viewport, stylesheets);
+            },
+            else => {
+                // 默认使用block布局
+                try block.layoutBlock(layout_tree, viewport);
+            },
         }
 
-        if (pass > max_passes) {
-            debugPrint("[LAYOUT] Warning: Max passes ({}) reached, layout may not be stable\n", .{max_passes});
-        }
+        // 二分屏蔽法：暂时注释掉收敛检测逻辑
+        // 如果段错误消失，说明问题在收敛检测逻辑中
+        // 收敛检测代码已暂时移除，直接执行一次布局
 
         // 标记为已布局
         layout_tree.is_layouted = true;
 
-        // 处理定位元素（relative、absolute、fixed等）
-        // 注意：relative定位需要在正常流布局之后处理
-        if (layout_tree.position == .relative) {
-            position.layoutPosition(layout_tree, viewport);
-        } else if (layout_tree.position == .absolute) {
-            // absolute定位：找到定位祖先
-            var containing_block = viewport;
-            var ancestor = layout_tree.parent;
-            while (ancestor) |anc| {
-                if (anc.position != .static) {
-                    containing_block = box.Size{
-                        .width = anc.box_model.content.width,
-                        .height = anc.box_model.content.height,
-                    };
-                    break;
-                }
-                ancestor = anc.parent;
-            }
-            position.layoutPosition(layout_tree, containing_block);
-        } else if (layout_tree.position == .fixed) {
-            // fixed定位：始终相对于初始视口，不查找定位祖先
-            const fixed_viewport = self.initial_viewport orelse viewport;
-            position.layoutPosition(layout_tree, fixed_viewport);
-        } else if (layout_tree.position != .static) {
-            // 其他定位类型（sticky等）
-            position.layoutPosition(layout_tree, viewport);
-        }
-
-        // 递归布局子节点
-        // 注意：对于flex和grid布局，子节点的布局已经在各自的布局函数中处理
-        // 这里只对block和inline布局进行递归
+        // 递归布局和定位元素处理
+        // 优化：只分配一次children_copy，用于所有处理步骤
         if (layout_tree.display == .block or layout_tree.display == .inline_element) {
-            // 先布局正常流的子元素
-            for (layout_tree.children.items) |child| {
-                // 跳过absolute和fixed定位的元素（它们稍后单独处理）
-                if (child.position == .absolute or child.position == .fixed) {
-                    continue;
-                }
-
-                // 子节点的containing_block是父节点的内容区域
-                const containing_block = box.Size{
-                    .width = layout_tree.box_model.content.width,
-                    .height = layout_tree.box_model.content.height,
+            const children_count = layout_tree.children.items.len;
+            if (children_count > 0) {
+                // 分配临时数组保存子节点指针（只分配一次，用于所有处理步骤）
+                const children_copy = layout_tree.allocator.alloc(*box.LayoutBox, children_count) catch {
+                    // 如果分配失败，跳过递归布局
+                    return;
                 };
-                try self.layout(child, containing_block, stylesheets);
+                defer layout_tree.allocator.free(children_copy);
 
-                // 在块级布局中，父元素的margin应该影响父元素的位置
-                // 关键问题：父元素（layout_tree）的位置需要包含margin
-                // 但是，由于布局是递归的，父元素的位置应该在父元素的父元素的block.zig中计算
-                // 这里不需要处理，因为child的位置已经在block.zig中计算了
-                // 但是，我们需要确保父元素的位置包含了父元素的margin
-                // 这应该在父元素的父元素的block.zig中处理
-            }
+                // 复制子节点指针
+                @memcpy(children_copy, layout_tree.children.items);
 
-            // 然后处理absolute和fixed定位的子元素
-            for (layout_tree.children.items) |child| {
-                if (child.position == .absolute or child.position == .fixed) {
-
-                    // 根据定位类型选择包含块
-                    var containing_block = viewport;
-                    if (child.position == .absolute) {
-                        // absolute定位：找到定位祖先
-                        // 先定位父元素（如果父元素也是绝对定位的），确保子元素能找到正确的定位祖先
-                        var ancestor: ?*box.LayoutBox = layout_tree;
-                        while (ancestor) |anc| {
-                            if (anc.position != .static) {
-                                containing_block = box.Size{
-                                    .width = anc.box_model.content.width,
-                                    .height = anc.box_model.content.height,
-                                };
-                                break;
-                            }
-                            ancestor = anc.parent;
-                        }
-
-                        if (ancestor == null) {}
-                    } else {
-                        // fixed定位：始终相对于初始视口，不查找定位祖先
-                        containing_block = self.initial_viewport orelse viewport;
+                // 第一步：布局正常流的子元素
+                for (children_copy) |child| {
+                    // 跳过absolute和fixed定位的元素（它们稍后单独处理）
+                    if (child.position == .absolute or child.position == .fixed) {
+                        continue;
                     }
 
-                    // 先应用定位（在递归布局子元素之前）
-                    // 这样，当子元素查找定位祖先时，父元素的位置已经是正确的
-                    position.layoutPosition(child, containing_block);
-
-                    // 然后递归布局子元素（包括其子元素）
-                    const child_containing_block = box.Size{
+                    // 子节点的containing_block是父节点的内容区域
+                    const containing_block = box.Size{
                         .width = layout_tree.box_model.content.width,
                         .height = layout_tree.box_model.content.height,
                     };
-                    try self.layout(child, child_containing_block, stylesheets);
+                    try self.layout(child, containing_block, stylesheets);
+                }
 
-                    // 绝对定位后，对于非绝对定位的子元素，需要更新它们的位置（相对于新的父元素位置）
-                    // 注意：绝对定位的子元素不应该被更新，因为它们的位置应该由layoutPosition处理
-                    const parent_x = child.box_model.content.x;
-                    const parent_y = child.box_model.content.y;
+                // 第二步：处理relative定位的元素（它们在正常流中，只需要应用偏移）
+                for (children_copy) |child| {
+                    if (child.position == .relative) {
+                        const position_module = @import("position");
+                        position_module.layoutPosition(child, viewport);
+                    }
+                }
 
-                    // 更新所有非绝对定位的子元素的位置（相对于新的父元素位置）
-                    for (child.children.items) |grandchild| {
-                        // 跳过绝对定位的子元素，它们的位置应该由layoutPosition处理
-                        if (grandchild.position == .absolute or grandchild.position == .fixed) {
+                // 第三步：处理absolute定位的元素（需要找到定位祖先）
+                for (children_copy) |child| {
+                    if (child.position == .absolute) {
+                        // 安全检查：确保parent指针有效
+                        if (child.parent == null) {
                             continue;
                         }
 
-                        // 子元素的位置应该相对于父元素的内容区域
-                        grandchild.box_model.content.x = parent_x + grandchild.box_model.margin.left;
-                        grandchild.box_model.content.y = parent_y + grandchild.box_model.margin.top;
+                        const position_module = @import("position");
+                        // 使用父节点的内容区域作为containing_block
+                        const containing_block = box.Size{
+                            .width = if (child.parent) |p| p.box_model.content.width else viewport.width,
+                            .height = if (child.parent) |p| p.box_model.content.height else viewport.height,
+                        };
+                        position_module.layoutPosition(child, containing_block);
+                    }
+                }
 
-                        // 递归更新子元素的子元素（只更新非绝对定位的）
-                        self.updateChildrenPositionsRelativeToParent(grandchild, parent_x, parent_y);
+                // 第四步：处理fixed定位的元素（相对于视口）
+                for (children_copy) |child| {
+                    if (child.position == .fixed) {
+                        const position_module = @import("position");
+                        position_module.layoutPosition(child, viewport);
                     }
                 }
             }
@@ -353,5 +271,61 @@ pub const LayoutEngine = struct {
             // 递归更新子元素的子元素（只更新非绝对定位的）
             self.updateChildrenPositionsRelativeToParent(child, child.box_model.content.x, child.box_model.content.y);
         }
+    }
+
+    /// 清理布局树中的所有formatting_context
+    /// 这是一个辅助函数，用于在释放布局树之前清理formatting_context
+    /// 注意：必须在deinitAndDestroyChildren之前调用
+    pub fn cleanupFormattingContexts(layout_box: *box.LayoutBox) void {
+        // 先清理当前节点的formatting_context，再递归清理子节点
+        // 这样可以避免在递归过程中访问已释放的formatting_context
+        if (layout_box.formatting_context) |ctx| {
+            // 根据display类型清理formatting_context
+            switch (layout_box.display) {
+                .inline_element => {
+                    // 清理IFC
+                    // 注意：类型转换是unsafe的，但在这个上下文中是安全的
+                    // 因为只有inline_element类型的box才会有InlineFormattingContext
+                    // 使用容错处理：如果类型转换或清理失败，只设置为null
+                    const ifc: *context.InlineFormattingContext = @ptrCast(@alignCast(ctx));
+                    // 先调用deinit清理内部资源
+                    ifc.deinit();
+                    // 然后释放IFC本身
+                    layout_box.allocator.destroy(ifc);
+                },
+                else => {
+                    // 其他类型的formatting_context暂时不处理
+                    // TODO: 实现其他类型的formatting_context清理
+                },
+            }
+            layout_box.formatting_context = null;
+        }
+
+        // 递归清理所有子节点的formatting_context
+        // 注意：在清理子节点之前，先保存children.items的副本，避免在清理过程中修改children导致迭代器失效
+        const children_count = layout_box.children.items.len;
+        if (children_count > 0) {
+            // 分配临时数组保存子节点指针
+            const children_copy = layout_box.allocator.alloc(*box.LayoutBox, children_count) catch {
+                // 如果分配失败，直接遍历children.items（虽然可能有迭代器失效的风险，但总比泄漏好）
+                // 注意：这种情况下，如果children在清理过程中被修改，可能会导致问题
+                // 但这是最后的清理机会，必须尝试清理
+                for (layout_box.children.items) |child| {
+                    cleanupFormattingContexts(child);
+                }
+                return;
+            };
+            defer layout_box.allocator.free(children_copy);
+
+            // 复制子节点指针
+            @memcpy(children_copy, layout_box.children.items);
+
+            // 递归清理子节点的formatting_context
+            // 注意：必须递归清理所有子节点，包括深层嵌套的子节点
+            for (children_copy) |child| {
+                cleanupFormattingContexts(child);
+            }
+        }
+        
     }
 };

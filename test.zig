@@ -14,6 +14,9 @@ const std = @import("std");
 const html_parser_test = @import("tests/html/parser_test.zig");
 const html_tokenizer_test = @import("tests/html/tokenizer_test.zig");
 const html_dom_test = @import("tests/html/dom_test.zig");
+const html_test_page_test = @import("tests/html/test_page_test.zig");
+const html_test_page_render_test = @import("tests/html/test_page_render_test.zig");
+const html_test_page_layout_verification_test = @import("tests/html/test_page_layout_verification_test.zig");
 
 // CSS模块测试
 const css_parser_test = @import("tests/css/parser_test.zig");
@@ -80,6 +83,9 @@ test "all test modules imported" {
     _ = html_parser_test;
     _ = html_tokenizer_test;
     _ = html_dom_test;
+    _ = html_test_page_test;
+    _ = html_test_page_render_test;
+    _ = html_test_page_layout_verification_test;
     _ = css_parser_test;
     _ = css_tokenizer_test;
     _ = css_selector_test;

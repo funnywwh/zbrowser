@@ -520,3 +520,48 @@ test "InlineFormattingContext boundary_case - deinit after multiple line boxes w
     // deinit应该正确清理所有行框中的inline_boxes
     ifc.deinit();
 }
+
+// 测试：LineBox 内存泄漏检测
+test "LineBox - memory leak detection" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // 创建测试节点
+    const node1 = try test_helpers.createTestElement(allocator, "span");
+    defer test_helpers.freeNode(allocator, node1);
+    const node2 = try test_helpers.createTestElement(allocator, "span");
+    defer test_helpers.freeNode(allocator, node2);
+    const node3 = try test_helpers.createTestElement(allocator, "span");
+    defer test_helpers.freeNode(allocator, node3);
+
+    // 创建布局框
+    var inline_box1 = box.LayoutBox.init(node1, allocator);
+    defer inline_box1.deinit();
+    var inline_box2 = box.LayoutBox.init(node2, allocator);
+    defer inline_box2.deinit();
+    var inline_box3 = box.LayoutBox.init(node3, allocator);
+    defer inline_box3.deinit();
+
+    // 创建行框
+    var line_box = context.LineBox{
+        .rect = box.Rect{ .x = 0, .y = 0, .width = 100, .height = 20 },
+        .inline_boxes = std.ArrayList(*box.LayoutBox){},
+        .baseline = 15,
+        .line_height = 20,
+    };
+    defer line_box.inline_boxes.deinit(allocator);
+
+    // 添加多个行内元素（触发多次内存分配）
+    try line_box.inline_boxes.append(allocator, &inline_box1);
+    try line_box.inline_boxes.append(allocator, &inline_box2);
+    try line_box.inline_boxes.append(allocator, &inline_box3);
+
+    // 验证添加成功
+    try testing.expectEqual(@as(usize, 3), line_box.inline_boxes.items.len);
+    try testing.expectEqual(&inline_box1, line_box.inline_boxes.items[0]);
+    try testing.expectEqual(&inline_box2, line_box.inline_boxes.items[1]);
+    try testing.expectEqual(&inline_box3, line_box.inline_boxes.items[2]);
+
+    // defer会自动清理，测试结束时检查内存泄漏
+}

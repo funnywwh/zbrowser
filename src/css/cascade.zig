@@ -16,14 +16,34 @@ pub const ComputedStyle = struct {
     }
 
     pub fn deinit(self: *ComputedStyle) void {
+        // 先收集所有 key，然后逐个删除和释放
+        // 这样可以避免在迭代过程中修改 HashMap 导致的问题
+        var keys = std.ArrayList([]const u8){};
+        defer keys.deinit(self.allocator);
+        
+        // 收集所有 key
         var it = self.properties.iterator();
         while (it.next()) |entry| {
-            // 释放 key（HashMap 的 key）
-            self.allocator.free(entry.key_ptr.*);
-            // 释放 value（Declaration），但不要释放 Declaration.name（因为它是 key）
-            // 使用 deinitValueOnly 只释放 value
-            entry.value_ptr.deinitValueOnly();
+            keys.append(self.allocator, entry.key_ptr.*) catch {
+                // 如果分配失败，直接释放当前条目
+                self.allocator.free(entry.key_ptr.*);
+                entry.value_ptr.deinitValueOnly();
+                continue;
+            };
         }
+        
+        // 逐个删除和释放
+        for (keys.items) |key| {
+            if (self.properties.fetchRemove(key)) |removed_entry| {
+                // 释放 key
+                self.allocator.free(removed_entry.key);
+                // 释放 value（Declaration），但不要释放 Declaration.name（因为它是 key）
+                // 使用 deinitValueOnly 只释放 value
+                var mutable_value = removed_entry.value;
+                mutable_value.deinitValueOnly();
+            }
+        }
+        
         self.properties.deinit();
     }
 

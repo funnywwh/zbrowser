@@ -45,9 +45,16 @@ pub fn layoutInline(layout_box: *box.LayoutBox, containing_block: box.Size) !*co
 
     // 创建新的IFC
     const new_ifc = try layout_box.allocator.create(context.InlineFormattingContext);
-    errdefer layout_box.allocator.destroy(new_ifc);
+    // 初始化IFC（init不会失败，因为它只是初始化结构体字段）
     new_ifc.* = context.InlineFormattingContext.init(layout_box, layout_box.allocator);
+    // 设置formatting_context（在errdefer之前，这样如果后续失败，IFC会被正确清理）
     layout_box.formatting_context = new_ifc;
+    // errdefer：如果后续操作失败，清理IFC（先deinit再destroy）
+    errdefer {
+        new_ifc.deinit();
+        layout_box.allocator.destroy(new_ifc);
+        layout_box.formatting_context = null;
+    }
     const ifc = new_ifc;
 
     // 创建第一个行框

@@ -73,10 +73,16 @@ pub const InlineFormattingContext = struct {
     /// 清理IFC
     pub fn deinit(self: *InlineFormattingContext) void {
         // 清理所有行框中的inline_boxes
+        // 注意：必须使用base.allocator，因为IFC初始化时使用的是container的allocator
+        // 而container的allocator就是base.allocator（在init中设置的）
+        // 但是，在createLineBox和append时使用的是layout_box.allocator，应该与base.allocator相同
+        const allocator = self.base.allocator;
         for (self.line_boxes.items) |*line_box| {
-            line_box.inline_boxes.deinit(self.base.allocator);
+            // 必须清理inline_boxes，即使capacity为0（因为可能已经分配了内存）
+            line_box.inline_boxes.deinit(allocator);
         }
-        self.line_boxes.deinit(self.base.allocator);
+        // 必须清理line_boxes，即使capacity为0（因为可能已经分配了内存）
+        self.line_boxes.deinit(allocator);
     }
 };
 

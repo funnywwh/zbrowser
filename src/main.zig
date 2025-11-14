@@ -82,6 +82,8 @@ pub const Browser = struct {
     pub fn invalidateLayoutTreeCache(self: *Browser) void {
         // 释放缓存的布局树
         if (self.cached_layout_tree) |tree| {
+            // 清理formatting_context（必须在deinitAndDestroyChildren之前调用）
+            cleanupFormattingContexts(tree);
             tree.deinitAndDestroyChildren();
             self.allocator.destroy(tree);
             self.cached_layout_tree = null;
@@ -90,6 +92,13 @@ pub const Browser = struct {
         self.cached_layout_engine = null;
         // 更新DOM版本号
         self.dom_version += 1;
+    }
+
+    /// 清理布局树中的所有formatting_context
+    /// 这是一个辅助函数，用于在释放布局树之前清理formatting_context
+    fn cleanupFormattingContexts(layout_box: *box.LayoutBox) void {
+        // 调用engine模块的清理函数
+        layout_engine.LayoutEngine.cleanupFormattingContexts(layout_box);
     }
 
     /// 渲染页面
@@ -132,6 +141,11 @@ pub const Browser = struct {
 
         // 3. 执行布局计算
         // 注意：即使复用布局树，布局计算也需要重新执行（因为视口大小可能变化）
+        // 注意：在复用布局树时，需要先清理旧的formatting_context，因为layout会创建新的
+        if (self.cached_layout_tree) |_| {
+            // 复用布局树时，先清理旧的formatting_context
+            cleanupFormattingContexts(layout_tree);
+        }
         const viewport = box.Size{ .width = @as(f32, @floatFromInt(width)), .height = @as(f32, @floatFromInt(height)) };
         try layout_engine_instance.layout(layout_tree, viewport, self.stylesheets.items);
 

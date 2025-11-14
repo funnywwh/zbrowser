@@ -1,0 +1,60 @@
+  [UPDATE Y] child: div, content_height=160.4, margin.bottom=3.0, total_height=163.4, y after=224.6
+  [UPDATE Y] child: div, content_height=258.6, margin.bottom=5.0, total_height=263.6, y after=364.1
+  [UPDATE Y] child: div, content_height=71.2, margin.bottom=2.0, total_height=73.2, y after=132.4
+  [UPDATE Y] child: div, content_height=160.4, margin.bottom=3.0, total_height=163.4, y after=224.6
+  [UPDATE Y] child: div, content_height=71.2, margin.bottom=2.0, total_height=73.2, y after=132.4
+  [UPDATE Y] child: div, content_height=222.4, margin.bottom=0.0, total_height=222.4, y after=222.4
+  [UPDATE Y] child: div, content_height=91.2, margin.bottom=0.0, total_height=91.2, y after=245.4
+  [UPDATE Y] child: div, content_height=294.4, margin.bottom=0.0, total_height=294.4, y after=516.8
+  [UPDATE Y] child: div, content_height=516.8, margin.bottom=0.0, total_height=516.8, y after=622.3
+  [UPDATE Y] child: div, content_height=115.2, margin.bottom=0.0, total_height=115.2, y after=737.5
+[gpa] (err): memory address 0x7fa006280d40 leaked: 
+--
+/home/winger/zigwk/zbrowser/src/layout/engine.zig:217:36: 0x12fd627 in layout (engine.zig)
+                    try self.layout(child, containing_block, stylesheets);
+                                   ^
+/home/winger/zigwk/zbrowser/src/layout/engine.zig:217:36: 0x12fd627 in layout (engine.zig)
+                    try self.layout(child, containing_block, stylesheets);
+                                   ^
+/home/winger/zigwk/zbrowser/src/layout/engine.zig:217:36: 0x12fd627 in layout (engine.zig)
+                    try self.layout(child, containing_block, stylesheets);
+                                   ^
+
+[gpa] (err): memory address 0x7fa006280d80 leaked: 
+--
+/home/winger/zigwk/zbrowser/src/layout/engine.zig:217:36: 0x12fd627 in layout (engine.zig)
+                    try self.layout(child, containing_block, stylesheets);
+                                   ^
+/home/winger/zigwk/zbrowser/src/layout/engine.zig:217:36: 0x12fd627 in layout (engine.zig)
+                    try self.layout(child, containing_block, stylesheets);
+                                   ^
+/home/winger/zigwk/zbrowser/src/layout/engine.zig:217:36: 0x12fd627 in layout (engine.zig)
+                    try self.layout(child, containing_block, stylesheets);
+                                   ^
+
+[gpa] (err): memory address 0x7fa006280dc0 leaked: 
+--
+/home/winger/zigwk/zbrowser/src/layout/engine.zig:217:36: 0x12fd627 in layout (engine.zig)
+                    try self.layout(child, containing_block, stylesheets);
+                                   ^
+/home/winger/zigwk/zbrowser/src/layout/engine.zig:217:36: 0x12fd627 in layout (engine.zig)
+                    try self.layout(child, containing_block, stylesheets);
+                                   ^
+/home/winger/zigwk/zbrowser/src/layout/engine.zig:217:36: 0x12fd627 in layout (engine.zig)
+                    try self.layout(child, containing_block, stylesheets);
+                                   ^
+
+[gpa] (err): memory address 0x7fa006280e00 leaked: 
+--
+/home/winger/zigwk/zbrowser/src/layout/engine.zig:217:36: 0x12fd627 in layout (engine.zig)
+                    try self.layout(child, containing_block, stylesheets);
+                                   ^
+/home/winger/zigwk/zbrowser/src/layout/engine.zig:217:36: 0x12fd627 in layout (engine.zig)
+                    try self.layout(child, containing_block, stylesheets);
+                                   ^
+/home/winger/zigwk/zbrowser/src/layout/engine.zig:217:36: 0x12fd627 in layout (engine.zig)
+                    try self.layout(child, containing_block, stylesheets);
+                                   ^
+
+[gpa] (err): memory address 0x7fa006280e40 leaked: 
+--
