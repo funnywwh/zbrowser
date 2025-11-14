@@ -176,11 +176,11 @@ pub const Browser = struct {
             try block.printElementLayoutInfo(b, self.allocator, self.stylesheets.items);
 
             // 输出第一个 h1 元素的布局信息（用于与Chrome对比）
+            // 注意：h1 元素可能不存在，这是正常的（某些页面可能没有 h1）
             if (block.findElement(b, "h1", null, null)) |h1_element| {
                 try block.printElementLayoutInfo(h1_element, self.allocator, self.stylesheets.items);
-            } else {
-                debugPrint("Warning: h1 element not found in body\n", .{});
             }
+            // 移除了警告信息，因为 h1 元素可能不存在是正常情况
         } else {
             debugPrint("Warning: body element not found\n", .{});
         }
