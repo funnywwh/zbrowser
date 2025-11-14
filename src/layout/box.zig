@@ -1,5 +1,6 @@
 const std = @import("std");
 const dom = @import("dom");
+const cascade = @import("cascade");
 
 /// 矩形区域
 pub const Rect = struct {
@@ -240,9 +241,9 @@ pub const LineHeight = union(enum) {
 /// 溢出处理类型（overflow属性）
 pub const Overflow = enum {
     visible, // 默认值，不裁剪溢出内容
-    hidden,  // 隐藏溢出内容
-    scroll,  // 显示滚动条（简化实现：等同于hidden）
-    auto,    // 自动（简化实现：等同于hidden）
+    hidden, // 隐藏溢出内容
+    scroll, // 显示滚动条（简化实现：等同于hidden）
+    auto, // 自动（简化实现：等同于hidden）
 };
 
 /// 布局框（每个DOM元素对应一个布局框）
@@ -342,6 +343,10 @@ pub const LayoutBox = struct {
     /// 是否已布局
     is_layouted: bool,
 
+    /// 计算后的样式（在buildLayoutTree阶段计算，用于渲染阶段避免重复计算）
+    /// 如果为null，表示样式还未计算或已被释放
+    computed_style: ?cascade.ComputedStyle,
+
     allocator: std.mem.Allocator,
 
     /// 初始化布局框
@@ -391,6 +396,7 @@ pub const LayoutBox = struct {
             .parent = null,
             .formatting_context = null,
             .is_layouted = false,
+            .computed_style = null,
             .allocator = allocator,
         };
     }
@@ -408,6 +414,12 @@ pub const LayoutBox = struct {
         // 如果需要在deinit中清理formatting_context，需要在调用deinit之前手动清理
         // 或者使用deinitAndDestroyChildren，它会递归清理所有子节点（包括formatting_context）
         // TODO: 实现formatting_context的自动清理机制（可能需要使用函数指针或vtable）
+
+        // 清理计算后的样式
+        if (self.computed_style) |*cs| {
+            cs.deinit();
+            self.computed_style = null;
+        }
 
         // 清理所有子节点
         // 注意：只清理子节点的内容，不释放子节点的内存
@@ -431,6 +443,12 @@ pub const LayoutBox = struct {
     /// 注意：此方法假设所有子节点都是用allocator.create创建的
     /// 如果LayoutBox是用allocator.create创建的，需要先调用deinitAndDestroyChildren()，再调用allocator.destroy()
     pub fn deinitAndDestroyChildren(self: *LayoutBox) void {
+        // 先清理当前节点的computed_style（避免内存泄漏）
+        if (self.computed_style) |*cs| {
+            cs.deinit();
+            self.computed_style = null;
+        }
+
         // 先保存所有子节点的指针到独立数组，避免在清理过程中修改children导致迭代器失效
         // 注意：必须在children.deinit之前保存，因为deinit会释放items的内存
         const children_count = self.children.items.len;

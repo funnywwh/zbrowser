@@ -16,10 +16,14 @@ pub const LayoutEngine = struct {
     allocator: std.mem.Allocator,
     stylesheets: []const css_parser.Stylesheet = &[_]css_parser.Stylesheet{},
     initial_viewport: ?box.Size = null, // 保存初始视口大小，用于fixed定位
+    cascade_engine: cascade.Cascade, // 复用的Cascade实例，避免重复创建
 
     /// 初始化布局引擎
     pub fn init(allocator: std.mem.Allocator) LayoutEngine {
-        return .{ .allocator = allocator };
+        return .{
+            .allocator = allocator,
+            .cascade_engine = cascade.Cascade.init(allocator),
+        };
     }
 
     /// 构建布局树（从DOM树构建）
@@ -78,9 +82,11 @@ pub const LayoutEngine = struct {
         layout_box.allocator = self.allocator;
 
         // 计算样式并应用到布局框
-        var cascade_engine = cascade.Cascade.init(self.allocator);
-        var computed_style = try cascade_engine.computeStyle(node, stylesheets);
-        defer computed_style.deinit();
+        // 注意：样式计算在buildLayoutTree阶段完成，保存到LayoutBox中，避免在渲染阶段重复计算
+        // 复用LayoutEngine的cascade_engine实例，避免重复创建
+        var computed_style = try self.cascade_engine.computeStyle(node, stylesheets);
+        // 不要deinit，保存到LayoutBox中，在LayoutBox.deinit时释放
+        layout_box.computed_style = computed_style;
 
         // 获取包含块尺寸（简化：使用默认值，后续可以从父节点获取）
         const containing_size = box.Size{ .width = 800, .height = 600 };

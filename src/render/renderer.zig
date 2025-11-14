@@ -12,12 +12,14 @@ pub const Renderer = struct {
     allocator: std.mem.Allocator,
     render_backend: *backend.RenderBackend,
     stylesheets: []const css_parser.Stylesheet = &[_]css_parser.Stylesheet{},
+    cascade_engine: cascade.Cascade, // 复用的Cascade实例，避免重复创建（用于向后兼容场景）
 
     /// 初始化渲染器
     pub fn init(allocator: std.mem.Allocator, render_backend: *backend.RenderBackend) Renderer {
         return .{
             .allocator = allocator,
             .render_backend = render_backend,
+            .cascade_engine = cascade.Cascade.init(allocator),
         };
     }
 
@@ -53,10 +55,23 @@ pub const Renderer = struct {
             }
         }
 
-        // 计算样式（用于获取颜色、背景等）
-        var cascade_engine = cascade.Cascade.init(self.allocator);
-        var computed_style = try cascade_engine.computeStyle(layout_box.node, self.stylesheets);
-        defer computed_style.deinit();
+        // 使用布局阶段已计算的样式（避免重复计算）
+        // 如果LayoutBox中没有存储样式，则重新计算（向后兼容）
+        var computed_style: *cascade.ComputedStyle = undefined;
+        var temp_style: cascade.ComputedStyle = undefined;
+        var needs_deinit = false;
+        if (layout_box.computed_style) |*cs| {
+            computed_style = cs;
+            needs_deinit = false;
+        } else {
+            // 向后兼容：如果样式未计算，则重新计算
+            // 复用Renderer的cascade_engine实例，避免重复创建
+            temp_style = try self.cascade_engine.computeStyle(layout_box.node, self.stylesheets);
+            computed_style = &temp_style;
+            needs_deinit = true;
+        }
+        errdefer if (needs_deinit) computed_style.deinit();
+        defer if (needs_deinit) computed_style.deinit();
 
         // 获取布局框的位置和尺寸
         const content_box_rect = layout_box.box_model.content;
@@ -98,7 +113,7 @@ pub const Renderer = struct {
         // 3. 绘制背景（只对非文本节点绘制，避免覆盖文本）
         // 注意：对于包含文本节点的元素（如<p>），背景应该只绘制到内容区域，不覆盖descender
         if (layout_box.node.node_type != .text) {
-            try self.renderBackground(layout_box, &computed_style, border_rect);
+            try self.renderBackground(layout_box, computed_style, border_rect);
         }
 
         // 4. 处理overflow属性（如果为hidden、scroll或auto，需要裁剪）
@@ -165,10 +180,10 @@ pub const Renderer = struct {
         }
 
         // 6. 绘制内容（文本）- 在子节点之后绘制，确保文本在最上层
-        try self.renderContent(layout_box, &computed_style, content_rect);
+        try self.renderContent(layout_box, computed_style, content_rect);
 
         // 7. 绘制边框（最后绘制，确保边框在最上层）
-        try self.renderBorder(layout_box, &computed_style, border_rect);
+        try self.renderBorder(layout_box, computed_style, border_rect);
 
         // 7. 恢复状态（如果应用了opacity或clip）
         if (needs_opacity or needs_clip) {
@@ -402,26 +417,29 @@ pub const Renderer = struct {
 
             // 文本节点应该使用父元素的样式
             // 文本节点本身没有样式，应该继承父元素的所有样式属性（如color、font-size等）
+            // 优化：直接使用父元素的computed_style（避免重复计算）
             var text_computed_style = computed_style;
-            var parent_computed_style_opt: ?cascade.ComputedStyle = null;
             if (layout_box.parent) |parent| {
-                // 重新计算父元素的样式（用于文本节点继承）
-                var cascade_engine = cascade.Cascade.init(self.allocator);
-                var parent_computed_style = try cascade_engine.computeStyle(parent.node, self.stylesheets);
-
-                // 检查当前样式是否有color属性（文本节点最重要的属性）
-                // 如果没有color属性，使用父元素的样式
-                // 文本节点应该总是继承父元素的样式，特别是color属性
-                if (computed_style.getProperty("color") == null) {
-                    parent_computed_style_opt = parent_computed_style;
-                    // 注意：必须使用parent_computed_style_opt的地址，而不是parent_computed_style的地址
-                    // 因为parent_computed_style在if块结束后会被销毁
-                    text_computed_style = &parent_computed_style_opt.?;
+                // 优先使用父元素的已计算样式（避免重复计算）
+                if (parent.computed_style) |*parent_cs| {
+                    // 检查当前样式是否有color属性（文本节点最重要的属性）
+                    // 如果没有color属性，使用父元素的样式
+                    // 文本节点应该总是继承父元素的样式，特别是color属性
+                    if (computed_style.getProperty("color") == null) {
+                        text_computed_style = parent_cs;
+                    }
                 } else {
-                    parent_computed_style.deinit();
+                    // 向后兼容：如果父元素样式未计算，则重新计算
+                    // 复用Renderer的cascade_engine实例，避免重复创建
+                    var parent_computed_style = try self.cascade_engine.computeStyle(parent.node, self.stylesheets);
+                    defer parent_computed_style.deinit();
+                    
+                    // 检查当前样式是否有color属性
+                    if (computed_style.getProperty("color") == null) {
+                        text_computed_style = &parent_computed_style;
+                    }
                 }
             }
-            defer if (parent_computed_style_opt) |*pcs| pcs.deinit();
 
             // 获取文本颜色和字体
             const text_color = self.getTextColor(text_computed_style);

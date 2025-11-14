@@ -138,6 +138,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .imports = &.{
             .{ .name = "dom", .module = dom_module_exe },
+            .{ .name = "cascade", .module = css_cascade_module },
         },
     });
 
