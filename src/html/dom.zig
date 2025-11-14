@@ -32,6 +32,11 @@ pub const Node = struct {
 
     /// 添加子节点
     pub fn appendChild(self: *Node, child: *Node, _: std.mem.Allocator) !void {
+        // 如果子节点已经有父节点，先从旧父节点中移除
+        if (child.parent) |old_parent| {
+            old_parent.removeChild(child);
+        }
+
         child.parent = self;
 
         if (self.last_child) |last| {

@@ -211,8 +211,23 @@ pub const Parser = struct {
             },
             .end_tag => {
                 if (std.mem.eql(u8, tok.data.end_tag.name, "head")) {
-                    _ = self.open_elements.pop();
-                    self.insertion_mode = .after_head;
+                    // 查找并移除 head 元素（可能不在栈顶）
+                    var i = self.open_elements.items.len;
+                    while (i > 0) {
+                        i -= 1;
+                        const node = self.open_elements.items[i];
+                        if (node.asElement()) |elem| {
+                            if (std.mem.eql(u8, elem.tag_name, "head")) {
+                                // 关闭所有中间的元素
+                                while (self.open_elements.items.len > i + 1) {
+                                    _ = self.open_elements.pop();
+                                }
+                                _ = self.open_elements.pop();
+                                self.insertion_mode = .after_head;
+                                break;
+                            }
+                        }
+                    }
                 } else {
                     // 其他结束标签，关闭head
                     try self.closeHead();
@@ -230,8 +245,25 @@ pub const Parser = struct {
     fn handleAfterHead(self: *Self, tok: tokenizer.Token) !void {
         switch (tok.token_type) {
             .comment => {
+                // 确保 head 已经被关闭
+                try self.closeHead();
+                // 找到 html 元素，将 comment 添加到 html 下
+                var html_node: ?*dom.Node = null;
+                for (self.open_elements.items) |node| {
+                    if (node.asElement()) |elem| {
+                        if (std.mem.eql(u8, elem.tag_name, "html")) {
+                            html_node = node;
+                            break;
+                        }
+                    }
+                }
                 const comment_node = try self.createCommentNode(tok.data.comment);
-                try self.currentNode().appendChild(comment_node, self.allocator);
+                if (html_node) |html| {
+                    try html.appendChild(comment_node, self.allocator);
+                } else {
+                    // 如果找不到 html，添加到 document
+                    try self.document.node.appendChild(comment_node, self.allocator);
+                }
             },
             .text => {
                 // 跳过空白文本（可能是换行符等）
@@ -248,37 +280,108 @@ pub const Parser = struct {
                     return;
                 }
                 // 非空白文本，隐式创建body元素
+                // 确保 head 已经被关闭
+                try self.closeHead();
+                // 找到 html 元素，将 body 添加到 html 下
+                var html_node: ?*dom.Node = null;
+                for (self.open_elements.items) |node| {
+                    if (node.asElement()) |elem| {
+                        if (std.mem.eql(u8, elem.tag_name, "html")) {
+                            html_node = node;
+                            break;
+                        }
+                    }
+                }
                 const body_node = try self.createElement("body");
-                try self.currentNode().appendChild(body_node, self.allocator);
+                if (html_node) |html| {
+                    try html.appendChild(body_node, self.allocator);
+                } else {
+                    // 如果找不到 html，添加到 document
+                    try self.document.node.appendChild(body_node, self.allocator);
+                }
                 try self.open_elements.append(self.allocator, body_node);
                 self.insertion_mode = .in_body;
                 try self.handleInBody(tok);
             },
             .start_tag => {
                 if (std.mem.eql(u8, tok.data.start_tag.name, "body")) {
+                    // 确保 head 已经被关闭（如果还在 open_elements 中，先关闭它）
+                    try self.closeHead();
+                    // 找到 html 元素，将 body 添加到 html 下
+                    var html_node: ?*dom.Node = null;
+                    for (self.open_elements.items) |node| {
+                        if (node.asElement()) |elem| {
+                            if (std.mem.eql(u8, elem.tag_name, "html")) {
+                                html_node = node;
+                                break;
+                            }
+                        }
+                    }
                     const body_node = try self.createElementNode(tok.data.start_tag);
-                    try self.currentNode().appendChild(body_node, self.allocator);
+                    if (html_node) |html| {
+                        try html.appendChild(body_node, self.allocator);
+                    } else {
+                        // 如果找不到 html，添加到 document
+                        try self.document.node.appendChild(body_node, self.allocator);
+                    }
                     try self.open_elements.append(self.allocator, body_node);
                     self.insertion_mode = .in_body;
                 } else if (std.mem.eql(u8, tok.data.start_tag.name, "html")) {
                     // 错误：嵌套html标签
                 } else {
                     // 隐式创建body元素
+                    // 确保 head 已经被关闭
+                    try self.closeHead();
+                    // 找到 html 元素，将 body 添加到 html 下
+                    var html_node: ?*dom.Node = null;
+                    for (self.open_elements.items) |node| {
+                        if (node.asElement()) |elem| {
+                            if (std.mem.eql(u8, elem.tag_name, "html")) {
+                                html_node = node;
+                                break;
+                            }
+                        }
+                    }
                     const body_node = try self.createElement("body");
-                    try self.currentNode().appendChild(body_node, self.allocator);
+                    if (html_node) |html| {
+                        try html.appendChild(body_node, self.allocator);
+                    } else {
+                        // 如果找不到 html，添加到 document
+                        try self.document.node.appendChild(body_node, self.allocator);
+                    }
                     try self.open_elements.append(self.allocator, body_node);
                     self.insertion_mode = .in_body;
                     try self.handleInBody(tok);
                 }
             },
             .end_tag => {
-                if (std.mem.eql(u8, tok.data.end_tag.name, "body") or
+                if (std.mem.eql(u8, tok.data.end_tag.name, "head")) {
+                    // head 结束标签在 after_head 模式下不应该出现，但为了容错，忽略它
+                    // head 应该已经在 in_head 模式下被关闭了
+                } else if (std.mem.eql(u8, tok.data.end_tag.name, "body") or
                     std.mem.eql(u8, tok.data.end_tag.name, "html") or
                     std.mem.eql(u8, tok.data.end_tag.name, "br"))
                 {
                     // 隐式创建body元素
+                    // 确保 head 已经被关闭
+                    try self.closeHead();
+                    // 找到 html 元素，将 body 添加到 html 下
+                    var html_node: ?*dom.Node = null;
+                    for (self.open_elements.items) |node| {
+                        if (node.asElement()) |elem| {
+                            if (std.mem.eql(u8, elem.tag_name, "html")) {
+                                html_node = node;
+                                break;
+                            }
+                        }
+                    }
                     const body_node = try self.createElement("body");
-                    try self.currentNode().appendChild(body_node, self.allocator);
+                    if (html_node) |html| {
+                        try html.appendChild(body_node, self.allocator);
+                    } else {
+                        // 如果找不到 html，添加到 document
+                        try self.document.node.appendChild(body_node, self.allocator);
+                    }
                     try self.open_elements.append(self.allocator, body_node);
                     self.insertion_mode = .in_body;
                     try self.handleInBody(tok);
@@ -286,8 +389,25 @@ pub const Parser = struct {
             },
             else => {
                 // 隐式创建body元素
+                // 确保 head 已经被关闭
+                try self.closeHead();
+                // 找到 html 元素，将 body 添加到 html 下
+                var html_node: ?*dom.Node = null;
+                for (self.open_elements.items) |node| {
+                    if (node.asElement()) |elem| {
+                        if (std.mem.eql(u8, elem.tag_name, "html")) {
+                            html_node = node;
+                            break;
+                        }
+                    }
+                }
                 const body_node = try self.createElement("body");
-                try self.currentNode().appendChild(body_node, self.allocator);
+                if (html_node) |html| {
+                    try html.appendChild(body_node, self.allocator);
+                } else {
+                    // 如果找不到 html，添加到 document
+                    try self.document.node.appendChild(body_node, self.allocator);
+                }
                 try self.open_elements.append(self.allocator, body_node);
                 self.insertion_mode = .in_body;
                 try self.handleInBody(tok);
@@ -356,7 +476,9 @@ pub const Parser = struct {
                     try self.open_elements.append(self.allocator, style_node);
                     self.insertion_mode = .text;
                 } else if (isVoidElement(tag_name)) {
-                    // 自闭合元素
+                    // 自闭合元素（包括 meta、link 等）
+                    // 如果 meta 或 link 在 body 内出现，这通常是错误（它们应该在 head 内）
+                    // 但为了容错，我们仍然创建元素节点
                     const node = try self.createElementNode(tok.data.start_tag);
                     try self.currentNode().appendChild(node, self.allocator);
                 } else {
@@ -414,6 +536,24 @@ pub const Parser = struct {
                     if (!found_body) {
                         self.insertion_mode = .after_body;
                     }
+                } else if (std.mem.eql(u8, tag_name, "head")) {
+                    // head 结束标签不应该在 body 内出现，这是错误
+                    // 但为了容错，我们尝试关闭 head 元素（如果它在 open_elements 中）
+                    var i = self.open_elements.items.len;
+                    while (i > 0) {
+                        i -= 1;
+                        const node = self.open_elements.items[i];
+                        if (node.asElement()) |elem| {
+                            if (std.mem.eql(u8, elem.tag_name, "head")) {
+                                // 关闭所有中间的元素
+                                while (self.open_elements.items.len > i + 1) {
+                                    _ = self.open_elements.pop();
+                                }
+                                _ = self.open_elements.pop();
+                                break;
+                            }
+                        }
+                    }
                 } else {
                     // 查找匹配的开始标签
                     var i = self.open_elements.items.len;
@@ -449,11 +589,76 @@ pub const Parser = struct {
             },
             .end_tag => {
                 _ = self.open_elements.pop();
-                self.insertion_mode = .in_body;
+                // 检查是否在 head 内（通过检查 open_elements 中是否有 head）
+                var in_head = false;
+                for (self.open_elements.items) |node| {
+                    if (node.asElement()) |elem| {
+                        if (std.mem.eql(u8, elem.tag_name, "head")) {
+                            in_head = true;
+                            break;
+                        }
+                    }
+                }
+                if (in_head) {
+                    self.insertion_mode = .in_head;
+                    // 如果结束标签是 style、script 或 title，并且仍在 head 内，返回到 in_head 模式
+                    // 这样后续的 </head> 标签可以被正确处理
+                } else {
+                    // 如果不在 head 内，检查是否在 after_head 模式（head 已关闭但 body 未开始）
+                    // 这种情况下，应该返回到 after_head 模式，而不是 in_body 模式
+                    // 但是，如果已经在 body 内，应该返回到 in_body 模式
+                    // 为了简化，我们检查 open_elements 中是否有 body
+                    var in_body = false;
+                    for (self.open_elements.items) |node| {
+                        if (node.asElement()) |elem| {
+                            if (std.mem.eql(u8, elem.tag_name, "body")) {
+                                in_body = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (in_body) {
+                        self.insertion_mode = .in_body;
+                    } else {
+                        // 既不在 head 内，也不在 body 内，说明在 after_head 模式
+                        self.insertion_mode = .after_head;
+                    }
+                }
             },
             else => {
-                self.insertion_mode = .in_body;
-                try self.handleInBody(tok);
+                // 检查是否在 head 内
+                var in_head = false;
+                for (self.open_elements.items) |node| {
+                    if (node.asElement()) |elem| {
+                        if (std.mem.eql(u8, elem.tag_name, "head")) {
+                            in_head = true;
+                            break;
+                        }
+                    }
+                }
+                if (in_head) {
+                    self.insertion_mode = .in_head;
+                    try self.handleInHead(tok);
+                } else {
+                    // 如果不在 head 内，检查是否在 body 内
+                    var in_body = false;
+                    for (self.open_elements.items) |node| {
+                        if (node.asElement()) |elem| {
+                            if (std.mem.eql(u8, elem.tag_name, "body")) {
+                                in_body = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (in_body) {
+                        self.insertion_mode = .in_body;
+                        try self.handleInBody(tok);
+                    } else {
+                        // 既不在 head 内，也不在 body 内，说明在 after_head 模式
+                        self.insertion_mode = .after_head;
+                        try self.handleAfterHead(tok);
+                    }
+                }
             },
         }
     }
@@ -577,7 +782,7 @@ pub const Parser = struct {
             .capacity = 0,
         };
         errdefer result.deinit(self.allocator);
-        
+
         var i: usize = 0;
         while (i < input.len) {
             if (input[i] == '&') {
@@ -586,11 +791,11 @@ pub const Parser = struct {
                 while (j < input.len and input[j] != ';' and input[j] != '&') {
                     j += 1;
                 }
-                
+
                 if (j < input.len and input[j] == ';') {
                     // 找到完整的实体
-                    const entity = input[i + 1..j];
-                    
+                    const entity = input[i + 1 .. j];
+
                     // 解析实体
                     if (parseHtmlEntity(entity)) |decoded_char| {
                         try result.append(self.allocator, decoded_char);
@@ -598,7 +803,7 @@ pub const Parser = struct {
                         continue;
                     } else {
                         // 无法解析的实体，保留整个实体（包括&和;）
-                        const full_entity = input[i..j + 1];
+                        const full_entity = input[i .. j + 1];
                         for (full_entity) |char| {
                             try result.append(self.allocator, char);
                         }
@@ -616,10 +821,10 @@ pub const Parser = struct {
                 i += 1;
             }
         }
-        
+
         return result.toOwnedSlice(self.allocator);
     }
-    
+
     /// 解析HTML实体
     /// 返回解码后的字符，如果无法解析则返回null
     fn parseHtmlEntity(entity: []const u8) ?u8 {
@@ -629,7 +834,7 @@ pub const Parser = struct {
         if (std.mem.eql(u8, entity, "amp")) return '&';
         if (std.mem.eql(u8, entity, "quot")) return '"';
         if (std.mem.eql(u8, entity, "apos")) return '\'';
-        
+
         // 数字实体：&#123; (十进制)
         if (entity.len > 1 and entity[0] == '#') {
             const num_str = entity[1..];
@@ -641,7 +846,7 @@ pub const Parser = struct {
                 // 解析失败，尝试十六进制
             }
         }
-        
+
         // 十六进制实体：&#x1F; 或 &#X1F;
         if (entity.len > 2 and entity[0] == '#' and (entity[1] == 'x' or entity[1] == 'X')) {
             const hex_str = entity[2..];
@@ -653,7 +858,7 @@ pub const Parser = struct {
                 // 解析失败
             }
         }
-        
+
         return null;
     }
 
@@ -661,7 +866,7 @@ pub const Parser = struct {
         // 解码HTML实体
         const decoded_text = try self.decodeHtmlEntities(text);
         defer self.allocator.free(decoded_text);
-        
+
         const text_owned = try self.allocator.dupe(u8, decoded_text);
         const node = try self.allocator.create(dom.Node);
         node.* = .{
@@ -693,6 +898,8 @@ pub const Parser = struct {
                         _ = self.open_elements.pop();
                     }
                     _ = self.open_elements.pop();
+                    // 设置insertion_mode为after_head
+                    self.insertion_mode = .after_head;
                     break;
                 }
             }
