@@ -320,6 +320,30 @@ pub const Parser = struct {
             .start_tag => {
                 const tag_name = tok.data.start_tag.name;
 
+                // 跳过 DOCTYPE 标签（如果被错误解析为 start_tag）
+                // DOCTYPE 应该被 tokenizer 识别为 .doctype token，不应该进入这里
+                if (std.mem.eql(u8, tag_name, "!DOCTYPE")) {
+                    // 忽略 DOCTYPE start_tag（这不应该发生，但为了容错）
+                    return;
+                }
+
+                // 特殊处理 html、head 和 body 标签（不应该在 body 内出现）
+                if (std.mem.eql(u8, tag_name, "html")) {
+                    // html 标签不应该在 body 内出现，这是错误
+                    // 忽略它，不创建元素节点
+                    return;
+                }
+                if (std.mem.eql(u8, tag_name, "head")) {
+                    // head 标签不应该在 body 内出现，这是错误
+                    // 忽略它，不创建元素节点
+                    return;
+                }
+                if (std.mem.eql(u8, tag_name, "body")) {
+                    // body 标签不应该在 body 内出现，这是错误
+                    // 忽略它，不创建元素节点
+                    return;
+                }
+
                 // 特殊标签处理
                 if (std.mem.eql(u8, tag_name, "script")) {
                     const script_node = try self.createElementNode(tok.data.start_tag);
@@ -344,19 +368,67 @@ pub const Parser = struct {
             .end_tag => {
                 const tag_name = tok.data.end_tag.name;
 
-                // 查找匹配的开始标签
-                var i = self.open_elements.items.len;
-                while (i > 0) {
-                    i -= 1;
-                    const node = self.open_elements.items[i];
-                    if (node.asElement()) |elem| {
-                        if (std.mem.eql(u8, elem.tag_name, tag_name)) {
-                            // 关闭所有中间的元素
-                            while (self.open_elements.items.len > i + 1) {
+                // 特殊处理 body 结束标签
+                if (std.mem.eql(u8, tag_name, "body")) {
+                    // 查找 body 元素并关闭它
+                    var i = self.open_elements.items.len;
+                    while (i > 0) {
+                        i -= 1;
+                        const node = self.open_elements.items[i];
+                        if (node.asElement()) |elem| {
+                            if (std.mem.eql(u8, elem.tag_name, "body")) {
+                                // 关闭所有中间的元素
+                                while (self.open_elements.items.len > i + 1) {
+                                    _ = self.open_elements.pop();
+                                }
                                 _ = self.open_elements.pop();
+                                self.insertion_mode = .after_body;
+                                break;
                             }
-                            _ = self.open_elements.pop();
-                            break;
+                        }
+                    }
+                } else if (std.mem.eql(u8, tag_name, "html")) {
+                    // html 结束标签：进入 after_body 模式（如果还在 in_body 模式）
+                    // 注意：html 元素不应该被关闭，因为它是最外层的元素
+                    // 如果当前在 body 内，应该先关闭 body，然后进入 after_body 模式
+                    // 查找 body 元素
+                    var found_body = false;
+                    var i = self.open_elements.items.len;
+                    while (i > 0) {
+                        i -= 1;
+                        const node = self.open_elements.items[i];
+                        if (node.asElement()) |elem| {
+                            if (std.mem.eql(u8, elem.tag_name, "body")) {
+                                found_body = true;
+                                // 关闭 body 及其之后的所有元素
+                                while (self.open_elements.items.len > i + 1) {
+                                    _ = self.open_elements.pop();
+                                }
+                                _ = self.open_elements.pop();
+                                self.insertion_mode = .after_body;
+                                break;
+                            }
+                        }
+                    }
+                    // 如果没有找到 body，直接进入 after_body 模式
+                    if (!found_body) {
+                        self.insertion_mode = .after_body;
+                    }
+                } else {
+                    // 查找匹配的开始标签
+                    var i = self.open_elements.items.len;
+                    while (i > 0) {
+                        i -= 1;
+                        const node = self.open_elements.items[i];
+                        if (node.asElement()) |elem| {
+                            if (std.mem.eql(u8, elem.tag_name, tag_name)) {
+                                // 关闭所有中间的元素
+                                while (self.open_elements.items.len > i + 1) {
+                                    _ = self.open_elements.pop();
+                                }
+                                _ = self.open_elements.pop();
+                                break;
+                            }
                         }
                     }
                 }
@@ -388,9 +460,66 @@ pub const Parser = struct {
 
     fn handleAfterBody(self: *Self, tok: tokenizer.Token) !void {
         switch (tok.token_type) {
+            .comment => {
+                // 注释添加到 document（body 之后）
+                const comment_node = try self.createCommentNode(tok.data.comment);
+                try self.document.node.appendChild(comment_node, self.allocator);
+            },
+            .text => {
+                // body 之后的文本：检查是否只包含空白字符
+                const text_content = tok.data.text;
+                var is_whitespace_only = true;
+                for (text_content) |c| {
+                    if (!string.isWhitespace(c)) {
+                        is_whitespace_only = false;
+                        break;
+                    }
+                }
+                if (is_whitespace_only) {
+                    // 忽略空白文本
+                    return;
+                }
+                // 非空白文本：错误恢复，回到 in_body 模式
+                // 查找 body 元素，如果不存在则创建
+                var found_body = false;
+                for (self.open_elements.items) |node| {
+                    if (node.asElement()) |elem| {
+                        if (std.mem.eql(u8, elem.tag_name, "body")) {
+                            found_body = true;
+                            break;
+                        }
+                    }
+                }
+                if (!found_body) {
+                    // 隐式创建 body 元素
+                    const body_node = try self.createElement("body");
+                    // 找到 html 元素，将 body 添加到 html 下
+                    for (self.open_elements.items) |node| {
+                        if (node.asElement()) |elem| {
+                            if (std.mem.eql(u8, elem.tag_name, "html")) {
+                                try node.appendChild(body_node, self.allocator);
+                                try self.open_elements.append(self.allocator, body_node);
+                                self.insertion_mode = .in_body;
+                                try self.handleInBody(tok);
+                                return;
+                            }
+                        }
+                    }
+                    // 如果找不到 html，添加到 document
+                    try self.document.node.appendChild(body_node, self.allocator);
+                    try self.open_elements.append(self.allocator, body_node);
+                }
+                self.insertion_mode = .in_body;
+                try self.handleInBody(tok);
+            },
             .end_tag => {
                 if (std.mem.eql(u8, tok.data.end_tag.name, "html")) {
                     // 进入after_after_body模式
+                    self.insertion_mode = .after_after_body;
+                } else {
+                    // 其他结束标签：错误恢复，回到 in_body 模式
+                    self.insertion_mode = .in_body;
+                    try self.handleInBody(tok);
                 }
             },
             .eof => {},

@@ -171,16 +171,81 @@ pub const Browser = struct {
                 }
             }
         }
+        
+        // 调试：如果找不到 body，检查 html 的子节点
+        if (body == null) {
+            std.debug.print("DEBUG: body not found in html children, checking html children:\n", .{});
+            for (layout_tree.children.items, 0..) |child, i| {
+                const tag_name = if (child.node.node_type == .element)
+                    if (child.node.asElement()) |elem| elem.tag_name else "unknown"
+                else
+                    "text";
+                std.debug.print("  html child[{d}]: {s}\n", .{ i, tag_name });
+            }
+        }
         if (body) |b| {
+            // 调试：打印 body 的所有子元素（在布局信息输出之前，用于诊断为什么找不到 h1）
+            std.debug.print("\n=== DEBUG: Body children before printElementLayoutInfo ===\n", .{});
+            std.debug.print("Body children count: {d}\n", .{b.children.items.len});
+            
+            // 同时检查 DOM 节点中的子元素
+            std.debug.print("Body DOM node children:\n", .{});
+            var dom_child = b.node.first_child;
+            var dom_child_idx: usize = 0;
+            while (dom_child) |dc| {
+                const dom_tag_name = if (dc.node_type == .element)
+                    if (dc.asElement()) |elem| elem.tag_name else "unknown"
+                else if (dc.node_type == .text)
+                    "text"
+                else if (dc.node_type == .doctype)
+                    "!DOCTYPE"
+                else
+                    "unknown";
+                std.debug.print("  DOM Child[{d}]: {s} (node_type: {})\n", .{ dom_child_idx, dom_tag_name, dc.node_type });
+                
+                // 如果是元素节点且 tag_name 是 "!DOCTYPE"，这是错误的，应该跳过
+                if (dc.node_type == .element) {
+                    if (dc.asElement()) |elem| {
+                        if (std.mem.eql(u8, elem.tag_name, "!DOCTYPE")) {
+                            std.debug.print("    ERROR: Found element node with tag_name '!DOCTYPE' - this should not exist!\n", .{});
+                        }
+                    }
+                }
+                
+                dom_child = dc.next_sibling;
+                dom_child_idx += 1;
+            }
+            
+            for (b.children.items, 0..) |child, i| {
+                const tag_name = if (child.node.node_type == .element)
+                    if (child.node.asElement()) |elem| elem.tag_name else "unknown"
+                else
+                    "text";
+                std.debug.print("  Layout Child[{d}]: {s} (node_type: {})\n", .{ i, tag_name, child.node.node_type });
+            }
+            std.debug.print("=== END DEBUG ===\n\n", .{});
+
             // 输出 body 元素的布局信息（用于与Chrome对比）
             try block.printElementLayoutInfo(b, self.allocator, self.stylesheets.items);
 
             // 输出第一个 h1 元素的布局信息（用于与Chrome对比）
             // 注意：h1 元素可能不存在，这是正常的（某些页面可能没有 h1）
             if (block.findElement(b, "h1", null, null)) |h1_element| {
+                std.debug.print("DEBUG: Found h1 element!\n", .{});
                 try block.printElementLayoutInfo(h1_element, self.allocator, self.stylesheets.items);
+            } else {
+                std.debug.print("DEBUG: h1 element not found in body (children count: {d})\n", .{b.children.items.len});
+                // 再次打印子元素，确认 h1 是否在子元素中
+                for (b.children.items, 0..) |child, i| {
+                    const tag_name = if (child.node.node_type == .element)
+                        if (child.node.asElement()) |elem| elem.tag_name else "unknown"
+                    else
+                        "text";
+                    if (std.mem.eql(u8, tag_name, "h1")) {
+                        std.debug.print("  Found h1 at index {d}!\n", .{i});
+                    }
+                }
             }
-            // 移除了警告信息，因为 h1 元素可能不存在是正常情况
         } else {
             debugPrint("Warning: body element not found\n", .{});
         }
