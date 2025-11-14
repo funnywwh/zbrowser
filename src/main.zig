@@ -155,10 +155,8 @@ pub fn main() !void {
 
     // 检查参数数量
     if (args.len < 2) {
-        const stderr = std.fs.File.stderr();
-        const usage_msg = try std.fmt.allocPrint(allocator, "用法: {s} <html文件路径> [输出PNG路径]\n示例: {s} test_page.html output.png\n", .{ args[0], args[0] });
-        defer allocator.free(usage_msg);
-        try stderr.writeAll(usage_msg);
+        // 使用std.debug.print输出到stderr（在Zig 0.15.2中，std.debug.print默认输出到stderr）
+        std.debug.print("用法: {s} <html文件路径> [输出PNG路径]\n示例: {s} test_page.html output.png\n", .{ args[0], args[0] });
         std.process.exit(1);
     }
 

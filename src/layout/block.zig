@@ -356,10 +356,17 @@ pub fn printElementLayoutInfo(layout_box: *box.LayoutBox, allocator: std.mem.All
         total_size.height,
     });
     
-    // 计算相对于视口的实际位置（包括margin）
-    const actual_x = layout_box.box_model.content.x - layout_box.box_model.padding.left - layout_box.box_model.border.left - layout_box.box_model.margin.left;
-    const actual_y = layout_box.box_model.content.y - layout_box.box_model.padding.top - layout_box.box_model.border.top - layout_box.box_model.margin.top;
-    std.debug.print("  Actual Position (with margin): x={d:.2}, y={d:.2}\n", .{ actual_x, actual_y });
+    // 计算相对于视口的实际位置
+    // content.x/y已经是元素内容区域的左上角位置，不需要再减去padding/border/margin
+    // 如果需要显示包含margin的位置，应该单独计算
+    const actual_x = layout_box.box_model.content.x;
+    const actual_y = layout_box.box_model.content.y;
+    std.debug.print("  Actual Position (content box): x={d:.2}, y={d:.2}\n", .{ actual_x, actual_y });
+    
+    // 如果需要显示包含margin的位置（用于调试）
+    const position_with_margin_x = layout_box.box_model.content.x - layout_box.box_model.margin.left;
+    const position_with_margin_y = layout_box.box_model.content.y - layout_box.box_model.margin.top;
+    std.debug.print("  Position (with margin): x={d:.2}, y={d:.2}\n", .{ position_with_margin_x, position_with_margin_y });
     
     std.debug.print("\nComputed Styles:\n", .{});
     const style_utils_module = @import("style_utils");

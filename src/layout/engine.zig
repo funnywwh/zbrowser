@@ -89,6 +89,13 @@ pub const LayoutEngine = struct {
         // 递归构建子节点
         var child = node.first_child;
         while (child) |c| {
+            // 跳过DOCTYPE节点（不应该产生布局box）
+            // DOCTYPE是文档类型声明，不应该参与布局计算
+            if (c.node_type == .doctype) {
+                child = c.next_sibling;
+                continue;
+            }
+            
             const child_layout_box = try self.buildLayoutTree(c, stylesheets);
             child_layout_box.parent = layout_box;
             try layout_box.children.append(layout_box.allocator, child_layout_box);
@@ -98,35 +105,94 @@ pub const LayoutEngine = struct {
         return layout_box;
     }
 
+    /// 布局box状态（用于收敛检测）
+    const BoxState = struct { box_ptr: *box.LayoutBox, x: f32, y: f32, w: f32, h: f32 };
+    
+    /// 收集布局树中所有box的状态（用于收敛检测）
+    fn collectBoxStates(layout_box: *box.LayoutBox, states: *std.ArrayList(BoxState), allocator: std.mem.Allocator) !void {
+        try states.append(allocator, BoxState{
+            .box_ptr = layout_box,
+            .x = layout_box.box_model.content.x,
+            .y = layout_box.box_model.content.y,
+            .w = layout_box.box_model.content.width,
+            .h = layout_box.box_model.content.height,
+        });
+        
+        for (layout_box.children.items) |child| {
+            try collectBoxStates(child, states, allocator);
+        }
+    }
+
     /// 执行布局计算
     /// 根据布局树的display类型，选择合适的布局算法
+    /// 实现布局收敛检测，避免多次不收敛的reflow
     pub fn layout(self: *LayoutEngine, layout_tree: *box.LayoutBox, viewport: box.Size, stylesheets: []const css_parser.Stylesheet) !void {
         // 保存初始视口大小（第一次调用时）
         if (self.initial_viewport == null) {
             self.initial_viewport = viewport;
         }
         
-        // 根据display类型选择布局算法
-        switch (layout_tree.display) {
-            .block => {
-                try block.layoutBlock(layout_tree, viewport);
-            },
-            .inline_element => {
-                _ = try inline_layout.layoutInline(layout_tree, viewport);
-                // 注意：layoutInline返回IFC指针，但这里暂时不处理
-            },
-            .flex, .inline_flex => {
-                // Flexbox布局
-                flexbox.layoutFlexbox(layout_tree, viewport, stylesheets);
-            },
-            .grid, .inline_grid => {
-                // Grid布局
-                grid.layoutGrid(layout_tree, viewport, stylesheets);
-            },
-            else => {
-                // 默认使用block布局
-                try block.layoutBlock(layout_tree, viewport);
-            },
+        // 布局收敛检测
+        const max_passes = 8;
+        var pass: u32 = 1;
+        var changed = true;
+        
+        while (changed and pass <= max_passes) {
+            // 记录当前所有box的尺寸和位置
+            var box_states = std.ArrayList(BoxState){};
+            defer box_states.deinit(self.allocator);
+            
+            // 收集所有box的当前状态
+            try collectBoxStates(layout_tree, &box_states, self.allocator);
+            
+            // 执行一次布局
+            switch (layout_tree.display) {
+                .block => {
+                    try block.layoutBlock(layout_tree, viewport);
+                },
+                .inline_element => {
+                    _ = try inline_layout.layoutInline(layout_tree, viewport);
+                    // 注意：layoutInline返回IFC指针，但这里暂时不处理
+                },
+                .flex, .inline_flex => {
+                    // Flexbox布局
+                    flexbox.layoutFlexbox(layout_tree, viewport, stylesheets);
+                },
+                .grid, .inline_grid => {
+                    // Grid布局
+                    grid.layoutGrid(layout_tree, viewport, stylesheets);
+                },
+                else => {
+                    // 默认使用block布局
+                    try block.layoutBlock(layout_tree, viewport);
+                },
+            }
+            
+            // 检查是否有变化
+            changed = false;
+            var changed_count: u32 = 0;
+            for (box_states.items) |state| {
+                if (state.box_ptr.box_model.content.x != state.x or
+                    state.box_ptr.box_model.content.y != state.y or
+                    state.box_ptr.box_model.content.width != state.w or
+                    state.box_ptr.box_model.content.height != state.h)
+                {
+                    changed = true;
+                    changed_count += 1;
+                }
+            }
+            
+            if (changed) {
+                std.debug.print("[LAYOUT] Pass {}: {} boxes changed, reflowing...\n", .{ pass, changed_count });
+                pass += 1;
+            } else {
+                std.debug.print("[LAYOUT] Converged in {} pass(es)\n", .{pass});
+                break;
+            }
+        }
+        
+        if (pass > max_passes) {
+            std.debug.print("[LAYOUT] Warning: Max passes ({}) reached, layout may not be stable\n", .{max_passes});
         }
 
         // 标记为已布局

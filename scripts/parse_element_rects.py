@@ -116,3 +116,5 @@ if __name__ == "__main__":
             print(f"   Page: ({rect['x']:.1f}, {rect['y']:.1f}) size: {rect['width']:.1f}x{rect['height']:.1f}")
             print(f"   Visible: {element_info['isVisible']}")
 
+
+
