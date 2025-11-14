@@ -1,4 +1,13 @@
 const std = @import("std");
+const builtin = @import("builtin");
+
+/// 调试输出函数（只在Debug模式下输出）
+/// 使用条件编译，在Release模式下完全移除，避免性能影响
+inline fn debugPrint(comptime fmt: []const u8, args: anytype) void {
+    if (builtin.mode == .Debug) {
+        std.debug.print(fmt, args);
+    }
+}
 const box = @import("box");
 const cascade = @import("cascade");
 const css_parser = @import("parser");
@@ -582,7 +591,7 @@ pub fn applyStyleToLayoutBox(layout_box: *box.LayoutBox, computed_style: *const 
             const tag_name = if (layout_box.node.node_type == .element)
                 if (layout_box.node.asElement()) |elem| elem.tag_name else "unknown"
             else "text";
-            std.debug.print("[STYLE] {s} font-size parsed: {d:.1}px\n", .{ tag_name, fs });
+            debugPrint("[STYLE] {s} font-size parsed: {d:.1}px\n", .{ tag_name, fs });
         }
     }
 

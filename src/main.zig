@@ -1,4 +1,13 @@
 const std = @import("std");
+const builtin = @import("builtin");
+
+/// 调试输出函数（只在Debug模式下输出）
+/// 使用条件编译，在Release模式下完全移除，避免性能影响
+inline fn debugPrint(comptime fmt: []const u8, args: anytype) void {
+    if (builtin.mode == .Debug) {
+        std.debug.print(fmt, args);
+    }
+}
 const html = @import("html");
 const dom = @import("dom");
 const allocator_utils = @import("allocator");
@@ -19,6 +28,12 @@ pub const Browser = struct {
     browser_allocator: allocator_utils.BrowserAllocator,
     document: *dom.Document,
     stylesheets: std.ArrayList(css_parser.Stylesheet),
+    /// 缓存的布局树（如果DOM和样式表未变化，可以复用）
+    cached_layout_tree: ?*box.LayoutBox,
+    /// 缓存的布局引擎实例（用于复用）
+    cached_layout_engine: ?layout_engine.LayoutEngine,
+    /// DOM版本号（用于检测DOM是否变化）
+    dom_version: u64,
 
     pub fn init(allocator: std.mem.Allocator) !Browser {
         var browser_allocator = allocator_utils.BrowserAllocator.init(allocator);
@@ -31,6 +46,9 @@ pub const Browser = struct {
             .browser_allocator = browser_allocator,
             .document = doc_ptr,
             .stylesheets = std.ArrayList(css_parser.Stylesheet){},
+            .cached_layout_tree = null,
+            .cached_layout_engine = null,
+            .dom_version = 0,
         };
     }
 
@@ -39,6 +57,9 @@ pub const Browser = struct {
         var parser = html.Parser.init(html_content, self.document, self.browser_allocator.arenaAllocator());
         defer parser.deinit();
         try parser.parse();
+
+        // DOM已变化，清除缓存的布局树
+        self.invalidateLayoutTreeCache();
 
         // 从HTML中提取内联样式（简化：暂时不处理）
         // TODO: 解析<style>标签和外部样式表
@@ -51,6 +72,24 @@ pub const Browser = struct {
 
         const stylesheet = try css_parser_instance.parse();
         try self.stylesheets.append(self.allocator, stylesheet);
+
+        // 样式表已变化，清除缓存的布局树
+        self.invalidateLayoutTreeCache();
+    }
+
+    /// 清除缓存的布局树
+    /// 当DOM或样式表变化时调用此方法
+    pub fn invalidateLayoutTreeCache(self: *Browser) void {
+        // 释放缓存的布局树
+        if (self.cached_layout_tree) |tree| {
+            tree.deinitAndDestroyChildren();
+            self.allocator.destroy(tree);
+            self.cached_layout_tree = null;
+        }
+        // 布局引擎不需要释放（它只包含分配器引用）
+        self.cached_layout_engine = null;
+        // 更新DOM版本号
+        self.dom_version += 1;
     }
 
     /// 渲染页面
@@ -59,20 +98,53 @@ pub const Browser = struct {
         // 1. 获取DOM根节点
         const html_node = self.document.getDocumentElement() orelse return error.NoDocumentElement;
 
-        // 2. 构建布局树
-        var layout_engine_instance = layout_engine.LayoutEngine.init(self.allocator);
-        const layout_tree = try layout_engine_instance.buildLayoutTree(html_node, self.stylesheets.items);
-        defer layout_tree.deinitAndDestroyChildren();
-        defer self.allocator.destroy(layout_tree);
+        // 2. 构建或复用布局树
+        // 布局树复用机制：
+        // - 如果DOM和样式表未变化，可以复用缓存的布局树
+        // - 布局计算每次都需要重新执行（因为视口大小可能变化）
+        // - 布局引擎可以复用（它只包含分配器和Cascade实例，不包含状态）
+        var layout_tree: *box.LayoutBox = undefined;
+        var layout_engine_instance: layout_engine.LayoutEngine = undefined;
+        var should_cache = false;
+
+        if (self.cached_layout_tree) |cached_tree| {
+            // 复用缓存的布局树
+            layout_tree = cached_tree;
+            // 复用缓存的布局引擎（如果存在）
+            // 注意：布局引擎不包含状态，可以安全复用
+            if (self.cached_layout_engine) |*cached_engine| {
+                layout_engine_instance = cached_engine.*;
+            } else {
+                // 如果缓存中没有布局引擎，创建新的
+                layout_engine_instance = layout_engine.LayoutEngine.init(self.allocator);
+                self.cached_layout_engine = layout_engine_instance;
+            }
+            should_cache = false; // 已经缓存了，不需要再次缓存
+        } else {
+            // 构建新的布局树
+            layout_engine_instance = layout_engine.LayoutEngine.init(self.allocator);
+            layout_tree = try layout_engine_instance.buildLayoutTree(html_node, self.stylesheets.items);
+            should_cache = true; // 标记需要缓存
+        }
+
+        // 注意：缓存的布局树不应该在这里defer释放，因为我们需要保留它以便下次复用
+        // 只有在invalidateLayoutTreeCache时才会释放
 
         // 3. 执行布局计算
+        // 注意：即使复用布局树，布局计算也需要重新执行（因为视口大小可能变化）
         const viewport = box.Size{ .width = @as(f32, @floatFromInt(width)), .height = @as(f32, @floatFromInt(height)) };
         try layout_engine_instance.layout(layout_tree, viewport, self.stylesheets.items);
+
+        // 如果这是新构建的布局树，缓存它
+        if (should_cache) {
+            self.cached_layout_tree = layout_tree;
+            self.cached_layout_engine = layout_engine_instance;
+        }
 
         // 3.5. 输出元素的布局信息（用于与Chrome对比）
         // 先输出 html 元素
         try block.printElementLayoutInfo(layout_tree, self.allocator, self.stylesheets.items);
-        
+
         // 查找body元素
         var body: ?*box.LayoutBox = null;
         for (layout_tree.children.items) |child| {
@@ -88,15 +160,15 @@ pub const Browser = struct {
         if (body) |b| {
             // 输出 body 元素的布局信息（用于与Chrome对比）
             try block.printElementLayoutInfo(b, self.allocator, self.stylesheets.items);
-            
+
             // 输出第一个 h1 元素的布局信息（用于与Chrome对比）
             if (block.findElement(b, "h1", null, null)) |h1_element| {
                 try block.printElementLayoutInfo(h1_element, self.allocator, self.stylesheets.items);
             } else {
-                std.debug.print("Warning: h1 element not found in body\n", .{});
+                debugPrint("Warning: h1 element not found in body\n", .{});
             }
         } else {
-            std.debug.print("Warning: body element not found\n", .{});
+            debugPrint("Warning: body element not found\n", .{});
         }
 
         // 4. 创建CPU渲染后端
@@ -129,6 +201,9 @@ pub const Browser = struct {
     }
 
     pub fn deinit(self: *Browser) void {
+        // 清理缓存的布局树
+        self.invalidateLayoutTreeCache();
+
         // 清理样式表
         for (self.stylesheets.items) |*stylesheet| {
             stylesheet.deinit();
@@ -191,7 +266,7 @@ pub fn main() !void {
     // 使用固定尺寸（匹配Chrome的视口宽度980px）
     // Chrome的body width是940px，padding是20px，所以视口宽度 = 940 + 20*2 = 980px
     const render_width: u32 = 980;
-    const render_height: u32 = 10000;
+    const render_height: u32 = 8000;
 
     try browser.renderToPNG(render_width, render_height, output_path);
 }

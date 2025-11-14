@@ -216,7 +216,38 @@ pub const Cascade = struct {
         const elem = element.asElement() orelse return;
         const tag_name = elem.tag_name;
         
-        // 根据标签名应用默认样式
+        // 首先应用通用的默认样式（所有元素都应该有display属性）
+        // 根据HTML规范，大多数元素默认是display: block
+        // 只有少数元素是display: inline（如span、a、em、strong等）
+        // 这里我们为所有元素设置默认的display: block，除非是内联元素
+        const is_inline_element = std.mem.eql(u8, tag_name, "span") or
+            std.mem.eql(u8, tag_name, "a") or
+            std.mem.eql(u8, tag_name, "em") or
+            std.mem.eql(u8, tag_name, "strong") or
+            std.mem.eql(u8, tag_name, "b") or
+            std.mem.eql(u8, tag_name, "i") or
+            std.mem.eql(u8, tag_name, "u") or
+            std.mem.eql(u8, tag_name, "code") or
+            std.mem.eql(u8, tag_name, "small") or
+            std.mem.eql(u8, tag_name, "sub") or
+            std.mem.eql(u8, tag_name, "sup");
+        
+        // 设置display属性（如果还没有设置）
+        if (!computed.properties.contains("display")) {
+            const display_name = try self.allocator.dupe(u8, "display");
+            const display_value = parser.Value{
+                .keyword = try self.allocator.dupe(u8, if (is_inline_element) "inline" else "block"),
+            };
+            const display_decl = parser.Declaration{
+                .name = display_name,
+                .value = display_value,
+                .important = false,
+                .allocator = self.allocator,
+            };
+            try computed.properties.put(display_name, display_decl);
+        }
+        
+        // 根据标签名应用特定默认样式
         // 参考Chrome的默认样式表
         if (std.mem.eql(u8, tag_name, "h1")) {
             // h1默认样式（Chrome）:

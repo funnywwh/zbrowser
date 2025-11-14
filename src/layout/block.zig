@@ -1,7 +1,16 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const box = @import("box");
 const style_utils = @import("style_utils");
 const parser = @import("parser");
+
+/// 调试输出函数（只在Debug模式下输出）
+/// 使用条件编译，在Release模式下完全移除，避免性能影响
+inline fn debugPrint(comptime fmt: []const u8, args: anytype) void {
+    if (builtin.mode == .Debug) {
+        std.debug.print(fmt, args);
+    }
+}
 
 /// 计算块级元素宽度
 /// 简化实现：如果已经设置了宽度，使用设置的宽度；否则使用containing_block的宽度
@@ -62,7 +71,7 @@ pub fn layoutBlock(layout_box: *box.LayoutBox, containing_block: box.Size) !void
 
     // 调试：记录h1元素的width计算
     if (std.mem.eql(u8, tag_name, "h1")) {
-        std.debug.print("[WIDTH DEBUG] h1: containing_block.width={d:.1}, available_width={d:.1}, calculated_width={d:.1}\n", .{
+        debugPrint("[WIDTH DEBUG] h1: containing_block.width={d:.1}, available_width={d:.1}, calculated_width={d:.1}\n", .{
             containing_block.width,
             available_width,
             width,
@@ -71,26 +80,26 @@ pub fn layoutBlock(layout_box: *box.LayoutBox, containing_block: box.Size) !void
     const is_root = layout_box.parent == null;
 
     if (is_root or std.mem.eql(u8, tag_name, "body") or std.mem.eql(u8, tag_name, "html")) {
-        std.debug.print("[LAYOUT] Element: {s}, is_root: {}\n", .{ tag_name, is_root });
-        std.debug.print("  margin: top={d:.1}, right={d:.1}, bottom={d:.1}, left={d:.1}\n", .{
+        debugPrint("[LAYOUT] Element: {s}, is_root: {}\n", .{ tag_name, is_root });
+        debugPrint("  margin: top={d:.1}, right={d:.1}, bottom={d:.1}, left={d:.1}\n", .{
             layout_box.box_model.margin.top,
             layout_box.box_model.margin.right,
             layout_box.box_model.margin.bottom,
             layout_box.box_model.margin.left,
         });
-        std.debug.print("  padding: top={d:.1}, right={d:.1}, bottom={d:.1}, left={d:.1}\n", .{
+        debugPrint("  padding: top={d:.1}, right={d:.1}, bottom={d:.1}, left={d:.1}\n", .{
             layout_box.box_model.padding.top,
             layout_box.box_model.padding.right,
             layout_box.box_model.padding.bottom,
             layout_box.box_model.padding.left,
         });
-        std.debug.print("  content: x={d:.1}, y={d:.1}, width={d:.1}, height={d:.1}\n", .{
+        debugPrint("  content: x={d:.1}, y={d:.1}, width={d:.1}, height={d:.1}\n", .{
             layout_box.box_model.content.x,
             layout_box.box_model.content.y,
             layout_box.box_model.content.width,
             layout_box.box_model.content.height,
         });
-        std.debug.print("  containing_block: width={d:.1}, height={d:.1}\n", .{ containing_block.width, containing_block.height });
+        debugPrint("  containing_block: width={d:.1}, height={d:.1}\n", .{ containing_block.width, containing_block.height });
     }
 
     // 2. 应用margin到位置（如果父元素存在）
@@ -105,7 +114,7 @@ pub fn layoutBlock(layout_box: *box.LayoutBox, containing_block: box.Size) !void
         layout_box.box_model.content.x = 0;
         layout_box.box_model.content.y = 0;
         if (std.mem.eql(u8, tag_name, "html")) {
-            std.debug.print("[LAYOUT] Root element (html) position set to (0, 0)\n", .{});
+            debugPrint("[LAYOUT] Root element (html) position set to (0, 0)\n", .{});
         }
     } else if (std.mem.eql(u8, tag_name, "body")) {
         // body元素的位置计算：
@@ -114,7 +123,7 @@ pub fn layoutBlock(layout_box: *box.LayoutBox, containing_block: box.Size) !void
         // 注意：body的padding不影响body自身的位置，只影响body子元素的位置
         // 如果html.content.y不是0，说明有问题，应该修复
         if (layout_box.parent.?.box_model.content.x != 0 or layout_box.parent.?.box_model.content.y != 0) {
-            std.debug.print("[LAYOUT WARNING] html.content is not (0, 0): x={d:.1}, y={d:.1}\n", .{
+            debugPrint("[LAYOUT WARNING] html.content is not (0, 0): x={d:.1}, y={d:.1}\n", .{
                 layout_box.parent.?.box_model.content.x,
                 layout_box.parent.?.box_model.content.y,
             });
@@ -126,7 +135,7 @@ pub fn layoutBlock(layout_box: *box.LayoutBox, containing_block: box.Size) !void
             // 由于html.content = (0, 0)，所以body.content = body.margin
             layout_box.box_model.content.x = layout_box.box_model.margin.left;
             layout_box.box_model.content.y = layout_box.box_model.margin.top;
-            std.debug.print("[LAYOUT] Body element position set: x={d:.1}, y={d:.1} (margin: left={d:.1}, top={d:.1})\n", .{
+            debugPrint("[LAYOUT] Body element position set: x={d:.1}, y={d:.1} (margin: left={d:.1}, top={d:.1})\n", .{
                 layout_box.box_model.content.x,
                 layout_box.box_model.content.y,
                 layout_box.box_model.margin.left,
@@ -237,7 +246,7 @@ pub fn layoutBlock(layout_box: *box.LayoutBox, containing_block: box.Size) !void
 
         // 调试：记录body的子元素containing_block计算
         if (std.mem.eql(u8, parent_tag_name, "body") and std.mem.eql(u8, child_tag_name, "h1")) {
-            std.debug.print("[CONTAINING BLOCK] body.content.width={d:.1}, child_containing_block.width={d:.1}\n", .{
+            debugPrint("[CONTAINING BLOCK] body.content.width={d:.1}, child_containing_block.width={d:.1}\n", .{
                 layout_box.box_model.content.width,
                 layout_box.box_model.content.width,
             });
@@ -295,12 +304,12 @@ pub fn layoutBlock(layout_box: *box.LayoutBox, containing_block: box.Size) !void
 
         // 调试日志：记录子元素位置计算
         if (std.mem.eql(u8, parent_tag_name, "html") or std.mem.eql(u8, parent_tag_name, "body") or std.mem.eql(u8, child_tag_name, "body") or std.mem.eql(u8, child_tag_name, "h1")) {
-            std.debug.print("[LAYOUT] Child element: {s} (parent: {s})\n", .{ child_tag_name, parent_tag_name });
-            std.debug.print("  parent.content: x={d:.1}, y={d:.1}\n", .{ layout_box.box_model.content.x, layout_box.box_model.content.y });
-            std.debug.print("  parent.padding: left={d:.1}, top={d:.1}\n", .{ layout_box.box_model.padding.left, layout_box.box_model.padding.top });
-            std.debug.print("  child.margin: left={d:.1}, top={d:.1}\n", .{ child.box_model.margin.left, child.box_model.margin.top });
-            std.debug.print("  y (accumulated): {d:.1}\n", .{y});
-            std.debug.print("  child.content: x={d:.1} (was {d:.1}), y={d:.1} (was {d:.1})\n", .{
+            debugPrint("[LAYOUT] Child element: {s} (parent: {s})\n", .{ child_tag_name, parent_tag_name });
+            debugPrint("  parent.content: x={d:.1}, y={d:.1}\n", .{ layout_box.box_model.content.x, layout_box.box_model.content.y });
+            debugPrint("  parent.padding: left={d:.1}, top={d:.1}\n", .{ layout_box.box_model.padding.left, layout_box.box_model.padding.top });
+            debugPrint("  child.margin: left={d:.1}, top={d:.1}\n", .{ child.box_model.margin.left, child.box_model.margin.top });
+            debugPrint("  y (accumulated): {d:.1}\n", .{y});
+            debugPrint("  child.content: x={d:.1} (was {d:.1}), y={d:.1} (was {d:.1})\n", .{
                 child.box_model.content.x, old_x,
                 child.box_model.content.y, old_y,
             });
@@ -344,7 +353,7 @@ pub fn layoutBlock(layout_box: *box.LayoutBox, containing_block: box.Size) !void
                 if (std.mem.eql(u8, parent_tag_name, "body") or std.mem.eql(u8, parent_tag_name, "h1") or std.mem.eql(u8, parent_tag_name, "p")) {
                     const text_content = child.node.data.text;
                     const text_preview = if (text_content.len > 20) text_content[0..20] else text_content;
-                    std.debug.print("  [TEXT HEIGHT] text: \"{s}...\", font_size={d:.1}, line_height={d:.1}, height={d:.1}\n", .{
+                    debugPrint("  [TEXT HEIGHT] text: \"{s}...\", font_size={d:.1}, line_height={d:.1}, height={d:.1}\n", .{
                         text_preview,
                         parent_font_size,
                         actual_line_height,
@@ -372,7 +381,7 @@ pub fn layoutBlock(layout_box: *box.LayoutBox, containing_block: box.Size) !void
 
         // 调试日志：记录y坐标更新
         if (std.mem.eql(u8, parent_tag_name, "html") or std.mem.eql(u8, parent_tag_name, "body") or std.mem.eql(u8, child_tag_name, "body") or std.mem.eql(u8, child_tag_name, "h1") or std.mem.eql(u8, child_tag_name, "div")) {
-            std.debug.print("  [UPDATE Y] child: {s}, content_height={d:.1}, margin.bottom={d:.1}, total_height={d:.1}, y after={d:.1}\n", .{
+            debugPrint("  [UPDATE Y] child: {s}, content_height={d:.1}, margin.bottom={d:.1}, total_height={d:.1}, y after={d:.1}\n", .{
                 child_tag_name,
                 child_content_height,
                 child.box_model.margin.bottom,
@@ -435,35 +444,35 @@ pub fn printElementLayoutInfo(layout_box: *box.LayoutBox, allocator: std.mem.All
         }
     }
 
-    std.debug.print("\n=== Element Layout Info ===\n", .{});
-    std.debug.print("Tag: {s}\n", .{tag_name});
+    debugPrint("\n=== Element Layout Info ===\n", .{});
+    debugPrint("Tag: {s}\n", .{tag_name});
     if (element_id.len > 0) {
-        std.debug.print("ID: {s}\n", .{element_id});
+        debugPrint("ID: {s}\n", .{element_id});
     }
     if (element_class.len > 0) {
-        std.debug.print("Class: {s}\n", .{element_class});
+        debugPrint("Class: {s}\n", .{element_class});
     }
 
-    std.debug.print("\nBox Model:\n", .{});
-    std.debug.print("  Margin: top={d:.2}, right={d:.2}, bottom={d:.2}, left={d:.2}\n", .{
+    debugPrint("\nBox Model:\n", .{});
+    debugPrint("  Margin: top={d:.2}, right={d:.2}, bottom={d:.2}, left={d:.2}\n", .{
         layout_box.box_model.margin.top,
         layout_box.box_model.margin.right,
         layout_box.box_model.margin.bottom,
         layout_box.box_model.margin.left,
     });
-    std.debug.print("  Border: top={d:.2}, right={d:.2}, bottom={d:.2}, left={d:.2}\n", .{
+    debugPrint("  Border: top={d:.2}, right={d:.2}, bottom={d:.2}, left={d:.2}\n", .{
         layout_box.box_model.border.top,
         layout_box.box_model.border.right,
         layout_box.box_model.border.bottom,
         layout_box.box_model.border.left,
     });
-    std.debug.print("  Padding: top={d:.2}, right={d:.2}, bottom={d:.2}, left={d:.2}\n", .{
+    debugPrint("  Padding: top={d:.2}, right={d:.2}, bottom={d:.2}, left={d:.2}\n", .{
         layout_box.box_model.padding.top,
         layout_box.box_model.padding.right,
         layout_box.box_model.padding.bottom,
         layout_box.box_model.padding.left,
     });
-    std.debug.print("  Content: x={d:.2}, y={d:.2}, width={d:.2}, height={d:.2}\n", .{
+    debugPrint("  Content: x={d:.2}, y={d:.2}, width={d:.2}, height={d:.2}\n", .{
         layout_box.box_model.content.x,
         layout_box.box_model.content.y,
         layout_box.box_model.content.width,
@@ -471,7 +480,7 @@ pub fn printElementLayoutInfo(layout_box: *box.LayoutBox, allocator: std.mem.All
     });
 
     const total_size = layout_box.box_model.totalSize();
-    std.debug.print("  Total Size: width={d:.2}, height={d:.2}\n", .{
+    debugPrint("  Total Size: width={d:.2}, height={d:.2}\n", .{
         total_size.width,
         total_size.height,
     });
@@ -481,30 +490,30 @@ pub fn printElementLayoutInfo(layout_box: *box.LayoutBox, allocator: std.mem.All
     // 如果需要显示包含margin的位置，应该单独计算
     const actual_x = layout_box.box_model.content.x;
     const actual_y = layout_box.box_model.content.y;
-    std.debug.print("  Actual Position (content box): x={d:.2}, y={d:.2}\n", .{ actual_x, actual_y });
+    debugPrint("  Actual Position (content box): x={d:.2}, y={d:.2}\n", .{ actual_x, actual_y });
 
     // 如果需要显示包含margin的位置（用于调试）
     const position_with_margin_x = layout_box.box_model.content.x - layout_box.box_model.margin.left;
     const position_with_margin_y = layout_box.box_model.content.y - layout_box.box_model.margin.top;
-    std.debug.print("  Position (with margin): x={d:.2}, y={d:.2}\n", .{ position_with_margin_x, position_with_margin_y });
+    debugPrint("  Position (with margin): x={d:.2}, y={d:.2}\n", .{ position_with_margin_x, position_with_margin_y });
 
-    std.debug.print("\nComputed Styles:\n", .{});
+    debugPrint("\nComputed Styles:\n", .{});
     const style_utils_module = @import("style_utils");
     if (style_utils_module.getPropertyKeyword(computed_style, "display")) |display| {
-        std.debug.print("  display: {s}\n", .{display});
+        debugPrint("  display: {s}\n", .{display});
     }
     if (style_utils_module.getPropertyKeyword(computed_style, "position")) |position| {
-        std.debug.print("  position: {s}\n", .{position});
+        debugPrint("  position: {s}\n", .{position});
     }
     const width_context = style_utils_module.createUnitContext(800);
     if (style_utils_module.getPropertyLength(computed_style, "width", width_context)) |width| {
-        std.debug.print("  width: {d:.2}px\n", .{width});
+        debugPrint("  width: {d:.2}px\n", .{width});
     }
     const height_context = style_utils_module.createUnitContext(600);
     if (style_utils_module.getPropertyLength(computed_style, "height", height_context)) |height| {
-        std.debug.print("  height: {d:.2}px\n", .{height});
+        debugPrint("  height: {d:.2}px\n", .{height});
     }
-    std.debug.print("==========================\n\n", .{});
+    debugPrint("==========================\n\n", .{});
 }
 
 /// 在布局树中查找指定元素（通过tag、class或id）

@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const dom = @import("dom");
 const box = @import("box");
 const block = @import("block");
@@ -10,6 +11,14 @@ const cascade = @import("cascade");
 const css_parser = @import("parser");
 const style_utils = @import("style_utils");
 
+/// 调试输出函数（只在Debug模式下输出）
+/// 使用条件编译，在Release模式下完全移除，避免性能影响
+inline fn debugPrint(comptime fmt: []const u8, args: anytype) void {
+    if (builtin.mode == .Debug) {
+        std.debug.print(fmt, args);
+    }
+}
+
 /// 布局引擎
 /// 负责从DOM树构建布局树，并执行布局计算
 pub const LayoutEngine = struct {
@@ -17,6 +26,10 @@ pub const LayoutEngine = struct {
     stylesheets: []const css_parser.Stylesheet = &[_]css_parser.Stylesheet{},
     initial_viewport: ?box.Size = null, // 保存初始视口大小，用于fixed定位
     cascade_engine: cascade.Cascade, // 复用的Cascade实例，避免重复创建
+    // TODO: 实现样式计算缓存（HashMap<Node指针 -> ComputedStyle>）
+    // 当前实现：通过将computed_style存储在LayoutBox中已经实现了缓存
+    // 每个DOM节点只对应一个LayoutBox，所以不会出现重复计算
+    // 如果将来需要支持布局树复用（render-flow-9），可以实现真正的缓存机制
 
     /// 初始化布局引擎
     pub fn init(allocator: std.mem.Allocator) LayoutEngine {
@@ -83,9 +96,12 @@ pub const LayoutEngine = struct {
 
         // 计算样式并应用到布局框
         // 注意：样式计算在buildLayoutTree阶段完成，保存到LayoutBox中，避免在渲染阶段重复计算
+        // 样式缓存机制：通过将computed_style存储在LayoutBox中实现缓存
+        // 每个DOM节点只对应一个LayoutBox，所以不会出现重复计算
         // 复用LayoutEngine的cascade_engine实例，避免重复创建
         var computed_style = try self.cascade_engine.computeStyle(node, stylesheets);
         // 不要deinit，保存到LayoutBox中，在LayoutBox.deinit时释放
+        // 这已经实现了样式缓存：每个节点的样式只计算一次，存储在LayoutBox中
         layout_box.computed_style = computed_style;
 
         // 获取包含块尺寸（简化：使用默认值，后续可以从父节点获取）
@@ -101,7 +117,7 @@ pub const LayoutEngine = struct {
                 child = c.next_sibling;
                 continue;
             }
-            
+
             const child_layout_box = try self.buildLayoutTree(c, stylesheets);
             child_layout_box.parent = layout_box;
             try layout_box.children.append(layout_box.allocator, child_layout_box);
@@ -113,7 +129,7 @@ pub const LayoutEngine = struct {
 
     /// 布局box状态（用于收敛检测）
     const BoxState = struct { box_ptr: *box.LayoutBox, x: f32, y: f32, w: f32, h: f32 };
-    
+
     /// 收集布局树中所有box的状态（用于收敛检测）
     fn collectBoxStates(layout_box: *box.LayoutBox, states: *std.ArrayList(BoxState), allocator: std.mem.Allocator) !void {
         try states.append(allocator, BoxState{
@@ -123,7 +139,7 @@ pub const LayoutEngine = struct {
             .w = layout_box.box_model.content.width,
             .h = layout_box.box_model.content.height,
         });
-        
+
         for (layout_box.children.items) |child| {
             try collectBoxStates(child, states, allocator);
         }
@@ -137,20 +153,20 @@ pub const LayoutEngine = struct {
         if (self.initial_viewport == null) {
             self.initial_viewport = viewport;
         }
-        
+
         // 布局收敛检测
         const max_passes = 8;
         var pass: u32 = 1;
         var changed = true;
-        
+
         while (changed and pass <= max_passes) {
             // 记录当前所有box的尺寸和位置
             var box_states = std.ArrayList(BoxState){};
             defer box_states.deinit(self.allocator);
-            
+
             // 收集所有box的当前状态
             try collectBoxStates(layout_tree, &box_states, self.allocator);
-            
+
             // 执行一次布局
             switch (layout_tree.display) {
                 .block => {
@@ -173,7 +189,7 @@ pub const LayoutEngine = struct {
                     try block.layoutBlock(layout_tree, viewport);
                 },
             }
-            
+
             // 检查是否有变化
             changed = false;
             var changed_count: u32 = 0;
@@ -187,18 +203,18 @@ pub const LayoutEngine = struct {
                     changed_count += 1;
                 }
             }
-            
+
             if (changed) {
-                std.debug.print("[LAYOUT] Pass {}: {} boxes changed, reflowing...\n", .{ pass, changed_count });
+                debugPrint("[LAYOUT] Pass {}: {} boxes changed, reflowing...\n", .{ pass, changed_count });
                 pass += 1;
             } else {
-                std.debug.print("[LAYOUT] Converged in {} pass(es)\n", .{pass});
+                debugPrint("[LAYOUT] Converged in {} pass(es)\n", .{pass});
                 break;
             }
         }
-        
+
         if (pass > max_passes) {
-            std.debug.print("[LAYOUT] Warning: Max passes ({}) reached, layout may not be stable\n", .{max_passes});
+            debugPrint("[LAYOUT] Warning: Max passes ({}) reached, layout may not be stable\n", .{max_passes});
         }
 
         // 标记为已布局
@@ -279,8 +295,7 @@ pub const LayoutEngine = struct {
                             ancestor = anc.parent;
                         }
 
-                        if (ancestor == null) {
-                        }
+                        if (ancestor == null) {}
                     } else {
                         // fixed定位：始终相对于初始视口，不查找定位祖先
                         containing_block = self.initial_viewport orelse viewport;

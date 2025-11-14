@@ -9,9 +9,8 @@ test "TtfParser - load OTF font with CFF table" {
     const allocator = gpa.allocator();
 
     // 尝试加载Source Han Sans SC（OTF格式，使用CFF表）
-    const font_file = std.fs.cwd().openFile("fonts/SourceHanSansSC-Regular.otf", .{}) catch |err| {
+    const font_file = std.fs.cwd().openFile("fonts/SourceHanSansSC-Regular.otf", .{}) catch {
         // 如果文件不存在，跳过测试
-        _ = err;
         return;
     };
     defer font_file.close();
@@ -37,8 +36,7 @@ test "TtfParser boundary - detect CFF table" {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    const font_file = std.fs.cwd().openFile("fonts/SourceHanSansSC-Regular.otf", .{}) catch |err| {
-        _ = err;
+    const font_file = std.fs.cwd().openFile("fonts/SourceHanSansSC-Regular.otf", .{}) catch {
         return;
     };
     defer font_file.close();
@@ -63,8 +61,7 @@ test "TtfParser - get glyph index from OTF font" {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    const font_file = std.fs.cwd().openFile("fonts/SourceHanSansSC-Regular.otf", .{}) catch |err| {
-        _ = err;
+    const font_file = std.fs.cwd().openFile("fonts/SourceHanSansSC-Regular.otf", .{}) catch {
         return;
     };
     defer font_file.close();
@@ -86,8 +83,7 @@ test "TtfParser - get glyph from OTF font with CFF" {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    const font_file = std.fs.cwd().openFile("fonts/SourceHanSansSC-Regular.otf", .{}) catch |err| {
-        _ = err;
+    const font_file = std.fs.cwd().openFile("fonts/SourceHanSansSC-Regular.otf", .{}) catch {
         return;
     };
     defer font_file.close();

@@ -458,6 +458,7 @@ pub fn build(b: *std.Build) void {
                     .{ .name = "parser", .module = css_parser_module },
                     .{ .name = "engine", .module = layout_engine_module },
                     .{ .name = "box", .module = layout_box_module },
+                    .{ .name = "block", .module = layout_block_module },
                     .{ .name = "cpu_backend", .module = render_cpu_backend_module },
                     .{ .name = "renderer", .module = render_renderer_module },
                     .{ .name = "png", .module = image_png_module },

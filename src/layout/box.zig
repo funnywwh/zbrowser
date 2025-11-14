@@ -239,11 +239,19 @@ pub const LineHeight = union(enum) {
 };
 
 /// 溢出处理类型（overflow属性）
+/// CSS规范说明：
+/// - visible: 不裁剪溢出内容（默认值）
+/// - hidden: 裁剪溢出内容，不显示滚动条
+/// - scroll: 总是显示滚动条（即使内容不溢出），并裁剪溢出内容
+/// - auto: 只在内容溢出时显示滚动条，并裁剪溢出内容
+/// 
+/// 注意：当前实现中，scroll和auto都按hidden处理（只裁剪，不显示滚动条）
+/// TODO: 完整实现需要检测内容是否溢出，并渲染滚动条
 pub const Overflow = enum {
     visible, // 默认值，不裁剪溢出内容
     hidden, // 隐藏溢出内容
-    scroll, // 显示滚动条（简化实现：等同于hidden）
-    auto, // 自动（简化实现：等同于hidden）
+    scroll, // 显示滚动条（简化实现：等同于hidden，只裁剪不显示滚动条）
+    auto, // 自动（简化实现：等同于hidden，只裁剪不显示滚动条）
 };
 
 /// 布局框（每个DOM元素对应一个布局框）
