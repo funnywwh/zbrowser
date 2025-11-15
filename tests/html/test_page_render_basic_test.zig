@@ -159,8 +159,7 @@ test "test_page render - h1 element verification" {
     try testing.expect(found_red);
 }
 
-// 测试：验证 block-test div 的背景色渲染
-// block-test div 应该有蓝色背景（background-color: #e3f2fd）
+// 测试：验证 body 背景色渲染
 // body 应该有浅灰色背景（background-color: #f5f5f5）
 test "test_page render - body background color" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -227,9 +226,6 @@ test "test_page render - h1 text color" {
     try testing.expect(found_blue_text);
 }
 
-// 测试：验证 inline-test div 的背景色
-// inline-test div 应该有橙色背景（background-color: #fff3e0）
-// block-test div 应该有蓝色边框（border: 2px solid #2196f3）
 // 测试：验证整体布局 - 检查多个元素是否都在正确位置
 test "test_page render - layout verification" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -323,32 +319,3 @@ test "test_page render - layout verification" {
     try testing.expect(has_dark or has_light); // 应该有明暗变化
 }
 
-// 测试：验证 inline-test div 的边框颜色
-// inline-test div 应该有橙色边框（border: 2px solid #ff9800）
-// position-container 应该有紫色背景（background-color: #f3e5f5）和紫色边框（border: 2px solid #9c27b0）
-// 页脚应该有深色背景（background-color: #263238）和白色文本（color: white）
-// 边界测试：小视口渲染
-// 边界测试：大视口渲染
-// 边界测试：多次渲染（验证缓存和内存管理）
-// 嵌套的 div 应该有浅蓝色背景（background-color: #bbdefb）
-// highlight 类应该有黄色背景（background-color: #ffeb3b）
-// span style="color: red;" 应该有红色文本（color: red）
-// span style="color: blue;" 应该有蓝色文本（color: blue）
-// static-box 应该有浅紫色背景（background-color: #e1bee7）
-// relative-box 应该有紫色背景（background-color: #ce93d8）
-// absolute-box 应该有深紫色背景（background-color: #ba68c8），宽度150px，绝对定位在右侧
-// .block-test h1 应该有蓝色文本（color: #1976d2），字体大小24px
-// float-container 应该有绿色背景（background-color: #e8f5e9）和绿色边框（border: 2px solid #4caf50）
-// float-left 应该有浅绿色背景（background-color: #c8e6c9），宽度200px，左浮动
-// float-right 应该有绿色背景（background-color: #a5d6a7），宽度200px，右浮动
-// flex-container 应该有黄色背景（background-color: #fff9c4）和黄色边框（border: 2px solid #fbc02d）
-// flex-item 应该有黄色背景（background-color: #fff59d）
-// grid-container 应该有青色背景（background-color: #e0f2f1）和青色边框（border: 2px solid #009688）
-// grid-item 应该有浅青色背景（background-color: #b2dfdb）
-// text-styles 应该有粉色背景（background-color: #fce4ec）和粉色边框（border: 2px solid #e91e63）
-// text-large 应该有深粉色文本（color: #c2185b），字体大小32px
-// multilang 应该有蓝色背景（background-color: #e8eaf6）和蓝色边框（border: 2px solid #3f51b5）
-// border-test 应该有黄色背景（background-color: #fff8e1）、橙色边框（border: 5px solid #ff6f00）和圆角（border-radius: 10px）
-// nested 应该有浅绿色背景（background-color: #f1f8e9）和绿色边框（border: 2px solid #689f38）
-// nested-level-1 应该有浅绿色背景（background-color: #dcedc8）
-// relative-box 应该有相对偏移（left: 20px, top: 10px）
