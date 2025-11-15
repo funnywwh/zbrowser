@@ -156,15 +156,15 @@ test "test_page render - static-box background" {
 
     // static-box 背景色是 #e1bee7 (RGB: 225, 190, 231)
     // 应该在 position-container 内部（先找到 position-container，然后在其内部搜索）
-    if (helpers.findColorInYRange(pixels, width, height, 400, 1000, 243, 229, 245, 30)) |container_pos| {
+    if (helpers.findColorInYRange(pixels, width, height, 400, 1000, 243, 229, 245, 5)) |container_pos| {
         // 在 position-container 内部搜索 static-box
         const search_start = container_pos.y;
         const search_end = container_pos.y + 350;
-        const found_static = helpers.findColorInYRange(pixels, width, height, search_start, search_end, 225, 190, 231, 30);
+        const found_static = helpers.findColorInYRange(pixels, width, height, search_start, search_end, 225, 190, 231, 5);
         try testing.expect(found_static != null);
     } else {
         // 如果找不到 position-container，在整个页面中搜索
-        const found_static = helpers.findColorInYRange(pixels, width, height, 400, 1500, 225, 190, 231, 30);
+        const found_static = helpers.findColorInYRange(pixels, width, height, 400, 1500, 225, 190, 231, 5);
         try testing.expect(found_static != null);
     }
 }
@@ -198,13 +198,13 @@ test "test_page render - relative-box background" {
 
     // relative-box 背景色是 #ce93d8 (RGB: 206, 147, 216)
     // 应该在 position-container 内部
-    if (helpers.findColorInYRange(pixels, width, height, 400, 1000, 243, 229, 245, 30)) |container_pos| {
+    if (helpers.findColorInYRange(pixels, width, height, 400, 1000, 243, 229, 245, 5)) |container_pos| {
         const search_start = container_pos.y;
         const search_end = container_pos.y + 350;
-        const found_relative = helpers.findColorInYRange(pixels, width, height, search_start, search_end, 206, 147, 216, 30);
+        const found_relative = helpers.findColorInYRange(pixels, width, height, search_start, search_end, 206, 147, 216, 5);
         try testing.expect(found_relative != null);
     } else {
-        const found_relative = helpers.findColorInYRange(pixels, width, height, 400, 1500, 206, 147, 216, 30);
+        const found_relative = helpers.findColorInYRange(pixels, width, height, 400, 1500, 206, 147, 216, 5);
         try testing.expect(found_relative != null);
     }
 }
@@ -245,7 +245,7 @@ test "test_page render - relative-box position" {
         try testing.expect(layout.x > 0);
 
         // 验证背景色 #ce93d8 (RGB: 206, 147, 216)
-        const found_bg = helpers.verifyElementPositionAndSize(pixels, width, height, layout.x, layout.y, layout.width, layout.height, 206, 147, 216, 30);
+        const found_bg = helpers.verifyElementPositionAndSize(pixels, width, height, layout.x, layout.y, layout.width, layout.height, 206, 147, 216, 5);
         try testing.expect(found_bg);
     }
 }
@@ -339,7 +339,7 @@ test "test_page render - footer background and text color" {
     // 使用 findColorInYRange 从页面底部向上搜索（页脚在最后）
     // 从 height - 500 开始搜索，因为页脚应该在底部
     const search_start_y = if (height > 500) height - 500 else 0;
-    if (helpers.findColorInYRange(pixels, width, height, search_start_y, height - 1, 38, 50, 56, 30)) |footer_pos| {
+    if (helpers.findColorInYRange(pixels, width, height, search_start_y, height - 1, 38, 50, 56, 5)) |footer_pos| {
         // 找到了页脚背景，验证位置在底部区域
         try testing.expect(footer_pos.y >= search_start_y);
         try testing.expect(footer_pos.y < height);
@@ -352,7 +352,7 @@ test "test_page render - footer background and text color" {
         try testing.expect(found_text != null);
     } else {
         // 如果找不到，尝试在整个页面中搜索（可能页脚位置不同）
-        const found_bg_anywhere = helpers.findColorInYRange(pixels, width, height, 1000, height - 1, 38, 50, 56, 30);
+        const found_bg_anywhere = helpers.findColorInYRange(pixels, width, height, 1000, height - 1, 38, 50, 56, 5);
         try testing.expect(found_bg_anywhere != null);
 
         if (found_bg_anywhere) |footer_pos| {
@@ -365,4 +365,63 @@ test "test_page render - footer background and text color" {
     }
 }
 
-// 边界测试：小视口渲染
+// 测试：验证 fixed-box 的背景色和位置
+// fixed-box 应该有紫色背景（background-color: #ab47bc），白色文本，固定定位在右下角
+test "test_page render - fixed-box background and position" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const html_content = try helpers.readTestPage(allocator);
+    defer allocator.free(html_content);
+
+    const css_content = try helpers.extractCSSFromHTML(html_content, allocator);
+    defer allocator.free(css_content);
+
+    var browser = try Browser.init(allocator);
+    defer browser.deinit();
+
+    try browser.loadHTML(html_content);
+    try browser.addStylesheet(css_content);
+
+    const width: u32 = 1200;
+    const height: u32 = 2000;
+    const pixels = try browser.render(width, height);
+    defer allocator.free(pixels);
+
+    try helpers.verifyH1Exists(&browser, allocator);
+
+    const fixed_box_layout = try helpers.getElementLayoutInfo(&browser, allocator, @as(f32, @floatFromInt(width)), @as(f32, @floatFromInt(height)), "div", "fixed-box", null);
+    try testing.expect(fixed_box_layout != null);
+
+    if (fixed_box_layout) |layout| {
+        // 验证位置：fixed定位应该在右下角（right: 20px, bottom: 20px）
+        // 由于是fixed定位，位置相对于视口
+        try testing.expect(layout.x > 0);
+        try testing.expect(layout.y > 0);
+
+        // 验证大小：宽度应该是 120px
+        try testing.expect(layout.width >= 100.0);
+        try testing.expect(layout.width <= 140.0);
+
+        // 验证背景色 #ab47bc (RGB: 171, 71, 188)
+        const found_bg = helpers.verifyElementPositionAndSize(pixels, width, height, layout.x, layout.y, layout.width, layout.height, 171, 71, 188, 5);
+        try testing.expect(found_bg);
+
+        // 验证白色文本 (RGB: 255, 255, 255)
+        const found_text = helpers.checkColorInRegion(
+            pixels,
+            width,
+            height,
+            @as(u32, @intFromFloat(layout.x)),
+            @as(u32, @intFromFloat(layout.y)),
+            @as(u32, @intFromFloat(layout.x + layout.width)),
+            @as(u32, @intFromFloat(layout.y + layout.height)),
+            255,
+            255,
+            255,
+            50,
+        );
+        try testing.expect(found_text);
+    }
+}

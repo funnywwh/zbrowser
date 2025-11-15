@@ -110,7 +110,7 @@ test "test_page render - block-test div border" {
     var found_border = false;
     var test_y: u32 = 150;
     while (test_y < 300) : (test_y += 10) {
-        if (helpers.checkColorInRegion(pixels, width, height, center_x - 500, test_y, center_x + 500, test_y + 5, 33, 150, 243, 60)) {
+        if (helpers.checkColorInRegion(pixels, width, height, center_x - 500, test_y, center_x + 500, test_y + 5, 33, 150, 243, 20)) {
             found_border = true;
             break;
         }
@@ -237,7 +237,7 @@ test "test_page render - inline-test div border" {
     var found_border = false;
     var test_y: u32 = 300;
     while (test_y < 450) : (test_y += 10) {
-        if (helpers.checkColorInRegion(pixels, width, height, center_x - 500, test_y, center_x + 500, test_y + 5, 255, 152, 0, 60)) {
+        if (helpers.checkColorInRegion(pixels, width, height, center_x - 500, test_y, center_x + 500, test_y + 5, 255, 152, 0, 20)) {
             found_border = true;
             break;
         }
@@ -427,7 +427,7 @@ test "test_page render - nested div background" {
     // 嵌套 div 背景色是 #bbdefb (RGB: 187, 222, 251)
     // 应该在 block-test div 内部（大约在 y=250-300 之间）
     const center_x = width / 2;
-    const found_nested = helpers.checkColorInRegion(pixels, width, height, center_x - 200, 250, center_x + 200, 300, 187, 222, 251, 30);
+    const found_nested = helpers.checkColorInRegion(pixels, width, height, center_x - 200, 250, center_x + 200, 300, 187, 222, 251, 5);
     try testing.expect(found_nested);
 }
 

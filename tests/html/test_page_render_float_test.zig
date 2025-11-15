@@ -36,13 +36,13 @@ test "test_page render - float-container background and border" {
         try testing.expect(layout.y < @as(f32, @floatFromInt(height)));
 
         // 验证背景色 #e8f5e9 (RGB: 232, 245, 233)
-        const found_bg = helpers.verifyElementPositionAndSize(pixels, width, height, layout.x, layout.y, layout.width, layout.height, 232, 245, 233, 30);
+        const found_bg = helpers.verifyElementPositionAndSize(pixels, width, height, layout.x, layout.y, layout.width, layout.height, 232, 245, 233, 5);
         try testing.expect(found_bg);
 
         // 验证边框颜色 #4caf50 (RGB: 76, 175, 80)
         const border_search_top_y = if (layout.y > layout.border_top) @as(u32, @intFromFloat(layout.y - layout.border_top - 5)) else 0;
         const border_search_bottom_y = @as(u32, @intFromFloat(layout.y + layout.height + layout.border_bottom + 5));
-        const border_found = helpers.checkColorInRegion(pixels, width, height, @as(u32, @intFromFloat(layout.x)), border_search_top_y, @as(u32, @intFromFloat(layout.x + layout.width)), border_search_bottom_y, 76, 175, 80, 60);
+        const border_found = helpers.checkColorInRegion(pixels, width, height, @as(u32, @intFromFloat(layout.x)), border_search_top_y, @as(u32, @intFromFloat(layout.x + layout.width)), border_search_bottom_y, 76, 175, 80, 10);
         try testing.expect(border_found);
     }
 }
@@ -85,7 +85,7 @@ test "test_page render - float-left background and position" {
         try testing.expect(layout.width <= 220.0);
 
         // 验证背景色 #c8e6c9 (RGB: 200, 230, 201)
-        const found_bg = helpers.verifyElementPositionAndSize(pixels, width, height, layout.x, layout.y, layout.width, layout.height, 200, 230, 201, 30);
+        const found_bg = helpers.verifyElementPositionAndSize(pixels, width, height, layout.x, layout.y, layout.width, layout.height, 200, 230, 201, 5);
         try testing.expect(found_bg);
     }
 }
@@ -128,10 +128,57 @@ test "test_page render - float-right background and position" {
         try testing.expect(layout.width <= 220.0);
 
         // 验证背景色 #a5d6a7 (RGB: 165, 214, 167)
-        const found_bg = helpers.verifyElementPositionAndSize(pixels, width, height, layout.x, layout.y, layout.width, layout.height, 165, 214, 167, 30);
+        const found_bg = helpers.verifyElementPositionAndSize(pixels, width, height, layout.x, layout.y, layout.width, layout.height, 165, 214, 167, 5);
         try testing.expect(found_bg);
     }
 }
 
-// 测试：验证 flex-container 的背景色和边框
-// flex-container 应该有黄色背景（background-color: #fff9c4）和黄色边框（border: 2px solid #fbc02d）
+// 测试：验证 clear-both 的背景色
+// clear-both 应该有绿色背景（background-color: #81c784），并且清除浮动
+test "test_page render - clear-both background" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const html_content = try helpers.readTestPage(allocator);
+    defer allocator.free(html_content);
+
+    const css_content = try helpers.extractCSSFromHTML(html_content, allocator);
+    defer allocator.free(css_content);
+
+    var browser = try Browser.init(allocator);
+    defer browser.deinit();
+
+    try browser.loadHTML(html_content);
+    try browser.addStylesheet(css_content);
+
+    const width: u32 = 1200;
+    const height: u32 = 3000;
+    const pixels = try browser.render(width, height);
+    defer allocator.free(pixels);
+
+    try helpers.verifyH1Exists(&browser, allocator);
+
+    // clear-both 在 float-container 内部
+    const float_container_layout = try helpers.getElementLayoutInfo(&browser, allocator, @as(f32, @floatFromInt(width)), @as(f32, @floatFromInt(height)), "div", "float-container", null);
+    try testing.expect(float_container_layout != null);
+
+    if (float_container_layout) |container_layout| {
+        // 在 float-container 内部搜索 clear-both 背景色 #81c784 (RGB: 129, 199, 132)
+        // clear-both 应该在浮动元素下方
+        const found_clear = helpers.checkColorInRegion(
+            pixels,
+            width,
+            height,
+            @as(u32, @intFromFloat(container_layout.x)),
+            @as(u32, @intFromFloat(container_layout.y + container_layout.height * 0.6)), // 在容器下半部分
+            @as(u32, @intFromFloat(container_layout.x + container_layout.width)),
+            @as(u32, @intFromFloat(container_layout.y + container_layout.height)),
+            129,
+            199,
+            132,
+            30,
+        );
+        try testing.expect(found_clear);
+    }
+}

@@ -17,6 +17,14 @@ const html_dom_test = @import("tests/html/dom_test.zig");
 const html_test_page_test = @import("tests/html/test_page_test.zig");
 const html_test_page_render_test = @import("tests/html/test_page_render_test.zig");
 const html_test_page_layout_verification_test = @import("tests/html/test_page_layout_verification_test.zig");
+const html_test_page_render_basic_test = @import("tests/html/test_page_render_basic_test.zig");
+const html_test_page_render_block_inline_test = @import("tests/html/test_page_render_block_inline_test.zig");
+const html_test_page_render_position_test = @import("tests/html/test_page_render_position_test.zig");
+const html_test_page_render_float_test = @import("tests/html/test_page_render_float_test.zig");
+const html_test_page_render_flex_grid_test = @import("tests/html/test_page_render_flex_grid_test.zig");
+const html_test_page_render_style_test = @import("tests/html/test_page_render_style_test.zig");
+const html_test_block_test_verification = @import("tests/html/test_block_test_verification.zig");
+const html_test_h1_layout_info = @import("tests/html/test_h1_layout_info.zig");
 
 // CSS模块测试
 const css_parser_test = @import("tests/css/parser_test.zig");
@@ -86,6 +94,14 @@ test "all test modules imported" {
     _ = html_test_page_test;
     _ = html_test_page_render_test;
     _ = html_test_page_layout_verification_test;
+    _ = html_test_page_render_basic_test;
+    _ = html_test_page_render_block_inline_test;
+    _ = html_test_page_render_position_test;
+    _ = html_test_page_render_float_test;
+    _ = html_test_page_render_flex_grid_test;
+    _ = html_test_page_render_style_test;
+    _ = html_test_block_test_verification;
+    _ = html_test_h1_layout_info;
     _ = css_parser_test;
     _ = css_tokenizer_test;
     _ = css_selector_test;

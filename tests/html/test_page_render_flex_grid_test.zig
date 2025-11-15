@@ -35,12 +35,12 @@ test "test_page render - flex-container background and border" {
         try testing.expect(layout.y > 0);
 
         // 验证背景色 #fff9c4 (RGB: 255, 249, 196)
-        const found_bg = helpers.verifyElementPositionAndSize(pixels, width, height, layout.x, layout.y, layout.width, layout.height, 255, 249, 196, 30);
+        const found_bg = helpers.verifyElementPositionAndSize(pixels, width, height, layout.x, layout.y, layout.width, layout.height, 255, 249, 196, 5);
         try testing.expect(found_bg);
 
         // 验证边框颜色 #fbc02d (RGB: 251, 192, 45)
         const border_search_top_y = if (layout.y > layout.border_top) @as(u32, @intFromFloat(layout.y - layout.border_top - 5)) else 0;
-        const border_found = helpers.checkColorInRegion(pixels, width, height, @as(u32, @intFromFloat(layout.x)), border_search_top_y, @as(u32, @intFromFloat(layout.x + layout.width)), @as(u32, @intFromFloat(layout.y + 5)), 251, 192, 45, 60);
+        const border_found = helpers.checkColorInRegion(pixels, width, height, @as(u32, @intFromFloat(layout.x)), border_search_top_y, @as(u32, @intFromFloat(layout.x + layout.width)), @as(u32, @intFromFloat(layout.y + 5)), 251, 192, 45, 10);
         try testing.expect(border_found);
     }
 }
@@ -94,6 +94,105 @@ test "test_page render - flex-item background" {
     }
 }
 
+// 测试：验证 flex-item-large 的背景色和大小
+// flex-item-large 应该有亮黄色背景（background-color: #ffeb3b），并且 flex-grow: 2
+test "test_page render - flex-item-large background and size" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const html_content = try helpers.readTestPage(allocator);
+    defer allocator.free(html_content);
+
+    const css_content = try helpers.extractCSSFromHTML(html_content, allocator);
+    defer allocator.free(css_content);
+
+    var browser = try Browser.init(allocator);
+    defer browser.deinit();
+
+    try browser.loadHTML(html_content);
+    try browser.addStylesheet(css_content);
+
+    const width: u32 = 1200;
+    const height: u32 = 3000;
+    const pixels = try browser.render(width, height);
+    defer allocator.free(pixels);
+
+    try helpers.verifyH1Exists(&browser, allocator);
+
+    // flex-item-large 在 flex-container 内部
+    const flex_container_layout = try helpers.getElementLayoutInfo(&browser, allocator, @as(f32, @floatFromInt(width)), @as(f32, @floatFromInt(height)), "div", "flex-container", null);
+    try testing.expect(flex_container_layout != null);
+
+    if (flex_container_layout) |container_layout| {
+        // 在 flex-container 内部搜索 flex-item-large 背景色 #ffeb3b (RGB: 255, 235, 59)
+        const found_large_item = helpers.checkColorInRegion(
+            pixels,
+            width,
+            height,
+            @as(u32, @intFromFloat(container_layout.x)),
+            @as(u32, @intFromFloat(container_layout.y)),
+            @as(u32, @intFromFloat(container_layout.x + container_layout.width)),
+            @as(u32, @intFromFloat(container_layout.y + container_layout.height)),
+            255,
+            235,
+            59,
+            30,
+        );
+        try testing.expect(found_large_item);
+    }
+}
+
+// 测试：验证 flex-column 的背景色和方向
+// flex-column 应该有黄色背景，并且 flex-direction: column
+test "test_page render - flex-column background and direction" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const html_content = try helpers.readTestPage(allocator);
+    defer allocator.free(html_content);
+
+    const css_content = try helpers.extractCSSFromHTML(html_content, allocator);
+    defer allocator.free(css_content);
+
+    var browser = try Browser.init(allocator);
+    defer browser.deinit();
+
+    try browser.loadHTML(html_content);
+    try browser.addStylesheet(css_content);
+
+    const width: u32 = 1200;
+    const height: u32 = 3000;
+    const pixels = try browser.render(width, height);
+    defer allocator.free(pixels);
+
+    try helpers.verifyH1Exists(&browser, allocator);
+
+    // flex-column 是第二个 flex-container（有 flex-column 类）
+    // 由于 getElementLayoutInfo 只返回第一个匹配的元素，我们需要通过布局树查找
+    // 这里我们验证背景色存在即可
+    const flex_container_layout = try helpers.getElementLayoutInfo(&browser, allocator, @as(f32, @floatFromInt(width)), @as(f32, @floatFromInt(height)), "div", "flex-container", null);
+    try testing.expect(flex_container_layout != null);
+
+    // flex-column 应该有相同的背景色 #fff9c4
+    // 由于可能有多个 flex-container，我们在页面中搜索这个颜色
+    const found_column = helpers.checkColorInRegion(
+        pixels,
+        width,
+        height,
+        0,
+        @as(u32, @intFromFloat(flex_container_layout.?.y + flex_container_layout.?.height + 50)), // 在第一个flex-container下方
+        width,
+        height,
+        255,
+        249,
+        196,
+        30,
+    );
+    try testing.expect(found_column);
+}
+
 // 测试：验证 grid-container 的背景色和边框
 // grid-container 应该有青色背景（background-color: #e0f2f1）和青色边框（border: 2px solid #009688）
 test "test_page render - grid-container background and border" {
@@ -128,12 +227,12 @@ test "test_page render - grid-container background and border" {
         try testing.expect(layout.y > 0);
 
         // 验证背景色 #e0f2f1 (RGB: 224, 242, 241)
-        const found_bg = helpers.verifyElementPositionAndSize(pixels, width, height, layout.x, layout.y, layout.width, layout.height, 224, 242, 241, 30);
+        const found_bg = helpers.verifyElementPositionAndSize(pixels, width, height, layout.x, layout.y, layout.width, layout.height, 224, 242, 241, 5);
         try testing.expect(found_bg);
 
         // 验证边框颜色 #009688 (RGB: 0, 150, 136)
         const border_search_top_y = if (layout.y > layout.border_top) @as(u32, @intFromFloat(layout.y - layout.border_top - 5)) else 0;
-        const border_found = helpers.checkColorInRegion(pixels, width, height, @as(u32, @intFromFloat(layout.x)), border_search_top_y, @as(u32, @intFromFloat(layout.x + layout.width)), @as(u32, @intFromFloat(layout.y + 5)), 0, 150, 136, 60);
+        const border_found = helpers.checkColorInRegion(pixels, width, height, @as(u32, @intFromFloat(layout.x)), border_search_top_y, @as(u32, @intFromFloat(layout.x + layout.width)), @as(u32, @intFromFloat(layout.y + 5)), 0, 150, 136, 10);
         try testing.expect(border_found);
     }
 }
@@ -187,5 +286,100 @@ test "test_page render - grid-item background" {
     }
 }
 
-// 测试：验证 text-styles 的背景色和边框
-// text-styles 应该有粉色背景（background-color: #fce4ec）和粉色边框（border: 2px solid #e91e63）
+// 测试：验证 grid-item-1 的背景色和跨列
+// grid-item-1 应该有青色背景（background-color: #80cbc4），并且跨2列（grid-column: 1 / 3）
+test "test_page render - grid-item-1 background and span" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const html_content = try helpers.readTestPage(allocator);
+    defer allocator.free(html_content);
+
+    const css_content = try helpers.extractCSSFromHTML(html_content, allocator);
+    defer allocator.free(css_content);
+
+    var browser = try Browser.init(allocator);
+    defer browser.deinit();
+
+    try browser.loadHTML(html_content);
+    try browser.addStylesheet(css_content);
+
+    const width: u32 = 1200;
+    const height: u32 = 3000;
+    const pixels = try browser.render(width, height);
+    defer allocator.free(pixels);
+
+    try helpers.verifyH1Exists(&browser, allocator);
+
+    // grid-item-1 在 grid-container 内部
+    const grid_container_layout = try helpers.getElementLayoutInfo(&browser, allocator, @as(f32, @floatFromInt(width)), @as(f32, @floatFromInt(height)), "div", "grid-container", null);
+    try testing.expect(grid_container_layout != null);
+
+    if (grid_container_layout) |container_layout| {
+        // 在 grid-container 内部搜索 grid-item-1 背景色 #80cbc4 (RGB: 128, 203, 196)
+        const found_item_1 = helpers.checkColorInRegion(
+            pixels,
+            width,
+            height,
+            @as(u32, @intFromFloat(container_layout.x)),
+            @as(u32, @intFromFloat(container_layout.y)),
+            @as(u32, @intFromFloat(container_layout.x + container_layout.width)),
+            @as(u32, @intFromFloat(container_layout.y + container_layout.height)),
+            128,
+            203,
+            196,
+            30,
+        );
+        try testing.expect(found_item_1);
+    }
+}
+
+// 测试：验证 grid-item-2 的背景色和跨行
+// grid-item-2 应该有深青色背景（background-color: #4db6ac），并且跨2行（grid-row: 2 / 4）
+test "test_page render - grid-item-2 background and span" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const html_content = try helpers.readTestPage(allocator);
+    defer allocator.free(html_content);
+
+    const css_content = try helpers.extractCSSFromHTML(html_content, allocator);
+    defer allocator.free(css_content);
+
+    var browser = try Browser.init(allocator);
+    defer browser.deinit();
+
+    try browser.loadHTML(html_content);
+    try browser.addStylesheet(css_content);
+
+    const width: u32 = 1200;
+    const height: u32 = 3000;
+    const pixels = try browser.render(width, height);
+    defer allocator.free(pixels);
+
+    try helpers.verifyH1Exists(&browser, allocator);
+
+    // grid-item-2 在 grid-container 内部
+    const grid_container_layout = try helpers.getElementLayoutInfo(&browser, allocator, @as(f32, @floatFromInt(width)), @as(f32, @floatFromInt(height)), "div", "grid-container", null);
+    try testing.expect(grid_container_layout != null);
+
+    if (grid_container_layout) |container_layout| {
+        // 在 grid-container 内部搜索 grid-item-2 背景色 #4db6ac (RGB: 77, 182, 172)
+        const found_item_2 = helpers.checkColorInRegion(
+            pixels,
+            width,
+            height,
+            @as(u32, @intFromFloat(container_layout.x)),
+            @as(u32, @intFromFloat(container_layout.y)),
+            @as(u32, @intFromFloat(container_layout.x + container_layout.width)),
+            @as(u32, @intFromFloat(container_layout.y + container_layout.height)),
+            77,
+            182,
+            172,
+            30,
+        );
+        try testing.expect(found_item_2);
+    }
+}

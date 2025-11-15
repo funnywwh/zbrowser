@@ -223,7 +223,7 @@ test "test_page render - h1 text color" {
     // h1 文本颜色是 #1976d2 (RGB: 25, 118, 210)
     // 在顶部中间区域搜索蓝色文本
     const center_x = width / 2;
-    const found_blue_text = helpers.checkColorInRegion(pixels, width, height, center_x - 100, 50, center_x + 100, 150, 25, 118, 210, 30);
+    const found_blue_text = helpers.checkColorInRegion(pixels, width, height, center_x - 100, 50, center_x + 100, 150, 25, 118, 210, 5);
     try testing.expect(found_blue_text);
 }
 
@@ -286,7 +286,7 @@ test "test_page render - layout verification" {
     try testing.expect(found_h1_border);
 
     // 2. h1下方有浅蓝色背景（block-test div）
-    const found_block_bg = helpers.checkColorInRegion(pixels, width, height, width / 2 - 200, 200, width / 2 + 200, 250, 227, 242, 253, 30);
+    const found_block_bg = helpers.checkColorInRegion(pixels, width, height, width / 2 - 200, 200, width / 2 + 200, 250, 227, 242, 253, 5);
     try testing.expect(found_block_bg);
 
     // 3. 页面有内容（不是全黑或全白）

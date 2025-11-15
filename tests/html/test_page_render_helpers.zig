@@ -143,14 +143,28 @@ pub fn verifyElementPositionAndSize(
     const safe_end_x = if (end_x >= pixel_width) pixel_width - 1 else end_x;
     const safe_end_y = if (end_y >= pixel_height) pixel_height - 1 else end_y;
 
+    // 计算元素区域的总像素数
+    const region_width = safe_end_x - start_x + 1;
+    const region_height = safe_end_y - start_y + 1;
+    const total_pixels = region_width * region_height;
+
+    if (total_pixels == 0) return false;
+
+    // 大幅提高匹配阈值：至少70%的像素匹配，确保元素确实在正确位置渲染
+    // 对于小元素（小于100像素），要求至少90%匹配
+    const min_pixels = if (total_pixels < 100)
+        if (total_pixels * 9 / 10 > 0) total_pixels * 9 / 10 else 1 // 90% for small elements
+    else if (total_pixels * 7 / 10 > 0) total_pixels * 7 / 10 else 1; // 70% for larger elements
+
     // 在元素区域内检查颜色
     var found_count: u32 = 0;
-    const min_pixels = @as(u32, @intFromFloat(element_width * element_height * 0.1)); // 至少10%的像素匹配
+    var total_checked: u32 = 0;
 
     var y = start_y;
     while (y <= safe_end_y and y < pixel_height) : (y += 1) {
         var x = start_x;
         while (x <= safe_end_x and x < pixel_width) : (x += 1) {
+            total_checked += 1;
             if (getPixelColor(pixels, pixel_width, pixel_height, x, y)) |color| {
                 const r_diff = if (color.r > expected_r) color.r - expected_r else expected_r - color.r;
                 const g_diff = if (color.g > expected_g) color.g - expected_g else expected_g - color.g;
@@ -163,7 +177,87 @@ pub fn verifyElementPositionAndSize(
         }
     }
 
-    return found_count >= min_pixels;
+    // 确保检查了足够的像素
+    if (total_checked < min_pixels) return false;
+
+    // 计算匹配百分比
+    const match_percentage = if (total_checked > 0) (@as(f32, @floatFromInt(found_count)) / @as(f32, @floatFromInt(total_checked))) * 100.0 else 0.0;
+    const required_percentage: f32 = if (total_pixels < 100) @as(f32, 90.0) else @as(f32, 70.0);
+
+    // 如果匹配百分比低于要求，返回false
+    if (match_percentage < required_percentage) {
+        // 在Debug模式下输出调试信息
+        if (@import("builtin").mode == .Debug) {
+            std.debug.print("[VERIFY] Element region: {d}x{d} pixels, found {d}/{d} ({d:.1}%), required {d:.1}%\n", .{ region_width, region_height, found_count, total_checked, match_percentage, required_percentage });
+        }
+        return false;
+    }
+
+    return true;
+}
+
+// 辅助函数：验证元素的位置和大小是否与布局计算一致
+// 允许1-2像素的误差（由于浮点数到整数转换和抗锯齿）
+pub fn verifyElementPositionAndSizeAccuracy(
+    layout_x: f32,
+    layout_y: f32,
+    layout_width: f32,
+    layout_height: f32,
+    actual_x: f32,
+    actual_y: f32,
+    actual_width: f32,
+    actual_height: f32,
+    position_tolerance: f32,
+    size_tolerance: f32,
+) bool {
+    // 验证位置（允许1-2像素误差）
+    const x_diff = if (actual_x > layout_x) actual_x - layout_x else layout_x - actual_x;
+    const y_diff = if (actual_y > layout_y) actual_y - layout_y else layout_y - actual_y;
+
+    if (x_diff > position_tolerance or y_diff > position_tolerance) {
+        return false;
+    }
+
+    // 验证大小（允许1-2像素误差）
+    const width_diff = if (actual_width > layout_width) actual_width - layout_width else layout_width - actual_width;
+    const height_diff = if (actual_height > layout_height) actual_height - layout_height else layout_height - actual_height;
+
+    if (width_diff > size_tolerance or height_diff > size_tolerance) {
+        return false;
+    }
+
+    return true;
+}
+
+// 辅助函数：验证两个元素的相对位置关系
+// 例如：验证flexbox中元素的顺序，grid中元素的位置等
+pub fn verifyRelativePosition(
+    element1_x: f32,
+    element1_y: f32,
+    element1_width: f32,
+    element1_height: f32,
+    element2_x: f32,
+    element2_y: f32,
+    element2_width: f32,
+    element2_height: f32,
+    expected_relation: enum { left_of, right_of, above, below, same_row, same_column },
+) bool {
+    return switch (expected_relation) {
+        .left_of => element1_x + element1_width <= element2_x,
+        .right_of => element1_x >= element2_x + element2_width,
+        .above => element1_y + element1_height <= element2_y,
+        .below => element1_y >= element2_y + element2_height,
+        .same_row => {
+            // 在同一行（y坐标相近，允许5像素误差）
+            const y_diff = if (element1_y > element2_y) element1_y - element2_y else element2_y - element1_y;
+            return y_diff <= 5.0;
+        },
+        .same_column => {
+            // 在同一列（x坐标相近，允许5像素误差）
+            const x_diff = if (element1_x > element2_x) element1_x - element2_x else element2_x - element1_x;
+            return x_diff <= 5.0;
+        },
+    };
 }
 
 // 辅助函数：获取像素颜色
@@ -329,4 +423,3 @@ pub fn findColorInYRange(
     }
     return null;
 }
-
