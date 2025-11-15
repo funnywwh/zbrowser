@@ -307,24 +307,65 @@ pub const Parser = struct {
                 if (std.mem.eql(u8, tok.data.start_tag.name, "body")) {
                     // 确保 head 已经被关闭（如果还在 open_elements 中，先关闭它）
                     try self.closeHead();
-                    // 找到 html 元素，将 body 添加到 html 下
-                    var html_node: ?*dom.Node = null;
-                    for (self.open_elements.items) |node| {
-                        if (node.asElement()) |elem| {
-                            if (std.mem.eql(u8, elem.tag_name, "html")) {
-                                html_node = node;
+                    // 检查 body 是否已经存在
+                    const existing_body = self.document.getBody();
+                    if (existing_body) |body| {
+                        // body 已经存在，更新属性
+                        if (body.asElement()) |elem| {
+                            var it = tok.data.start_tag.attributes.iterator();
+                            while (it.next()) |entry| {
+                                try elem.setAttribute(entry.key_ptr.*, entry.value_ptr.*, self.allocator);
+                            }
+                        }
+                        // 确保 body 在 open_elements 中，并且是栈顶元素（这样后续元素才能正确添加到 body 中）
+                        var found_in_open = false;
+                        var body_index: ?usize = null;
+                        for (self.open_elements.items, 0..) |node, i| {
+                            if (node == body) {
+                                found_in_open = true;
+                                body_index = i;
                                 break;
                             }
                         }
-                    }
-                    const body_node = try self.createElementNode(tok.data.start_tag);
-                    if (html_node) |html| {
-                        try html.appendChild(body_node, self.allocator);
+                        if (!found_in_open) {
+                            // body 不在 open_elements 中，添加到栈顶
+                            try self.open_elements.append(self.allocator, body);
+                        } else if (body_index) |idx| {
+                            // body 在 open_elements 中，但可能不在栈顶
+                            // 移除 body 之后的所有元素，然后将 body 移到栈顶
+                            while (self.open_elements.items.len > idx + 1) {
+                                _ = self.open_elements.pop();
+                            }
+                            // 如果 body 不在栈顶，将其移到栈顶
+                            if (self.open_elements.items.len > 0 and self.open_elements.items[self.open_elements.items.len - 1] != body) {
+                                _ = self.open_elements.pop();
+                                try self.open_elements.append(self.allocator, body);
+                            }
+                        }
+                        // 设置插入模式为 in_body，但不处理当前 token（body 标签本身不需要处理）
+                        self.insertion_mode = .in_body;
+                        // 注意：body 标签本身不需要添加到 DOM，因为它已经存在
+                        // 后续的 token 会在 in_body 模式下处理
                     } else {
-                        // 如果找不到 html，添加到 document
-                        try self.document.node.appendChild(body_node, self.allocator);
+                        // body 不存在，创建新的 body 元素
+                        var html_node: ?*dom.Node = null;
+                        for (self.open_elements.items) |node| {
+                            if (node.asElement()) |elem| {
+                                if (std.mem.eql(u8, elem.tag_name, "html")) {
+                                    html_node = node;
+                                    break;
+                                }
+                            }
+                        }
+                        const body_node = try self.createElementNode(tok.data.start_tag);
+                        if (html_node) |html| {
+                            try html.appendChild(body_node, self.allocator);
+                        } else {
+                            // 如果找不到 html，添加到 document
+                            try self.document.node.appendChild(body_node, self.allocator);
+                        }
+                        try self.open_elements.append(self.allocator, body_node);
                     }
-                    try self.open_elements.append(self.allocator, body_node);
                     self.insertion_mode = .in_body;
                 } else if (std.mem.eql(u8, tok.data.start_tag.name, "html")) {
                     // 错误：嵌套html标签
@@ -459,8 +500,18 @@ pub const Parser = struct {
                     return;
                 }
                 if (std.mem.eql(u8, tag_name, "body")) {
-                    // body 标签不应该在 body 内出现，这是错误
-                    // 忽略它，不创建元素节点
+                    // body 标签在 body 内出现，根据 HTML5 规范，应该更新现有 body 元素的属性
+                    const existing_body = self.document.getBody();
+                    if (existing_body) |body| {
+                        if (body.asElement()) |elem| {
+                            // 更新 body 元素的属性
+                            var it = tok.data.start_tag.attributes.iterator();
+                            while (it.next()) |entry| {
+                                try elem.setAttribute(entry.key_ptr.*, entry.value_ptr.*, self.allocator);
+                            }
+                        }
+                    }
+                    // 不创建新的 body 元素，也不抛出错误
                     return;
                 }
 

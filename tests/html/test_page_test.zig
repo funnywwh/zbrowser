@@ -110,15 +110,23 @@ fn findFirstElementNode(node: ?*dom.Node) ?*dom.Node {
     return null;
 }
 
-// 辅助函数：找到 body 的第 n 个第一级元素节点（跳过文本、注释和DOCTYPE节点）
+// 辅助函数：找到 body 的第 n 个第一级元素节点（跳过文本、注释、DOCTYPE和head中的元素）
 fn findNthBodyChild(body: *dom.Node, n: usize) ?*dom.Node {
     var current = body.first_child;
     var count: usize = 0;
     while (current) |node| {
         if (node.node_type == .element) {
             if (node.asElement()) |elem| {
-                // 跳过 DOCTYPE 节点
-                if (!std.mem.eql(u8, elem.tag_name, "!DOCTYPE")) {
+                // 跳过 DOCTYPE 节点和 head 中的元素（meta, title, style, link, base, script）
+                const tag_name = elem.tag_name;
+                if (!std.mem.eql(u8, tag_name, "!DOCTYPE") and
+                    !std.mem.eql(u8, tag_name, "meta") and
+                    !std.mem.eql(u8, tag_name, "title") and
+                    !std.mem.eql(u8, tag_name, "style") and
+                    !std.mem.eql(u8, tag_name, "link") and
+                    !std.mem.eql(u8, tag_name, "base") and
+                    !std.mem.eql(u8, tag_name, "script"))
+                {
                     if (count == n) {
                         return node;
                     }

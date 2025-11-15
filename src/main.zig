@@ -171,7 +171,7 @@ pub const Browser = struct {
                 }
             }
         }
-        
+
         // 调试：如果找不到 body，检查 html 的子节点
         if (body == null) {
             std.debug.print("DEBUG: body not found in html children, checking html children:\n", .{});
@@ -187,7 +187,7 @@ pub const Browser = struct {
             // 调试：打印 body 的所有子元素（在布局信息输出之前，用于诊断为什么找不到 h1）
             std.debug.print("\n=== DEBUG: Body children before printElementLayoutInfo ===\n", .{});
             std.debug.print("Body children count: {d}\n", .{b.children.items.len});
-            
+
             // 同时检查 DOM 节点中的子元素
             std.debug.print("Body DOM node children:\n", .{});
             var dom_child = b.node.first_child;
@@ -202,7 +202,7 @@ pub const Browser = struct {
                 else
                     "unknown";
                 std.debug.print("  DOM Child[{d}]: {s} (node_type: {})\n", .{ dom_child_idx, dom_tag_name, dc.node_type });
-                
+
                 // 如果是元素节点且 tag_name 是 "!DOCTYPE"，这是错误的，应该跳过
                 if (dc.node_type == .element) {
                     if (dc.asElement()) |elem| {
@@ -211,11 +211,11 @@ pub const Browser = struct {
                         }
                     }
                 }
-                
+
                 dom_child = dc.next_sibling;
                 dom_child_idx += 1;
             }
-            
+
             for (b.children.items, 0..) |child, i| {
                 const tag_name = if (child.node.node_type == .element)
                     if (child.node.asElement()) |elem| elem.tag_name else "unknown"
@@ -230,20 +230,32 @@ pub const Browser = struct {
 
             // 输出第一个 h1 元素的布局信息（用于与Chrome对比）
             // 注意：h1 元素可能不存在，这是正常的（某些页面可能没有 h1）
-            if (block.findElement(b, "h1", null, null)) |h1_element| {
-                std.debug.print("DEBUG: Found h1 element!\n", .{});
-                try block.printElementLayoutInfo(h1_element, self.allocator, self.stylesheets.items);
-            } else {
-                std.debug.print("DEBUG: h1 element not found in body (children count: {d})\n", .{b.children.items.len});
-                // 再次打印子元素，确认 h1 是否在子元素中
-                for (b.children.items, 0..) |child, i| {
-                    const tag_name = if (child.node.node_type == .element)
-                        if (child.node.asElement()) |elem| elem.tag_name else "unknown"
-                    else
-                        "text";
-                    if (std.mem.eql(u8, tag_name, "h1")) {
-                        std.debug.print("  Found h1 at index {d}!\n", .{i});
+            // 只在 Debug 模式下输出调试信息，避免在正常渲染时产生噪音
+            if (builtin.mode == .Debug) {
+                if (block.findElement(b, "h1", null, null)) |h1_element| {
+                    std.debug.print("DEBUG: Found h1 element!\n", .{});
+                    try block.printElementLayoutInfo(h1_element, self.allocator, self.stylesheets.items);
+                } else {
+                    // 只在 Debug 模式下输出，并且只在确实有问题时输出（body 有子元素但没有 h1）
+                    // 如果 body 是空的，这是正常的，不需要输出警告
+                    if (b.children.items.len > 0) {
+                        std.debug.print("DEBUG: h1 element not found in body (children count: {d})\n", .{b.children.items.len});
+                        // 再次打印子元素，确认 h1 是否在子元素中
+                        for (b.children.items, 0..) |child, i| {
+                            const tag_name = if (child.node.node_type == .element)
+                                if (child.node.asElement()) |elem| elem.tag_name else "unknown"
+                            else
+                                "text";
+                            if (std.mem.eql(u8, tag_name, "h1")) {
+                                std.debug.print("  Found h1 at index {d}!\n", .{i});
+                            }
+                        }
                     }
+                }
+            } else {
+                // Release 模式下，只输出 h1 的布局信息（如果存在）
+                if (block.findElement(b, "h1", null, null)) |h1_element| {
+                    try block.printElementLayoutInfo(h1_element, self.allocator, self.stylesheets.items);
                 }
             }
         } else {
