@@ -1,0 +1,15 @@
+{
+  "name": "test_page",
+  "version": "1.0.0",
+  "description": "这个测试框架用于对比ZBrowser和Puppeteer（Chrome）渲染的元素的box信息，确保两者完全一致。",
+  "main": "compare_boxes.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "puppeteer": "^24.30.0"
+  }
+}

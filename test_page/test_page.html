@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=980, initial-scale=1.0">
+  <title>ZBrowser功能测试页面</title>
+  <style>
+    /* 基础样式 */
+    html, body {
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background-color: #f5f5f5;
+      color: #333;
+    }
+
+    /* 块级布局测试 */
+    .block-test {
+      background-color: #e3f2fd;
+      border: 2px solid #2196f3;
+      padding: 15px;
+      margin: 10px 0;
+    }
+
+    .block-test h1 {
+      font-size: 24px;
+      margin: 0 0 10px 0;
+      color: #1976d2;
+    }
+
+    .block-test p {
+      font-size: 16px;
+      line-height: 1.5;
+      margin: 5px 0;
+    }
+
+    /* 行内布局测试 */
+    .inline-test {
+      background-color: #fff3e0;
+      border: 2px solid #ff9800;
+      padding: 15px;
+      margin: 10px 0;
+    }
+
+    .inline-test span {
+      font-size: 16px;
+      margin: 0 5px;
+    }
+
+    .highlight {
+      background-color: #ffeb3b;
+      padding: 2px 4px;
+    }
+
+    /* 定位布局测试 */
+    .position-container {
+      position: relative;
+      background-color: #f3e5f5;
+      border: 2px solid #9c27b0;
+      padding: 15px;
+      margin: 10px 0;
+      height: 300px;
+    }
+
+    .static-box {
+      position: static;
+      background-color: #e1bee7;
+      padding: 10px;
+      margin: 5px;
+    }
+
+    .relative-box {
+      position: relative;
+      background-color: #ce93d8;
+      padding: 10px;
+      margin: 5px;
+      left: 20px;
+      top: 10px;
+    }
+
+    .absolute-box {
+      position: absolute;
+      background-color: #ba68c8;
+      padding: 10px;
+      right: 20px;
+      top: 20px;
+      width: 150px;
+    }
+
+    .fixed-box {
+      position: fixed;
+      background-color: #ab47bc;
+      padding: 10px;
+      right: 20px;
+      bottom: 20px;
+      width: 120px;
+      color: white;
+    }
+
+    /* 浮动布局测试 */
+    .float-container {
+      background-color: #e8f5e9;
+      border: 2px solid #4caf50;
+      padding: 15px;
+      margin: 10px 0;
+      overflow: hidden;
+    }
+
+    .float-left {
+      float: left;
+      background-color: #c8e6c9;
+      padding: 15px;
+      margin: 10px;
+      width: 200px;
+    }
+
+    .float-right {
+      float: right;
+      background-color: #a5d6a7;
+      padding: 15px;
+      margin: 10px;
+      width: 200px;
+    }
+
+    .clear-both {
+      clear: both;
+      background-color: #81c784;
+      padding: 10px;
+      margin: 10px 0;
+    }
+
+    /* Flexbox布局测试 */
+    .flex-container {
+      display: flex;
+      background-color: #fff9c4;
+      border: 2px solid #fbc02d;
+      padding: 15px;
+      margin: 10px 0;
+      flex-direction: row;
+      justify-content: space-around;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .flex-item {
+      background-color: #fff59d;
+      padding: 20px;
+      margin: 5px;
+      min-width: 100px;
+      text-align: center;
+    }
+
+    .flex-item-large {
+      flex-grow: 2;
+      background-color: #ffeb3b;
+    }
+
+    .flex-column {
+      flex-direction: column;
+      height: 300px;
+    }
+
+    /* Grid布局测试 */
+    .grid-container {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: repeat(3, 100px);
+      gap: 10px;
+      background-color: #e0f2f1;
+      border: 2px solid #009688;
+      padding: 15px;
+      margin: 10px 0;
+    }
+
+    .grid-item {
+      background-color: #b2dfdb;
+      padding: 15px;
+      text-align: center;
+    }
+
+    .grid-item-1 {
+      grid-column: 1 / 3;
+      background-color: #80cbc4;
+    }
+
+    .grid-item-2 {
+      grid-row: 2 / 4;
+      background-color: #4db6ac;
+    }
+
+    /* 文本样式测试 */
+    .text-styles {
+      background-color: #fce4ec;
+      border: 2px solid #e91e63;
+      padding: 15px;
+      margin: 10px 0;
+    }
+
+    .text-large {
+      font-size: 32px;
+      font-weight: bold;
+      color: #c2185b;
+    }
+
+    .text-medium {
+      font-size: 20px;
+      font-weight: normal;
+      color: #e91e63;
+    }
+
+    .text-small {
+      font-size: 12px;
+      font-weight: lighter;
+      color: #f06292;
+    }
+
+    /* 多语言测试 */
+    .multilang {
+      background-color: #e8eaf6;
+      border: 2px solid #3f51b5;
+      padding: 15px;
+      margin: 10px 0;
+    }
+
+    .multilang p {
+      font-size: 18px;
+      margin: 10px 0;
+      line-height: 1.6;
+    }
+
+    /* 边框和背景测试 */
+    .border-test {
+      background-color: #fff8e1;
+      border: 5px solid #ff6f00;
+      border-radius: 10px;
+      padding: 20px;
+      margin: 10px 0;
+    }
+
+    .border-dashed {
+      border: 3px dashed #ffa726;
+      padding: 15px;
+      margin: 10px 0;
+    }
+
+    /* 嵌套结构测试 */
+    .nested {
+      background-color: #f1f8e9;
+      border: 2px solid #689f38;
+      padding: 15px;
+      margin: 10px 0;
+    }
+
+    .nested-level-1 {
+      background-color: #dcedc8;
+      border: 2px solid #8bc34a;
+      padding: 10px;
+      margin: 5px;
+    }
+
+    .nested-level-2 {
+      background-color: #c5e1a5;
+      border: 2px solid #9ccc65;
+      padding: 8px;
+      margin: 3px;
+    }
+
+    /* 特殊字符测试 */
+    .special-chars {
+      background-color: #ede7f6;
+      border: 2px solid #7b1fa2;
+      padding: 15px;
+      margin: 10px 0;
+      font-family: monospace;
+    }
+  </style>
+</head>
+<body>
+  <h1 style="text-align: center; color: #1976d2; border: 2px solid red;">ZBrowser功能测试页面</h1>
+
+  <!-- 块级布局测试 -->
+  <div class="block-test">
+    <h1>块级布局测试</h1>
+    <p>这是一个块级元素段落。块级元素会独占一行，默认宽度为100%。</p>
+    <p>这是另一个段落，会显示在新的一行。</p>
+    <div style="background-color: #bbdefb; padding: 10px; margin: 5px 0;">
+      <p>嵌套的div块级元素</p>
+    </div>
+  </div>
+
+  <!-- 行内布局测试 -->
+  <div class="inline-test">
+    <h2 style="margin-top: 0;">行内布局测试</h2>
+    <p>
+      这是行内元素测试：
+      <span style="color: red;">红色文本</span>
+      <span style="color: blue;">蓝色文本</span>
+      <span class="highlight">高亮文本</span>
+      <strong>粗体文本</strong>
+      <em>斜体文本</em>
+    </p>
+    <p>行内元素不会换行，除非遇到容器边界。</p>
+  </div>
+
+  <!-- 定位布局测试 -->
+  <div class="position-container">
+    <h2 style="margin-top: 0;">定位布局测试</h2>
+    <div class="static-box">Static定位（默认）</div>
+    <div class="relative-box">Relative定位（相对偏移）</div>
+    <div class="absolute-box">Absolute定位（绝对定位）</div>
+    <div class="fixed-box">Fixed定位（固定定位）</div>
+  </div>
+
+  <!-- 浮动布局测试 -->
+  <div class="float-container">
+    <h2 style="margin-top: 0;">浮动布局测试</h2>
+    <div class="float-left">
+      <p>左浮动元素</p>
+      <p>这个元素会浮动到左侧</p>
+    </div>
+    <div class="float-right">
+      <p>右浮动元素</p>
+      <p>这个元素会浮动到右侧</p>
+    </div>
+    <p>这是正常流中的文本，会围绕浮动元素排列。当文本足够长时，会自动换行以适应布局。</p>
+    <div class="clear-both">清除浮动元素</div>
+  </div>
+
+  <!-- Flexbox布局测试 -->
+  <div>
+    <h2>Flexbox布局测试</h2>
+    <div class="flex-container">
+      <div class="flex-item">Flex项目1</div>
+      <div class="flex-item">Flex项目2</div>
+      <div class="flex-item flex-item-large">Flex项目3（较大）</div>
+      <div class="flex-item">Flex项目4</div>
+      <div class="flex-item">Flex项目5</div>
+    </div>
+    <div class="flex-container flex-column">
+      <div class="flex-item">垂直Flex项目1</div>
+      <div class="flex-item">垂直Flex项目2</div>
+      <div class="flex-item">垂直Flex项目3</div>
+    </div>
+  </div>
+
+  <!-- Grid布局测试 -->
+  <div>
+    <h2>Grid布局测试</h2>
+    <div class="grid-container">
+      <div class="grid-item grid-item-1">Grid项目1（跨2列）</div>
+      <div class="grid-item">Grid项目2</div>
+      <div class="grid-item">Grid项目3</div>
+      <div class="grid-item grid-item-2">Grid项目4（跨2行）</div>
+      <div class="grid-item">Grid项目5</div>
+      <div class="grid-item">Grid项目6</div>
+      <div class="grid-item">Grid项目7</div>
+      <div class="grid-item">Grid项目8</div>
+    </div>
+  </div>
+
+  <!-- 文本样式测试 -->
+  <div class="text-styles">
+    <h2>文本样式测试</h2>
+    <p class="text-large">大号文本（32px，粗体）</p>
+    <p class="text-medium">中等文本（20px，正常）</p>
+    <p class="text-small">小号文本（12px，细体）</p>
+    <p style="text-decoration: underline;">下划线文本</p>
+    <p style="text-decoration: line-through;">删除线文本</p>
+  </div>
+
+  <!-- 多语言测试 -->
+  <div class="multilang">
+    <h2>多语言支持测试</h2>
+    <p><strong>简体中文：</strong>这是一个测试页面，展示中文字符的渲染效果。支持各种中文字符，包括标点符号：，。！？；：</p>
+    <p><strong>繁體中文：</strong>這是一個測試頁面，展示繁體中文字符的渲染效果。支持各種繁體中文字符。</p>
+    <p><strong>日本語：</strong>これはテストページです。日本語の文字を表示します。ひらがな、カタカナ、漢字が含まれています。</p>
+    <p><strong>한국어：</strong>이것은 테스트 페이지입니다. 한국어 문자를 표시합니다. 한글, 한자, 영문이 혼합되어 있습니다.</p>
+    <p><strong>English：</strong>This is a test page demonstrating English text rendering. It supports various characters and punctuation: !@#$%^&*()</p>
+    <p><strong>Mixed：</strong>混合文本 Mixed Text 混合テキスト 혼합 텍스트</p>
+  </div>
+
+  <!-- 边框和背景测试 -->
+  <div class="border-test">
+    <h2>边框和背景测试</h2>
+    <p>这个区域有实线边框和圆角。</p>
+    <div class="border-dashed">
+      <p>这个区域有虚线边框。</p>
+    </div>
+  </div>
+
+  <!-- 嵌套结构测试 -->
+  <div class="nested">
+    <h2>嵌套结构测试</h2>
+    <div class="nested-level-1">
+      <p>第一层嵌套</p>
+      <div class="nested-level-2">
+        <p>第二层嵌套</p>
+        <div style="background-color: #aed581; padding: 5px; margin: 2px;">
+          <p>第三层嵌套</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 特殊字符测试 -->
+  <div class="special-chars">
+    <h2>特殊字符测试</h2>
+    <p>HTML实体：&lt;div&gt; &amp; &quot;test&quot; &apos;quote&apos;</p>
+    <p>Unicode字符：© ® ™ € £ ¥ § ¶</p>
+    <p>数学符号：∑ ∏ ∫ √ ∞ ± × ÷</p>
+    <p>箭头符号：← → ↑ ↓ ↔ ⇐ ⇒</p>
+    <p>Emoji：😀 😃 😄 😁 😆 😅 😂 🤣</p>
+  </div>
+
+  <!-- 复杂组合测试 -->
+  <div style="background-color: #fafafa; border: 3px solid #616161; padding: 20px; margin: 20px 0;">
+    <h2>复杂组合测试</h2>
+    <div style="display: flex; gap: 15px; margin: 15px 0;">
+      <div style="flex: 1; background-color: #e3f2fd; padding: 15px; border: 2px solid #2196f3;">
+        <h3>Flex子项1</h3>
+        <p>包含块级和行内元素的混合内容。</p>
+        <span style="color: #1976d2;">行内文本</span>
+      </div>
+      <div style="flex: 1; background-color: #fff3e0; padding: 15px; border: 2px solid #ff9800;">
+        <h3>Flex子项2</h3>
+        <p>另一个Flex子项，包含嵌套结构。</p>
+        <div style="background-color: #ffe0b2; padding: 10px; margin: 5px 0;">
+          <p>嵌套的div</p>
+        </div>
+      </div>
+    </div>
+    <div style="position: relative; background-color: #f3e5f5; padding: 15px; margin: 15px 0; border: 2px solid #9c27b0;">
+      <p>相对定位容器</p>
+      <div style="position: absolute; right: 10px; top: 10px; background-color: #ce93d8; padding: 10px;">
+        绝对定位子元素
+      </div>
+    </div>
+  </div>
+
+  <!-- 页脚 -->
+  <div style="text-align: center; padding: 20px; margin-top: 30px; background-color: #263238; color: white;">
+    <p>ZBrowser功能测试页面 - 测试完成</p>
+    <p style="font-size: 12px;">包含：块级布局、行内布局、定位布局、浮动布局、Flexbox布局、Grid布局、文本样式、多语言支持、边框背景、嵌套结构、特殊字符等测试</p>
+  </div>
+</body>
+</html>
+
